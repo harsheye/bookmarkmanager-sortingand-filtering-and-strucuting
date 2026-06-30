@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Bookmark Organizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <div class="popup-header">
+      <span class="logo-icon">✨</span>
+      <span class="logo-text">Bookmark Organizer</span>
+    </div>
+
+    <div class="popup-content">
+      <div class="quick-stats">
+        <div class="stat-item">
+          <span class="stat-val" id="total-bookmarks">-</span>
+          <span class="stat-lbl">Total Bookmarks</span>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="open-command-center-btn" class="btn btn-primary" style="margin-bottom: 8px; width: 100%;">
+          <span>Open Command Center</span> <span>⌨️</span>
+        </button>
+        
+        <button id="open-dashboard-btn" class="btn btn-secondary" style="margin-bottom: 8px; width: 100%;">
+          <span>Open Sorter Dashboard</span> <span>🚀</span>
+        </button>
+        
+        <button id="quick-restore-btn" class="btn btn-danger hidden" style="width: 100%;">
+          <span>↩️ Undo Last Sorting</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="popup-footer">
+      <span>100% Local & Secure &bull; Alt+Shift+A</span>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Bookmark Manager</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <!-- Animated Background Glows -->
+  <div class="glow-bg">
+    <div class="glow-blob blob-purple"></div>
+    <div class="glow-blob blob-cyan"></div>
+  </div>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo">
+        <span class="logo-icon">✨</span>
+        <span class="logo-text">Smart Bookmark Manager</span>
+      </div>
+      <div class="header-actions" style="display: flex; gap: 10px; align-items: center;">
+        <!-- Toggle views -->
+        <button id="toggle-manager-btn" class="btn btn-secondary btn-small hidden">
+          <span>📂</span> Bookmark Explorer
+        </button>
+        <button id="restructure-btn" class="btn btn-secondary btn-small">
+          <span>🪄</span> Restructure Library
+        </button>
+        <button id="view-db-btn" class="btn btn-secondary btn-small">
+          <span>📚</span> Domain Database
+        </button>
+        <button id="view-backups-btn" class="btn btn-secondary btn-small">
+          <span>↩️</span> Restore Points
+        </button>
+        <button id="toggle-wizard-btn" class="btn btn-primary btn-small">
+          <span>🪄</span> Smart Sorter
+        </button>
+        <button id="nav-scan-btn" class="btn btn-primary btn-small hidden">
+          <span>🔄</span> Scan Again
+        </button>
+        <button id="nav-restore-btn" class="btn btn-secondary btn-small hidden">
+          <span>↩️</span> Restore Original
+        </button>
+      </div>
+    </header>
+
+    <!-- VIEW 1: BOOKMARK MANAGER (Default View) -->
+    <div id="manager-view" class="manager-layout">
+      <!-- Left Sidebar: Folder tree navigation and Sorter Card -->
+      <aside class="manager-sidebar glass-panel">
+        <div class="navigation-box">
+          <h3>📁 Folder Directory</h3>
+          <div id="folder-tree-list">
+             <!-- Dynamically populated tree of folders -->
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right Panel: Command Search, Breadcrumbs and Bookmarks Explorer -->
+      <section class="manager-explorer glass-panel">
+        <!-- Search bar with commands suggestions -->
+        <div class="search-section" style="position: relative;">
+          <div class="search-bar-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="manager-search" placeholder="Search bookmarks or type / for commands (e.g. /help, /t movie, /sort date)..." autocomplete="off">
+            <button id="clear-search-btn" class="clear-btn hidden">✕</button>
+          </div>
+          
+          <!-- Command suggestions dropdown -->
+          <div id="command-suggestions" class="suggestions-dropdown hidden">
+             <!-- Populated dynamically via JS -->
+          </div>
+        </div>
+
+        <!-- Toolbar: Breadcrumbs and add action -->
+        <div class="explorer-toolbar">
+          <div class="breadcrumbs" id="explorer-breadcrumbs">
+            <span class="breadcrumb-item active" data-folder-id="0">Library</span>
+          </div>
+          <div class="explorer-actions">
+             <button id="add-bookmark-btn" class="btn btn-success btn-small">
+               <span>➕</span> Add Bookmark
+             </button>
+          </div>
+        </div>
+
+        <!-- Table Explorer list -->
+        <div class="explorer-list-container">
+          <table class="bookmarks-table" id="bookmarks-table">
+            <thead>
+              <tr>
+                <th id="th-name" style="width: 65%; cursor: pointer; user-select: none; position: relative;">Name <span id="sort-icon-name"></span><div class="col-resizer"></div></th>
+                <th id="th-url" style="width: 25%; cursor: pointer; user-select: none;">URL <span id="sort-icon-url"></span></th>
+                <th style="width: 10%; text-align: center;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="manager-bookmarks-body">
+              <!-- Dynamically populated list of bookmarks/folders -->
+            </tbody>
+          </table>
+          <div id="manager-empty-state" class="tree-empty hidden">
+            <span class="tree-empty-icon">🔍</span>
+            <span id="empty-state-text">No bookmarks found.</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- VIEW 2: SMART WIZARD (Hidden by default) -->
+    <div id="wizard-view" class="wizard-card glass-panel hidden">
+      <!-- Progress Indicator -->
+      <div class="stepper">
+        <div class="step active" id="step-ind-1">
+          <span class="step-num">1</span>
+          <span class="step-label">Configure</span>
+        </div>
+        <div class="step-line" id="line-1"></div>
+        <div class="step" id="step-ind-2">
+          <span class="step-num">2</span>
+          <span class="step-label">Scan</span>
+        </div>
+        <div class="step-line" id="line-2"></div>
+        <div class="step" id="step-ind-3">
+          <span class="step-num">3</span>
+          <span class="step-label">Preview</span>
+        </div>
+        <div class="step-line" id="line-3"></div>
+        <div class="step" id="step-ind-4">
+          <span class="step-num">4</span>
+          <span class="step-label">Complete</span>
+        </div>
+      </div>
+
+      <!-- STEP 1: Welcome & Settings -->
+      <section id="step-1" class="wizard-step active-step">
+        <div class="step-header">
+          <h1>Tidy Up Your Browser Bookmarks</h1>
+          <p class="subtitle">Organize cluttered links into smart, themed folders. Local, secure, and fully customizable.</p>
+        </div>
+
+        <div class="settings-grid">
+          <!-- Left Column: Categories -->
+          <div class="settings-box">
+            <h2>1. Choose Categories to Organize</h2>
+            <p class="box-desc">Select which themed folders to automatically create:</p>
+            <div class="categories-list" id="categories-container">
+              <!-- Dynamically populated from rules.js -->
+            </div>
+          </div>
+
+          <!-- Right Column: Settings -->
+          <div class="settings-box">
+            <h2>2. Domain Folder Settings</h2>
+            <p class="box-desc">If you have multiple bookmarks from the same website, we'll create a dedicated folder for it.</p>
+            
+            <div class="control-group">
+              <label for="threshold-slider" class="slider-label">
+                <span>Minimum Bookmarks for Domain Folder:</span>
+                <span id="threshold-val" class="badge">3</span>
+              </label>
+              <input type="range" id="threshold-slider" min="2" max="10" value="3" class="slider">
+              <span class="slider-hint">Example: If you have 3 or more bookmarks from "github.com", they get grouped into a "GitHub" folder.</span>
+            </div>
+
+            <div class="info-alert">
+              <span class="alert-icon">🔒</span>
+              <p class="alert-text"><strong>Privacy Guarantee:</strong> All analysis and restructuring happens entirely inside your browser. No data ever leaves your computer.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="step-actions">
+          <button id="start-scan-btn" class="btn btn-primary btn-large">
+            <span>Scan & Sort Bookmarks</span> <span class="btn-arrow">→</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- STEP 2: Scanning & Analyzing -->
+      <section id="step-2" class="wizard-step">
+        <div class="scanning-container">
+          <div class="spinner-outer">
+            <div class="spinner-inner"></div>
+            <div class="spinner-center">
+              <span id="scan-pct">0%</span>
+            </div>
+          </div>
+
+          <div class="scanning-status">
+            <h2 id="scanning-title">Scanning bookmarks library...</h2>
+            <p id="scanning-sub">Preparing secure snapshot before processing.</p>
+            
+            <div class="live-stats">
+              <div class="stat-bubble">
+                <span class="stat-label">Total Found</span>
+                <span class="stat-number" id="stat-total">0</span>
+              </div>
+              <div class="stat-bubble">
+                <span class="stat-label">Folders To Create</span>
+                <span class="stat-number" id="stat-folders">0</span>
+              </div>
+              <div class="stat-bubble">
+                <span class="stat-label">Matched Links</span>
+                <span class="stat-number" id="stat-matched">0</span>
+              </div>
+            </div>
+
+            <div class="scan-log glass-panel" id="scan-log">
+              <div class="log-line">Initializing Bookmark Sorter engine...</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 3: Interactive Preview & Edit -->
+      <section id="step-3" class="wizard-step">
+        <div class="step-header">
+          <h1>Review Proposed Folder Structure</h1>
+          <p class="subtitle">Expand folders to see bookmarks. Uncheck items to exclude them, or rename folders to your liking.</p>
+        </div>
+
+        <!-- Custom Folder Naming / Target Path Selection -->
+        <div class="preview-toolbar">
+          <div class="toolbar-input">
+            <label for="parent-folder-name">Parent Folder Name:</label>
+            <input type="text" id="parent-folder-name" value="Smart Sorted Bookmarks" class="text-input">
+          </div>
+          <div class="toolbar-stats">
+            <span class="badge badge-purple" id="preview-stat-count">0 items selected</span>
+          </div>
+        </div>
+
+        <!-- Scrollable Tree Preview Container -->
+        <div class="tree-preview-container glass-panel">
+          <div class="tree-root-header">
+            <label class="checkbox-container" onclick="event.stopPropagation()">
+              <input type="checkbox" id="select-all-preview" checked>
+              <span class="checkmark"></span>
+            </label>
+            <span class="tree-root-icon">📂</span>
+            <span class="tree-root-name" id="tree-root-name-label">Smart Sorted Bookmarks</span>
+          </div>
+          <div class="tree-body" id="tree-preview-body">
+            <!-- Dynamically populated preview of proposed folders and links -->
+          </div>
+        </div>
+
+        <div class="step-actions split-actions">
+          <button id="prev-step-btn" class="btn btn-secondary">
+            <span>←</span> Adjust Settings
+          </button>
+          <button id="apply-sort-btn" class="btn btn-success btn-large">
+            <span>Apply Organization</span> <span>✅</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- STEP 4: Success & Backup Restore -->
+      <section id="step-4" class="wizard-step">
+        <div class="success-container">
+          <div class="success-checkmark">
+            <div class="check-icon">
+              <span class="icon-line line-tip"></span>
+              <span class="icon-line line-long"></span>
+              <div class="icon-circle"></div>
+              <div class="icon-fix"></div>
+            </div>
+          </div>
+
+          <div class="success-details">
+            <h1>Organization Complete!</h1>
+            <p class="subtitle">Your bookmarks have been neatly sorted. You can find them under the folder you specified.</p>
+
+            <div class="success-stats-grid">
+              <div class="success-stat-card glass-panel">
+                <span class="succ-num" id="succ-folders">0</span>
+                <span class="succ-label">Folders Created</span>
+              </div>
+              <div class="success-stat-card glass-panel">
+                <span class="succ-num" id="succ-moved">0</span>
+                <span class="succ-label">Bookmarks Moved</span>
+              </div>
+            </div>
+
+            <div class="safety-net glass-panel">
+              <h3>⚡ Don't like the new arrangement?</h3>
+              <p>We saved a local backup of your bookmarks right before sorting. Click below to restore your exact original bookmarks tree instantly.</p>
+              <div class="backup-actions">
+                <button id="restore-btn" class="btn btn-danger">
+                  <span>↩️</span> Undo & Restore Original Bookmarks
+                </button>
+              </div>
+              <p class="backup-time-stamp" id="backup-timestamp-text">Backup created: Just now</p>
+            </div>
+
+            <div class="final-actions">
+              <button id="finish-btn" class="btn btn-primary">
+                Go to Bookmark Manager
+              </button>
+              <button id="restart-btn" class="btn btn-secondary">
+                Sort Again / Change Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Footer -->
+    <footer class="app-footer-bottom">
+      <p>Smart Bookmark Organizer v1.0.0 &bull; Private & Secure</p>
+    </footer>
+  </div>
+
+  <!-- BOOKMARK ADD/EDIT MODAL -->
+  <div id="bookmark-modal" class="modal-overlay hidden">
+    <div class="modal-card glass-panel">
+      <h2 id="modal-title">Add Bookmark</h2>
+      <div class="modal-body">
+        <input type="hidden" id="modal-item-id">
+        <input type="hidden" id="modal-parent-id">
+        <input type="hidden" id="modal-type" value="bookmark">
+        
+        <div class="form-group">
+          <label for="modal-input-title">Name</label>
+          <input type="text" id="modal-input-title" class="text-input" placeholder="e.g. GitHub - Trending" style="width: 100%;">
+        </div>
+        <div class="form-group" id="modal-url-group">
+          <label for="modal-input-url">URL</label>
+          <input type="text" id="modal-input-url" class="text-input" placeholder="https://github.com/trending" style="width: 100%;">
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+        <button id="modal-cancel-btn" class="btn btn-secondary btn-small">Cancel</button>
+        <button id="modal-save-btn" class="btn btn-success btn-small">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DATABASE EDITOR MODAL -->
+  <div id="database-modal" class="modal-overlay hidden">
+    <div class="modal-card glass-panel" style="max-width: 600px; width: 90%;">
+      <h2 style="font-size: 18px; font-weight: 700; color: white; display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+        <span>📚 Domain Category Database</span>
+        <button id="db-modal-close" class="clear-btn" style="font-size: 18px;">✕</button>
+      </h2>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 15px;">
+        <div class="form-group" style="position: relative; z-index: 1010;">
+          <label style="display: block; margin-bottom: 6px; font-size: 13px; color: var(--text-muted);">Select Category:</label>
+          <div class="custom-select-wrapper">
+            <div id="db-category-trigger" class="custom-select-trigger">
+              <span id="db-category-selected-text">Select Category</span>
+              <span class="custom-select-arrow">▼</span>
+            </div>
+            <div id="db-category-options" class="custom-select-options hidden">
+              <!-- Dynamically populated options -->
+            </div>
+          </div>
+        </div>
+        
+        <div class="form-group" style="display: flex; flex-direction: column; gap: 10px;">
+          <label style="display: block; font-size: 13px; color: var(--text-muted);">Registered Domains:</label>
+          
+          <!-- Add Domain inline form -->
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="db-new-domain" class="text-input" placeholder="e.g. github.com" style="flex-grow: 1;">
+            <button id="db-add-btn" class="btn btn-success btn-small">➕ Add</button>
+          </div>
+          
+          <!-- Domains Grid Container with scrollable columns -->
+          <div id="db-domains-list" style="max-height: 240px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; background: rgba(0,0,0,0.2); padding: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; align-content: start;">
+             <!-- Domain chips with remove buttons -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 15px; margin-top: 15px;">
+        <button id="db-save-btn" class="btn btn-success btn-small">Save & Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESTORE POINTS HISTORY MODAL -->
+  <div id="backups-modal" class="modal-overlay hidden">
+    <div class="modal-card glass-panel" style="max-width: 650px; width: 95%;">
+      <h2 style="font-size: 18px; font-weight: 700; color: white; display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+        <span>↩️ Bookmark Restore Points</span>
+        <button id="backups-modal-close" class="clear-btn" style="font-size: 18px;">✕</button>
+      </h2>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 15px;">
+        <p style="color: var(--text-muted); font-size: 13.5px; margin-bottom: 5px;">
+          Choose a restore point below to revert your bookmarks back to their exact original slots before that specific organization.
+        </p>
+        <div id="backups-list-container" style="max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 5px;">
+          <!-- Dynamically populated list of restore points -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading Scripts -->
+  <script src="rules.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>
