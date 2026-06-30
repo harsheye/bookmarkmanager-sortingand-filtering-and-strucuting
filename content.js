@@ -470,6 +470,8 @@ function createCommandCenter() {
     
     if (isA && (hasAltShift || hasCtrlShift)) {
       e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
       closeCommandCenter();
       return;
     }
