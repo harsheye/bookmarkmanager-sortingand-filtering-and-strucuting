@@ -73,16 +73,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
-// Fallback: Listen to keyboard shortcut directly in the tab (supports both Alt+Shift+A and Ctrl+Shift+A)
+// Listen to keyboard shortcut directly in the tab: Alt+A
 document.addEventListener("keydown", (e) => {
   const key = e.key ? e.key.toLowerCase() : "";
   const isA = key === "a" || key === "å" || e.code === "KeyA" || e.keyCode === 65;
-  const hasAltShift = e.altKey && e.shiftKey;
-  const hasCtrlShift = (e.ctrlKey || e.metaKey) && e.shiftKey;
+  const hasAltOnly = e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey;
   
-  if (isA && (hasAltShift || hasCtrlShift)) {
+  if (isA && hasAltOnly) {
     e.preventDefault();
-    toggleCommandCenter();
+    // Exits full screen if active
+    const fullscreenEl = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+    if (fullscreenEl) {
+      const exitFS = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+      if (exitFS) {
+        exitFS.call(document).then(() => {
+          toggleCommandCenter();
+        }).catch(() => {
+          toggleCommandCenter();
+        });
+      } else {
+        toggleCommandCenter();
+      }
+    } else {
+      toggleCommandCenter();
+    }
   }
 });
 
@@ -465,10 +479,9 @@ function createCommandCenter() {
   ccSearchInput.addEventListener("keydown", (e) => {
     const key = e.key ? e.key.toLowerCase() : "";
     const isA = key === "a" || key === "å" || e.code === "KeyA" || e.keyCode === 65;
-    const hasAltShift = e.altKey && e.shiftKey;
-    const hasCtrlShift = (e.ctrlKey || e.metaKey) && e.shiftKey;
+    const hasAltOnly = e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey;
     
-    if (isA && (hasAltShift || hasCtrlShift)) {
+    if (isA && hasAltOnly) {
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -756,7 +769,31 @@ function highlightSuggestion(sugItems) {
 }
 
 function executeSelection() {
-  if (selectedIndex < 0 || selectedIndex >= visibleItems.length) return;
+  if (selectedIndex < 0 || selectedIndex >= visibleItems.length) {
+    // No matching bookmark item is selected: treat the search input text as a direct URL or spaced web query
+    const query = ccSearchInput.value.trim();
+    if (query) {
+      const hasSpace = /\s/.test(query);
+      const isDirectUrl = !hasSpace && (
+        /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/i.test(query)
+      );
+      
+      let targetUrl = query;
+      if (isDirectUrl) {
+        if (!/^https?:\/\//i.test(query)) {
+          targetUrl = "https://" + query;
+        }
+      } else {
+        // Spaced search query or general term: open Google Search
+        targetUrl = "https://www.google.com/search?q=" + encodeURIComponent(query);
+      }
+      
+      window.open(targetUrl, "_blank");
+      closeCommandCenter();
+    }
+    return;
+  }
+  
   const item = visibleItems[selectedIndex];
 
   if (item.url) {

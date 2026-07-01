@@ -986,20 +986,25 @@ async function applyBookmarkSorting() {
 
     // Save backup object to local storage
     await chrome.storage.local.set({ 'bookmarks_backup': backupLog });
-    lastBackup = backupLog;
-    addLog('Safety backup snapshot saved to storage.');
-
+    
     // 2. CREATE SMART FOLDERS AND MOVE BOOKMARKS
-    // Create the master parent folder on the Bookmarks Bar (parentId: '1')
-    const parentFolderNode = await createBookmarkFolder(parentName, '1');
-    backupLog.createdFolders.push(parentFolderNode.id);
+    let parentFolderId = '1';
+    let foldersCreatedCount = 0;
+    
+    const isDirectToBar = parentName === '' || parentName.toLowerCase() === 'bookmarks bar' || parentName.toLowerCase() === 'bookmark bar';
+    
+    if (!isDirectToBar) {
+      const parentFolderNode = await createBookmarkFolder(parentName, '1');
+      parentFolderId = parentFolderNode.id;
+      backupLog.createdFolders.push(parentFolderNode.id);
+      foldersCreatedCount++;
+    }
 
     let movedBookmarksCount = 0;
-    let foldersCreatedCount = 1; // start with parent
 
     // A. Create & Move Categories
     for (const sc of selectedCategories) {
-      const catFolderNode = await createBookmarkFolder(sc.catName, parentFolderNode.id);
+      const catFolderNode = await createBookmarkFolder(sc.catName, parentFolderId);
       backupLog.createdFolders.push(catFolderNode.id);
       foldersCreatedCount++;
 
@@ -1023,7 +1028,7 @@ async function applyBookmarkSorting() {
 
     // B. Create & Move Domains
     for (const sd of selectedDomains) {
-      const domainFolderNode = await createBookmarkFolder(sd.folderName, parentFolderNode.id);
+      const domainFolderNode = await createBookmarkFolder(sd.folderName, parentFolderId);
       backupLog.createdFolders.push(domainFolderNode.id);
       foldersCreatedCount++;
 
@@ -1043,7 +1048,7 @@ async function applyBookmarkSorting() {
     checkExistingBackup();
 
     // 3. TRANSITION TO SUCCESS PAGE
-    succFolders.textContent = foldersCreatedCount - 1; // subtract main parent
+    succFolders.textContent = foldersCreatedCount;
     succMoved.textContent = movedBookmarksCount;
     
     // Clear disabled state
@@ -1151,12 +1156,10 @@ const BookmarkManager = {
   selectedItemIds: new Set(), // Track selected table row bookmark IDs
   lastClickedId: null, // Shift-selection anchor
   dragStartRow: null, // Start row for drag selection marquee
-  sortState: {
-    column: '',
-    ascending: true
-  },
+  activeView: 'bookmarks',
 
   async init() {
+    this.activeView = 'bookmarks';
     this.bindDOM();
     this.setupListeners();
     this.setupColumnResizing();
@@ -1209,6 +1212,11 @@ const BookmarkManager = {
     this.backupsModal = document.getElementById('backups-modal');
     this.backupsCloseBtn = document.getElementById('backups-modal-close');
     this.backupsListContainer = document.getElementById('backups-list-container');
+
+    // Sidebar Tabs
+    this.tabBookmarks = document.getElementById('tab-bookmarks');
+    this.tabHistory = document.getElementById('tab-history');
+    this.tabCookies = document.getElementById('tab-cookies');
   },
 
   setupListeners() {
@@ -1216,12 +1224,38 @@ const BookmarkManager = {
     this.toggleWizardBtn.addEventListener('click', () => this.showWizard());
     this.toggleManagerBtn.addEventListener('click', () => this.showManager());
 
+    // Sidebar Views
+    if (this.tabBookmarks) {
+      this.tabBookmarks.addEventListener('click', () => this.switchView('bookmarks'));
+    }
+    if (this.tabHistory) {
+      this.tabHistory.addEventListener('click', () => this.switchView('history'));
+    }
+    if (this.tabCookies) {
+      this.tabCookies.addEventListener('click', () => this.switchView('cookies'));
+    }
+
     // Search and Command Logic
-    this.searchInput.addEventListener('input', (e) => this.handleSearchInput(e.target.value));
+    this.searchInput.addEventListener('input', (e) => {
+      const val = e.target.value.trim();
+      if (this.activeView === 'bookmarks') {
+        this.handleSearchInput(val);
+      } else if (this.activeView === 'history') {
+        this.loadHistory(val);
+      } else if (this.activeView === 'cookies') {
+        this.loadCookies(val);
+      }
+    });
     this.searchInput.addEventListener('keydown', (e) => this.handleSearchKeydown(e));
     this.clearSearchBtn.addEventListener('click', () => {
       this.searchInput.value = '';
-      this.handleSearchInput('');
+      if (this.activeView === 'bookmarks') {
+        this.handleSearchInput('');
+      } else if (this.activeView === 'history') {
+        this.loadHistory('');
+      } else if (this.activeView === 'cookies') {
+        this.loadCookies('');
+      }
       this.searchInput.focus();
     });
 
@@ -1406,30 +1440,36 @@ const BookmarkManager = {
       }
       indexNodes(tree[0]);
       
-      // 2. Find or create the parent root folder
-      let parentNode = null;
-      function findParent(node) {
-        if (node.title === parentName && !node.url) {
-          parentNode = node;
-          return true;
-        }
-        if (node.children) {
-          for (const child of node.children) {
-            if (findParent(child)) return true;
-          }
-        }
-        return false;
-      }
-      findParent(tree[0]);
-
       let parentId;
-      if (!parentNode) {
-        // Create root parent folder under Bookmark Bar ("1")
-        const newFolder = await trackCreateFolder(parentName, "1");
-        parentId = newFolder.id;
-        parentNode = { id: parentId, title: parentName, children: [] };
+      const isDirectToBar = parentName === '' || parentName.toLowerCase() === 'bookmarks bar' || parentName.toLowerCase() === 'bookmark bar';
+      
+      if (isDirectToBar) {
+        parentId = "1";
       } else {
-        parentId = parentNode.id;
+        // 2. Find or create the parent root folder
+        let parentNode = null;
+        function findParent(node) {
+          if (node.title === parentName && !node.url) {
+            parentNode = node;
+            return true;
+          }
+          if (node.children) {
+            for (const child of node.children) {
+              if (findParent(child)) return true;
+            }
+          }
+          return false;
+        }
+        findParent(tree[0]);
+
+        if (!parentNode) {
+          // Create root parent folder under Bookmark Bar ("1")
+          const newFolder = await trackCreateFolder(parentName, "1");
+          parentId = newFolder.id;
+          parentNode = { id: parentId, title: parentName, children: [] };
+        } else {
+          parentId = parentNode.id;
+        }
       }
 
       // Fetch the full sub-tree of the parent folder to map existing category folders
@@ -1983,14 +2023,123 @@ const BookmarkManager = {
     this.lastClickedId = null;
     this.dragStartRow = null;
 
+    const foldersGridSection = document.getElementById('folders-grid-section');
+    const foldersGrid = document.getElementById('folders-grid');
+
     if (items.length === 0) {
+      if (foldersGridSection) foldersGridSection.classList.add('hidden');
       this.emptyState.classList.remove('hidden');
       return;
     }
     
     this.emptyState.classList.add('hidden');
 
-    items.forEach(item => {
+    let displayItems = items;
+
+    if (this.activeView === 'bookmarks') {
+      const folders = items.filter(item => !item.url);
+      displayItems = items.filter(item => item.url);
+
+      if (folders.length > 0 && foldersGridSection && foldersGrid) {
+        foldersGridSection.classList.remove('hidden');
+        foldersGrid.innerHTML = '';
+        
+        folders.forEach(folder => {
+          const tile = document.createElement('div');
+          tile.className = 'folder-tile glass-panel';
+          tile.dataset.itemId = folder.id;
+          tile.setAttribute('draggable', 'true');
+          
+          const countText = folder.children ? `${folder.children.length} items` : '0 items';
+          
+          tile.innerHTML = `
+            <div class="folder-tile-header">
+              <span class="folder-tile-icon" style="cursor: grab;">📁</span>
+              <div class="folder-tile-actions">
+                <button class="action-icon-btn edit-btn" title="Edit">✏️</button>
+                <button class="action-icon-btn delete-btn" title="Delete">🗑️</button>
+              </div>
+            </div>
+            <div class="folder-tile-title" title="${folder.title}"><strong>${folder.title}</strong></div>
+            <div class="folder-tile-count">${countText}</div>
+          `;
+
+          // Drag Start
+          tile.addEventListener('dragstart', (e) => {
+            this.selectedItemIds.clear();
+            this.selectedItemIds.add(folder.id);
+            e.dataTransfer.setData('text/plain', JSON.stringify([folder.id]));
+            e.dataTransfer.effectAllowed = 'move';
+            
+            const dragIcon = document.createElement('div');
+            dragIcon.className = 'drag-feedback-badge';
+            dragIcon.id = 'drag-ghost-bubble';
+            dragIcon.style.position = 'absolute';
+            dragIcon.style.top = '-1000px';
+            dragIcon.style.left = '-1000px';
+            dragIcon.style.background = '#6366f1';
+            dragIcon.style.color = 'white';
+            dragIcon.style.padding = '8px 16px';
+            dragIcon.style.borderRadius = '24px';
+            dragIcon.style.fontSize = '13px';
+            dragIcon.style.fontWeight = '700';
+            dragIcon.style.boxShadow = '0 10px 30px rgba(0,0,0,0.6)';
+            dragIcon.style.border = '1px solid rgba(255,255,255,0.15)';
+            dragIcon.textContent = `📁 Moving "${folder.title}"`;
+            document.body.appendChild(dragIcon);
+            e.dataTransfer.setDragImage(dragIcon, 15, 15);
+            setTimeout(() => dragIcon.remove(), 0);
+          });
+          
+          tile.addEventListener('click', (e) => {
+            if (e.target.closest('button')) return;
+            this.switchFolder(folder.id);
+          });
+          
+          tile.querySelector('.edit-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.openEditModal(folder);
+          });
+          
+          tile.querySelector('.delete-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.deleteItem(folder);
+          });
+          
+          tile.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            tile.classList.add('drag-over');
+          });
+          
+          tile.addEventListener('dragleave', () => {
+            tile.classList.remove('drag-over');
+          });
+          
+          tile.addEventListener('drop', (e) => {
+            e.preventDefault();
+            tile.classList.remove('drag-over');
+            this.handleDropOnFolder(folder.id, e);
+          });
+          
+          foldersGrid.appendChild(tile);
+        });
+      } else if (foldersGridSection) {
+        foldersGridSection.classList.add('hidden');
+      }
+    } else if (foldersGridSection) {
+      foldersGridSection.classList.add('hidden');
+    }
+
+    if (displayItems.length === 0) {
+      if (this.activeView === 'bookmarks' && folders.length > 0) {
+        // We have folder tiles but no bookmark links, which is fine!
+        return;
+      }
+      this.emptyState.classList.remove('hidden');
+      return;
+    }
+
+    displayItems.forEach(item => {
       const tr = document.createElement('tr');
       tr.dataset.itemId = item.id;
       tr.draggable = false; // Start as false to allow drag-selection on row click
@@ -2011,7 +2160,7 @@ const BookmarkManager = {
         `;
         urlCellContent = `<a href="${item.url}" target="_blank" style="color:var(--text-muted); text-decoration:none;">${item.url}</a>`;
       } else {
-        // It is a folder - wrap folder icon in drag handle
+        // Fallback for non-split folder rows (such as in search result tables)
         nameCellContent = `
           <div class="table-cell-name" style="cursor: pointer;">
             <span class="drag-handle">📁</span>
@@ -2832,12 +2981,338 @@ const BookmarkManager = {
     } catch (err) {
       console.error(err);
       alert('Error during restoration: ' + err.message);
-    } finally {
-      if (restorePointBtn) {
-        restorePointBtn.disabled = false;
-        restorePointBtn.textContent = originalText;
+    }
+  },
+
+  async handleDropOnFolder(targetFolderId, e) {
+    try {
+      const dataText = e.dataTransfer.getData('text/plain');
+      const dragIds = JSON.parse(dataText);
+      if (Array.isArray(dragIds)) {
+        for (const id of dragIds) {
+          if (id !== targetFolderId) {
+            await moveBookmark(id, targetFolderId);
+          }
+        }
+        this.refreshLibrary();
+      }
+    } catch (err) {
+      console.error("Drop on folder tile failed:", err);
+    }
+  },
+
+  switchView(viewName) {
+    this.activeView = viewName;
+    
+    // Toggle active classes on sidebar tabs
+    document.querySelectorAll('.sidebar-tab').forEach(el => el.classList.remove('active'));
+    if (viewName === 'bookmarks' && this.tabBookmarks) this.tabBookmarks.classList.add('active');
+    if (viewName === 'history' && this.tabHistory) this.tabHistory.classList.add('active');
+    if (viewName === 'cookies' && this.tabCookies) this.tabCookies.classList.add('active');
+    
+    // Update Search Bar Placeholder
+    if (this.searchInput) {
+      if (viewName === 'bookmarks') {
+        this.searchInput.placeholder = "Search bookmarks or type / for commands...";
+      } else if (viewName === 'history') {
+        this.searchInput.placeholder = "Search browsing history...";
+      } else if (viewName === 'cookies') {
+        this.searchInput.placeholder = "Search website cookies...";
+      }
+      this.searchInput.value = '';
+    }
+    
+    // Hide folders sidebar tree if not in bookmarks view (since folder directory is only for bookmarks!)
+    const navigationBox = document.querySelector('.navigation-box');
+    if (navigationBox) {
+      if (viewName === 'bookmarks') {
+        navigationBox.style.display = 'block';
+      } else {
+        navigationBox.style.display = 'none';
       }
     }
+    
+    // Refresh content
+    this.refreshViewContent();
+  },
+
+  async refreshViewContent() {
+    if (this.activeView === 'bookmarks') {
+      // Restore bookmarks view: show the breadcrumbs, add button, and load bookmarks
+      document.getElementById('explorer-breadcrumbs').style.display = 'flex';
+      document.getElementById('add-bookmark-btn').style.display = 'inline-flex';
+      
+      // Update Table Headers
+      document.getElementById('th-name').innerHTML = `Name <span id="sort-icon-name"></span><div class="col-resizer"></div>`;
+      document.getElementById('th-url').innerHTML = `URL <span id="sort-icon-url"></span>`;
+      this.setupColumnResizing(); // rebind resizer
+      
+      await this.loadFolderContents(this.activeFolderId);
+    } else if (this.activeView === 'history') {
+      // History view: hide folder breadcrumbs, hide add bookmark button
+      document.getElementById('explorer-breadcrumbs').style.display = 'none';
+      document.getElementById('add-bookmark-btn').style.display = 'none';
+      
+      // Update Table Headers
+      document.getElementById('th-name').innerHTML = `Page Title`;
+      document.getElementById('th-url').innerHTML = `URL / Last Visited`;
+      
+      this.loadHistory();
+    } else if (this.activeView === 'cookies') {
+      // Cookies view: hide breadcrumbs, hide add button
+      document.getElementById('explorer-breadcrumbs').style.display = 'none';
+      document.getElementById('add-bookmark-btn').style.display = 'none';
+      
+      // Update Table Headers
+      document.getElementById('th-name').innerHTML = `Domain / Site`;
+      document.getElementById('th-url').innerHTML = `Cookie Details`;
+      
+      this.loadCookies();
+    }
+  },
+
+  loadHistory(query = '') {
+    this.bookmarksBody.innerHTML = '';
+    
+    chrome.history.search({ text: query, maxResults: 150 }, (historyItems) => {
+      if (chrome.runtime.lastError || !historyItems || historyItems.length === 0) {
+        document.getElementById('folders-grid-section').classList.add('hidden');
+        this.emptyState.classList.remove('hidden');
+        document.getElementById('empty-state-text').textContent = "No history items found.";
+        return;
+      }
+      
+      this.emptyState.classList.add('hidden');
+      document.getElementById('folders-grid-section').classList.add('hidden');
+      
+      historyItems.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.dataset.itemId = item.id;
+        
+        const visitTime = new Date(item.lastVisitTime).toLocaleString();
+        const cleanDomain = BookmarkRules.getDomain(item.url);
+        const faviconUrl = `https://www.google.com/s2/favicons?sz=32&domain=${cleanDomain}`;
+        
+        tr.innerHTML = `
+          <td>
+            <div class="table-cell-name">
+              <span><img class="table-favicon" src="${faviconUrl}" onerror="this.src='../icons/icon16.png'"></span>
+              <a href="${item.url}" target="_blank" class="table-link" title="${item.title || item.url}">${item.title || item.url}</a>
+            </div>
+          </td>
+          <td title="${item.url}">
+            <div style="display:flex; flex-direction:column; gap:2px;">
+              <a href="${item.url}" target="_blank" style="color:var(--text-muted); text-decoration:none; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; max-width:400px;">${item.url}</a>
+              <span style="font-size:11px; color:rgba(255,255,255,0.4);">Visited: ${visitTime} &bull; Visits: ${item.visitCount}</span>
+            </div>
+          </td>
+          <td class="table-actions-cell" style="text-align:center;">
+            <button class="action-icon-btn delete-history-btn" title="Delete from History">🗑️</button>
+          </td>
+        `;
+        
+        tr.querySelector('.delete-history-btn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          chrome.history.deleteUrl({ url: item.url }, () => {
+            tr.remove();
+            if (this.bookmarksBody.children.length === 0) {
+              this.emptyState.classList.remove('hidden');
+              document.getElementById('empty-state-text').textContent = "No history items found.";
+            }
+          });
+        });
+        
+        this.bookmarksBody.appendChild(tr);
+      });
+    });
+  },
+
+  loadCookies(filterQuery = '') {
+    this.bookmarksBody.innerHTML = '';
+    
+    chrome.cookies.getAll({}, (allCookies) => {
+      if (chrome.runtime.lastError || !allCookies || allCookies.length === 0) {
+        document.getElementById('folders-grid-section').classList.add('hidden');
+        this.emptyState.classList.remove('hidden');
+        document.getElementById('empty-state-text').textContent = "No cookies found. Make sure the extension has the 'cookies' permission.";
+        return;
+      }
+      
+      this.emptyState.classList.add('hidden');
+      document.getElementById('folders-grid-section').classList.add('hidden');
+      
+      // Group cookies by domain
+      const domainMap = {};
+      allCookies.forEach(cookie => {
+        let domain = cookie.domain;
+        if (domain.startsWith('.')) domain = domain.substring(1);
+        
+        if (!domainMap[domain]) {
+          domainMap[domain] = {
+            domain: domain,
+            cookies: [],
+            isLoggedIn: false
+          };
+        }
+        
+        domainMap[domain].cookies.push(cookie);
+        
+        // Detect login session indicators (standard auth cookie names)
+        const nameLower = cookie.name.toLowerCase();
+        if (
+          nameLower.includes('session') ||
+          nameLower.includes('token') ||
+          nameLower.includes('auth') ||
+          nameLower.includes('sid') ||
+          nameLower.includes('login') ||
+          nameLower.includes('user') ||
+          nameLower.includes('sessid') ||
+          nameLower.includes('jwt') ||
+          cookie.name.startsWith('__Host-') ||
+          cookie.name.startsWith('__Secure-')
+        ) {
+          domainMap[domain].isLoggedIn = true;
+        }
+      });
+      
+      // Convert to array and filter by query
+      let domainsList = Object.values(domainMap);
+      if (filterQuery) {
+        domainsList = domainsList.filter(d => d.domain.includes(filterQuery.toLowerCase()));
+      }
+      
+      // Sort: logged in sessions first, then domain name
+      domainsList.sort((a, b) => {
+        if (a.isLoggedIn && !b.isLoggedIn) return -1;
+        if (!a.isLoggedIn && b.isLoggedIn) return 1;
+        return a.domain.localeCompare(b.domain);
+      });
+
+      // Save/collect active session cookies to storage
+      const activeSessions = domainsList.filter(d => d.isLoggedIn).map(d => ({
+        domain: d.domain,
+        timestamp: Date.now(),
+        cookieCount: d.cookies.length
+      }));
+      chrome.storage.local.set({ 'saved_cookie_sessions': activeSessions });
+      
+      if (domainsList.length === 0) {
+        this.emptyState.classList.remove('hidden');
+        document.getElementById('empty-state-text').textContent = "No matching website cookies found.";
+        return;
+      }
+      
+      domainsList.forEach(d => {
+        const tr = document.createElement('tr');
+        tr.dataset.itemId = d.domain;
+        
+        const loginBadge = d.isLoggedIn 
+          ? `<span style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); color:#10b981; font-size:11px; padding:2px 8px; border-radius:12px; font-weight:600; margin-left:10px;">🔐 Active Session</span>`
+          : `<span style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); color:var(--text-muted); font-size:11px; padding:2px 8px; border-radius:12px; margin-left:10px;">Guest</span>`;
+          
+        const faviconUrl = `https://www.google.com/s2/favicons?sz=32&domain=${d.domain}`;
+        
+        tr.innerHTML = `
+          <td>
+            <div class="table-cell-name" style="cursor:pointer; display:flex; align-items:center;">
+              <span class="cookie-toggle-arrow" style="margin-right:8px; color:rgba(255,255,255,0.3); font-size:10px;">▶</span>
+              <span><img class="table-favicon" src="${faviconUrl}" onerror="this.src='../icons/icon16.png'"></span>
+              <strong style="color:white; font-size:13.5px;">${d.domain}</strong>
+              ${loginBadge}
+            </div>
+          </td>
+          <td>
+            <span style="color:var(--text-muted); font-size:12.5px;">${d.cookies.length} cookies stored</span>
+          </td>
+          <td class="table-actions-cell" style="text-align:center;">
+            <button class="action-icon-btn clear-domain-cookies-btn" title="Clear all cookies for domain">🗑️</button>
+          </td>
+        `;
+        
+        // Add detailed cookies list (sub-row) that toggles open
+        const detailTr = document.createElement('tr');
+        detailTr.className = 'cookie-detail-row hidden';
+        detailTr.innerHTML = `
+          <td colspan="3" style="background:rgba(0,0,0,0.15); padding:12px 24px;">
+            <div style="display:flex; flex-direction:column; gap:8px; max-height:240px; overflow-y:auto; padding-right:5px;">
+              ${d.cookies.map(c => `
+                <div class="cookie-detail-item" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.04); padding:6px 0; font-size:12px;">
+                  <div style="display:flex; flex-direction:column; gap:2px; max-width:85%;">
+                    <div style="color:white; font-weight:600;">
+                      <span style="color:var(--color-primary); font-family:monospace; font-size:12px;">${c.name}</span>
+                      ${c.secure ? '<span style="color:#60a5fa; font-size:10px; margin-left:6px;">[Secure]</span>' : ''}
+                      ${c.httpOnly ? '<span style="color:#fbbf24; font-size:10px; margin-left:6px;">[HTTPOnly]</span>' : ''}
+                    </div>
+                    <div style="font-family:monospace; color:var(--text-muted); word-break:break-all; font-size:11px;">${c.value}</div>
+                  </div>
+                  <button class="btn btn-danger btn-small delete-single-cookie-btn" data-name="${c.name}" data-url="${(c.secure ? 'https://' : 'http://') + c.domain.replace(/^\./, '') + c.path}" style="padding:2px 8px; font-size:10.5px;">Delete</button>
+                </div>
+              `).join('')}
+            </div>
+          </td>
+        `;
+        
+        // Toggle expansion
+        tr.querySelector('.table-cell-name').addEventListener('click', () => {
+          const arrow = tr.querySelector('.cookie-toggle-arrow');
+          const isHidden = detailTr.classList.contains('hidden');
+          if (isHidden) {
+            detailTr.classList.remove('hidden');
+            arrow.textContent = '▼';
+            arrow.style.color = 'var(--color-primary)';
+          } else {
+            detailTr.classList.add('hidden');
+            arrow.textContent = '▶';
+            arrow.style.color = 'rgba(255,255,255,0.3)';
+          }
+        });
+        
+        // Clear all cookies for domain button
+        tr.querySelector('.clear-domain-cookies-btn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          const confirmClear = confirm(`Are you sure you want to clear all ${d.cookies.length} cookies for ${d.domain}?`);
+          if (!confirmClear) return;
+          
+          let clearedCount = 0;
+          d.cookies.forEach(c => {
+            const protocol = c.secure ? 'https://' : 'http://';
+            const domainClean = c.domain.startsWith('.') ? c.domain.substring(1) : c.domain;
+            const url = `${protocol}${domainClean}${c.path}`;
+            chrome.cookies.remove({ url: url, name: c.name }, () => {
+              clearedCount++;
+              if (clearedCount === d.cookies.length) {
+                tr.remove();
+                detailTr.remove();
+                if (this.bookmarksBody.children.length === 0) {
+                  this.emptyState.classList.remove('hidden');
+                  document.getElementById('empty-state-text').textContent = "No matching website cookies found.";
+                }
+              }
+            });
+          });
+        });
+        
+        // Delete single cookie buttons
+        detailTr.querySelectorAll('.delete-single-cookie-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const cookieName = btn.dataset.name;
+            const cookieUrl = btn.dataset.url;
+            chrome.cookies.remove({ url: cookieUrl, name: cookieName }, () => {
+              btn.closest('.cookie-detail-item').remove();
+              d.cookies = d.cookies.filter(c => c.name !== cookieName);
+              tr.querySelector('td:nth-child(2) span').textContent = `${d.cookies.length} cookies stored`;
+              if (d.cookies.length === 0) {
+                tr.remove();
+                detailTr.remove();
+              }
+            });
+          });
+        });
+        
+        this.bookmarksBody.appendChild(tr);
+        this.bookmarksBody.appendChild(detailTr);
+      });
+    });
   }
 };
 

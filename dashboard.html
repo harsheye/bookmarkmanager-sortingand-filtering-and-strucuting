@@ -53,6 +53,17 @@
     <div id="manager-view" class="manager-layout">
       <!-- Left Sidebar: Folder tree navigation and Sorter Card -->
       <aside class="manager-sidebar glass-panel">
+        <div class="sidebar-tabs" style="display:flex; flex-direction:column; gap:8px; margin-bottom:20px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:15px;">
+          <div class="sidebar-tab active" id="tab-bookmarks" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:white; font-weight:600; font-size:14px; transition:background 0.2s;">
+            <span>📂</span> Bookmark Explorer
+          </div>
+          <div class="sidebar-tab" id="tab-history" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:var(--text-muted); font-size:14px; transition:background 0.2s;">
+            <span>📜</span> Browsing History
+          </div>
+          <div class="sidebar-tab" id="tab-cookies" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:var(--text-muted); font-size:14px; transition:background 0.2s;">
+            <span>🍪</span> Cookie Manager
+          </div>
+        </div>
         <div class="navigation-box">
           <h3>📁 Folder Directory</h3>
           <div id="folder-tree-list">
@@ -91,6 +102,12 @@
 
         <!-- Table Explorer list -->
         <div class="explorer-list-container">
+          <!-- Folders Grid Section -->
+          <div class="folders-grid-section hidden" id="folders-grid-section">
+            <h3>Folders</h3>
+            <div class="folders-grid" id="folders-grid"></div>
+          </div>
+
           <table class="bookmarks-table" id="bookmarks-table">
             <thead>
               <tr>
@@ -228,7 +245,7 @@
         <div class="preview-toolbar">
           <div class="toolbar-input">
             <label for="parent-folder-name">Parent Folder Name:</label>
-            <input type="text" id="parent-folder-name" value="Smart Sorted Bookmarks" class="text-input">
+            <input type="text" id="parent-folder-name" value="Bookmarks Bar" class="text-input">
           </div>
           <div class="toolbar-stats">
             <span class="badge badge-purple" id="preview-stat-count">0 items selected</span>

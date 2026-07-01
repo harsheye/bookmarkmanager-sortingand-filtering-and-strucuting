@@ -30,6 +30,8 @@ function toggleCenterInTab(tabId) {
       }, () => {
         if (chrome.runtime.lastError) {
           console.warn("Could not inject script (likely a browser system page):", chrome.runtime.lastError.message);
+          // Fallback: open full-page manager dashboard in new tab
+          chrome.tabs.create({ url: "dashboard.html" });
           return;
         }
         // 3. Script injected, wait a split second and trigger toggle

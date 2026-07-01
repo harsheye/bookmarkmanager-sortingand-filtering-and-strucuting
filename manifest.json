@@ -7,7 +7,9 @@
     "bookmarks",
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "cookies",
+    "history"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -30,8 +32,8 @@
   "commands": {
     "toggle-command-center": {
       "suggested_key": {
-        "default": "Alt+Shift+A",
-        "mac": "Alt+Shift+A"
+        "default": "Alt+A",
+        "mac": "Alt+A"
       },
       "description": "Toggle the Bookmark Command Center overlay"
     }
