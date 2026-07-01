@@ -108,7 +108,7 @@ const BookmarkRules = {
       domains: [
         "pornhub.com", "xvideos.com", "xnxx.com", "xhamster.com", 
         "onlyfans.com", "chaturbate.com", "redtube.com", "youporn.com", 
-        "erowall.com", "omg.adult", "pornhub.org", "xasiat.com"
+        "erowall.com", "omg.adult", "omd.adult", "pornhub.org", "xasiat.com"
       ]
     },
     {
@@ -206,6 +206,14 @@ const BookmarkRules = {
       // 1. Direct Domain Match (Highest priority, prioritizing adult domains over general media)
       if (cat.domains && cat.domains.some(d => domain === d || domain.endsWith("." + d))) {
         score += (cat.id === "adult") ? 12.0 : 10.0;
+      }
+
+      // Special TLD / Domain suffix scoring boost for adult categories
+      if (cat.id === "adult") {
+        const isAdultTld = domain.endsWith(".adult") || domain.endsWith(".porn") || domain.endsWith(".xxx") || domain.endsWith(".cam") || domain.endsWith(".sex");
+        if (isAdultTld) {
+          score += 15.0; // absolute top score overriding generic keyword scoring
+        }
       }
 
       // 2. Keyword Match (Weighted)
