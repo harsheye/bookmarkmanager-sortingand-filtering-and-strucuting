@@ -4075,7 +4075,7 @@ const BookmarkManager = {
             this.calculateRowOffsets();
             this.renderVirtualHistory();
           }
-        }, 300); // matches CSS transition duration
+        }, 230); // matches CSS transition duration
       });
     }
 

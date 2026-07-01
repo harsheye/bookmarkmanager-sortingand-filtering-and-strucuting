@@ -1301,7 +1301,7 @@ input:checked + .slider-switch:before {
 /* Bookmark Manager Mode Styles */
 .manager-layout {
   display: flex;
-  gap: 24px;
+  gap: 0;
   flex-grow: 1;
   height: calc(100vh - 90px);
   overflow: hidden;
@@ -1309,35 +1309,47 @@ input:checked + .slider-switch:before {
 }
 
 .manager-sidebar {
-  width: 320px;
-  padding: 24px;
+  width: 280px;
+  padding: 16px 14px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 6px;
   overflow-y: auto;
   overflow-x: hidden;
   flex-shrink: 0;
   height: 100%;
-  background: rgba(255, 255, 255, 0.015);
-  border: 1px solid rgba(255, 255, 255, 0.03);
-  border-radius: 14px;
+  position: relative;
+  background: rgba(10, 10, 18, 0.65);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0;
   box-sizing: border-box;
-  transition: width 0.3s cubic-bezier(0.25, 1, 0.5, 1), padding 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+  transition: width 0.22s cubic-bezier(0.25, 1, 0.5, 1),
+              padding 0.22s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
+/* ─── Collapsed state ──────────────────── */
 .manager-sidebar.collapsed {
-  width: 78px !important;
-  padding: 24px 12px !important;
+  width: 58px !important;
+  padding: 16px 0 !important;
+  align-items: center;
+}
+
+.manager-sidebar.collapsed .sidebar-tabs {
+  border-bottom: none !important;
+  padding-bottom: 0 !important;
+  gap: 2px !important;
+  margin-bottom: 0 !important;
   align-items: center;
 }
 
 .manager-sidebar.collapsed .sidebar-tab {
   justify-content: center;
-  padding: 10px 0 !important;
+  padding: 0 !important;
   gap: 0 !important;
-  width: 44px;
-  height: 44px;
-  border-radius: 50% !important;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px !important;
+  margin: 0 auto;
 }
 
 .manager-sidebar.collapsed .sidebar-tab svg,
@@ -1345,7 +1357,14 @@ input:checked + .slider-switch:before {
   margin: 0 !important;
 }
 
-.manager-sidebar.collapsed .tab-label,
+.manager-sidebar.collapsed .tab-label {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s ease, width 0.15s ease;
+}
+
 .manager-sidebar.collapsed .navigation-box,
 .manager-sidebar.collapsed .sorter-promo {
   opacity: 0;
@@ -1357,61 +1376,36 @@ input:checked + .slider-switch:before {
   display: none !important;
 }
 
-/* Sidebar Divider and Collapse button integration for navigation sidebar */
-.manager-resize-divider {
-  width: 1px;
-  background: rgba(255, 255, 255, 0.08);
-  position: relative;
-  cursor: col-resize;
-  transition: background 0.2s cubic-bezier(0.25, 1, 0.5, 1);
-  z-index: 50;
-  flex-shrink: 0;
-  height: 100%;
-}
-
-.manager-resize-divider::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -15px;
-  width: 31px;
-  cursor: col-resize;
-  z-index: 45;
-  background: transparent;
-}
-
-.manager-resize-divider:hover,
-.manager-resize-divider.resizing {
-  background: var(--color-primary) !important;
-  box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
-}
-
+/* ─── Integrated edge collapse handle ──── */
 .sidebar-collapse-btn {
   position: absolute;
   top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 24px;
-  height: 24px;
+  right: -13px;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  background: #14112e;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 15, 30, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text-muted);
-  display: flex !important;
+  display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 60;
-  opacity: 0.55;
+  z-index: 100;
+  opacity: 0;
   pointer-events: auto;
-  transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-  padding: 0 !important;
+  transition: opacity 0.2s ease,
+              transform 0.2s ease,
+              background 0.2s ease,
+              border-color 0.2s ease,
+              box-shadow 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  padding: 0;
 }
 
-.manager-resize-divider:hover .sidebar-collapse-btn,
-.manager-resize-divider.resizing .sidebar-collapse-btn {
+/* Show handle on sidebar hover */
+.manager-sidebar:hover .sidebar-collapse-btn {
   opacity: 1;
 }
 
@@ -1419,30 +1413,98 @@ input:checked + .slider-switch:before {
   color: #fff;
   border-color: var(--color-primary);
   background: #1e1b4b;
-  transform: translate(-50%, -50%) scale(1.1);
-  box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+  transform: translateY(-50%) scale(1.15);
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.5),
+              0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 .sidebar-collapse-btn i {
   font-size: 11px !important;
-  transition: transform 0.25s ease !important;
+  transition: transform 0.22s cubic-bezier(0.25, 1, 0.5, 1) !important;
   pointer-events: none;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* Rotate chevron when sidebar is collapsed */
-.manager-sidebar.collapsed + .manager-resize-divider .sidebar-collapse-btn i {
-  transform: rotate(180deg);
-}
-
-.manager-sidebar.collapsed + .manager-resize-divider {
-  background: transparent !important;
-  box-shadow: none !important;
-}
-
-.manager-sidebar.collapsed + .manager-resize-divider .sidebar-collapse-btn {
+/* Rotate chevron + always-visible in collapsed state */
+.manager-sidebar.collapsed .sidebar-collapse-btn {
   opacity: 1 !important;
 }
 
+.manager-sidebar.collapsed .sidebar-collapse-btn i {
+  transform: rotate(180deg);
+}
+
+/* ─── Remove old divider (no longer in DOM) ──── */
+.manager-resize-divider {
+  display: none !important;
+}
+
+/* ─── Sidebar Tabs Container ──── */
+.sidebar-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 12px;
+}
+
+/* ─── Sidebar Tab Item ──── */
+.sidebar-tab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.15s ease, color 0.15s ease;
+  user-select: none;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sidebar-tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #e2e8f0;
+}
+
+.sidebar-tab.active {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.2);
+  color: #fff !important;
+  font-weight: 600;
+}
+
+/* ─── Tab Icons ──── */
+.tab-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease;
+}
+
+.tab-icon-bookmarks { color: var(--color-primary); }
+.tab-icon-history   { color: #f43f5e; }
+.tab-icon-cookies   { color: #fbbf24; }
+.tab-icon-notes     { color: #10b981; }
+.tab-icon-settings  { color: #a855f7; font-size: 14px; }
+
+/* ─── Tab Labels ──── */
+.tab-label {
+  opacity: 1;
+  transition: opacity 0.15s ease, width 0.15s ease;
+  overflow: hidden;
+}
 .sorter-promo {
   background: rgba(99, 102, 241, 0.08);
   border: 1px solid rgba(99, 102, 241, 0.15);
@@ -2067,25 +2129,7 @@ input:checked + .slider-switch:before {
   border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
-/* Sidebar Tab Views styling */
-.sidebar-tab {
-  background: transparent;
-  color: var(--text-muted);
-  border: 1px solid transparent;
-  transition: all 0.2s ease;
-  user-select: none;
-}
 
-.sidebar-tab:hover {
-  background: rgba(255, 255, 255, 0.04);
-  color: white;
-}
-
-.sidebar-tab.active {
-  background: rgba(99, 102, 241, 0.12);
-  border: 1px solid rgba(99, 102, 241, 0.25);
-  color: white !important;
-}
 
 /* Custom styles for range input in settings */
 .settings-view-panel input[type="range"] {
@@ -2227,15 +2271,7 @@ input:checked + .slider-switch:before {
   }
 }
 
-/* Active notes sidebar highlights */
-.sidebar-tab.active {
-  background: rgba(255, 255, 255, 0.06);
-  color: white !important;
-}
 
-#tab-notes:hover {
-  background: rgba(255, 255, 255, 0.04);
-}
 
 /* History Options Toolbar Styling */
 .history-toolbar-panel {

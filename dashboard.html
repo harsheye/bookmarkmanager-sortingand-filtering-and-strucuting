@@ -61,26 +61,26 @@
     <!-- VIEW 1: BOOKMARK MANAGER (Default View) -->
     <div id="manager-view" class="manager-layout">
       <!-- Left Sidebar: Folder tree navigation and Sorter Card -->
-      <aside class="manager-sidebar glass-panel">
-        <div class="sidebar-tabs" style="display:flex; flex-direction:column; gap:8px; margin-bottom:20px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:15px;">
-          <div class="sidebar-tab active" id="tab-bookmarks" title="Bookmark Explorer" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:white; font-weight:600; font-size:14px; transition:background 0.2s;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color:var(--color-primary);"><path d="M19.5,5H13.243a3,3,0,0,1-2.122-.879l-1.414-1.414A3,3,0,0,0,7.586,1.828H4.5A2.5,2.5,0,0,0,2,4.328V19.5A2.5,2.5,0,0,0,4.5,22h15A2.5,2.5,0,0,0,22,19.5V7.5A2.5,2.5,0,0,0,19.5,5ZM20,19.5a.5.5,0,0,1-.5.5H4.5a.5.5,0,0,1-.5-.5V7.5A.5.5,0,0,1,4.5,7h15a.5.5,0,0,1,.5.5Z"/></svg>
+      <aside class="manager-sidebar">
+        <div class="sidebar-tabs">
+          <div class="sidebar-tab active" id="tab-bookmarks" title="Bookmark Explorer">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="tab-icon tab-icon-bookmarks"><path d="M19.5,5H13.243a3,3,0,0,1-2.122-.879l-1.414-1.414A3,3,0,0,0,7.586,1.828H4.5A2.5,2.5,0,0,0,2,4.328V19.5A2.5,2.5,0,0,0,4.5,22h15A2.5,2.5,0,0,0,22,19.5V7.5A2.5,2.5,0,0,0,19.5,5ZM20,19.5a.5.5,0,0,1-.5.5H4.5a.5.5,0,0,1-.5-.5V7.5A.5.5,0,0,1,4.5,7h15a.5.5,0,0,1,.5.5Z"/></svg>
             <span class="tab-label">Bookmark Explorer</span>
           </div>
-          <div class="sidebar-tab" id="tab-history" title="Browsing History" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:var(--text-muted); font-size:14px; transition:background 0.2s;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color:#f43f5e;"><path d="M12,0A12,12,0,1,0,24,12,12.013,12.013,0,0,0,12,0Zm0,22A10,10,0,1,1,22,12,10.011,10.011,0,0,1,12,22Zm1-10V7a1,1,0,0,0-2,0v6a1,1,0,0,0,.553.894l3.5,1.75a1,1,0,1,0,.894-1.788Z"/></svg>
+          <div class="sidebar-tab" id="tab-history" title="Browsing History">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="tab-icon tab-icon-history"><path d="M12,0A12,12,0,1,0,24,12,12.013,12.013,0,0,0,12,0Zm0,22A10,10,0,1,1,22,12,10.011,10.011,0,0,1,12,22Zm1-10V7a1,1,0,0,0-2,0v6a1,1,0,0,0,.553.894l3.5,1.75a1,1,0,1,0,.894-1.788Z"/></svg>
             <span class="tab-label">Browsing History</span>
           </div>
-          <div class="sidebar-tab" id="tab-cookies" title="Cookie Manager" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:var(--text-muted); font-size:14px; transition:background 0.2s;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color:#fbbf24;"><path d="M12,0A12,12,0,1,0,24,12,12.013,12.013,0,0,0,12,0Zm0,22A10,10,0,1,1,22,12,10.011,10.011,0,0,1,12,22ZM8,8A1.5,1.5,0,1,1,9.5,6.5,1.5,1.5,0,0,1,8,8Zm9.5,8A1.5,1.5,0,1,1,19,14.5,1.5,1.5,0,0,1,17.5,16ZM12,13a1.5,1.5,0,1,1,1.5-1.5,1.5,1.5,0,0,1-1.5,1.5Zm-4,4A1.5,1.5,0,1,1,9.5,15.5,1.5,1.5,0,0,1,8,17ZM15,9.5A1.5,1.5,0,1,1,16.5,8,1.5,1.5,0,0,1,15,9.5Z"/></svg>
+          <div class="sidebar-tab" id="tab-cookies" title="Cookie Manager">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="tab-icon tab-icon-cookies"><path d="M12,0A12,12,0,1,0,24,12,12.013,12.013,0,0,0,12,0Zm0,22A10,10,0,1,1,22,12,10.011,10.011,0,0,1,12,22ZM8,8A1.5,1.5,0,1,1,9.5,6.5,1.5,1.5,0,0,1,8,8Zm9.5,8A1.5,1.5,0,1,1,19,14.5,1.5,1.5,0,0,1,17.5,16ZM12,13a1.5,1.5,0,1,1,1.5-1.5,1.5,1.5,0,0,1-1.5,1.5Zm-4,4A1.5,1.5,0,1,1,9.5,15.5,1.5,1.5,0,0,1,8,17ZM15,9.5A1.5,1.5,0,1,1,16.5,8,1.5,1.5,0,0,1,15,9.5Z"/></svg>
             <span class="tab-label">Cookie Manager</span>
           </div>
-          <div class="sidebar-tab" id="tab-notes" title="Notes Manager" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:var(--text-muted); font-size:14px; transition:background 0.2s;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color:#10b981;"><path d="M19,0H5A5.006,5.006,0,0,0,0,5V19a5.006,5.006,0,0,0,5,5H19a5.006,5.006,0,0,0,5-5V5A5.006,5.006,0,0,0,19,0Zm3,19a3,3,0,0,1-3,3H5a3,3,0,0,1-3-3V5A3,3,0,0,1,5,3H19a3,3,0,0,1,3,3Zm-4-7H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm0-4H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm-5,8H6a1,1,0,0,0,0,2h7a1,1,0,0,0,0-2Z"/></svg>
+          <div class="sidebar-tab" id="tab-notes" title="Notes Manager">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="tab-icon tab-icon-notes"><path d="M19,0H5A5.006,5.006,0,0,0,0,5V19a5.006,5.006,0,0,0,5,5H19a5.006,5.006,0,0,0,5-5V5A5.006,5.006,0,0,0,19,0Zm3,19a3,3,0,0,1-3,3H5a3,3,0,0,1-3-3V5A3,3,0,0,1,5,3H19a3,3,0,0,1,3,3Zm-4-7H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm0-4H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm-5,8H6a1,1,0,0,0,0,2h7a1,1,0,0,0,0-2Z"/></svg>
             <span class="tab-label">Notes Manager</span>
           </div>
-          <div class="sidebar-tab" id="tab-settings" title="Settings" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:var(--text-muted); font-size:14px; transition:background 0.2s;">
-            <i class="fi fi-br-settings-sliders" style="color:#a855f7; font-size:14px; display:flex; align-items:center;"></i>
+          <div class="sidebar-tab" id="tab-settings" title="Settings">
+            <i class="fi fi-br-settings-sliders tab-icon tab-icon-settings"></i>
             <span class="tab-label">Settings</span>
           </div>
         </div>
@@ -93,14 +93,11 @@
              <!-- Dynamically populated tree of folders -->
           </div>
         </div>
-      </aside>
-
-      <!-- Subtle 1px Resize Divider with integrated centered collapse button for main navigation sidebar -->
-      <div class="manager-resize-divider" id="manager-sidebar-resizer">
+        <!-- Integrated edge collapse handle — lives inside sidebar -->
         <button id="sidebar-collapse-toggle" class="sidebar-collapse-btn" title="Collapse Sidebar" type="button">
           <i class="fi fi-rr-angle-small-left"></i>
         </button>
-      </div>
+      </aside>
 
       <!-- Right Panel: Command Search, Breadcrumbs and Bookmarks Explorer -->
       <section class="manager-explorer glass-panel">
