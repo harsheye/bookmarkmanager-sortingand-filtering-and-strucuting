@@ -1303,6 +1303,8 @@ const BookmarkManager = {
     this.historyDetailsPanel = document.getElementById('history-details-panel');
     this.historyStartDateInput = document.getElementById('history-filter-start-date');
     this.historyEndDateInput = document.getElementById('history-filter-end-date');
+    this.historySidebarPanel = document.querySelector('.history-sidebar-filters');
+    this.historySidebarResizer = document.getElementById('history-sidebar-resizer');
   },
 
   setupListeners() {
@@ -1533,6 +1535,46 @@ const BookmarkManager = {
           chrome.storage.local.set({ 'notes_sidebar_width_pref': finalWidth });
           document.removeEventListener('mousemove', doDrag);
           document.removeEventListener('mouseup', stopDrag);
+        };
+        
+        document.addEventListener('mousemove', doDrag);
+        document.addEventListener('mouseup', stopDrag);
+      });
+    }
+
+    // History sidebar resizer dragging
+    if (this.historySidebarResizer && this.historySidebarPanel) {
+      chrome.storage.local.get(['history_sidebar_width_pref'], (result) => {
+        if (result.history_sidebar_width_pref) {
+          const w = result.history_sidebar_width_pref;
+          this.historySidebarPanel.style.width = w + 'px';
+        }
+      });
+
+      this.historySidebarResizer.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        this.historySidebarResizer.classList.add('resizing');
+        
+        const startX = e.clientX;
+        const startWidth = this.historySidebarPanel.offsetWidth;
+        
+        const doDrag = (moveEvent) => {
+          const currentWidth = startWidth + (moveEvent.clientX - startX);
+          if (currentWidth >= 160 && currentWidth <= 450) {
+            this.historySidebarPanel.style.width = currentWidth + 'px';
+          }
+        };
+        
+        const stopDrag = () => {
+          this.historySidebarResizer.classList.remove('resizing');
+          const finalWidth = this.historySidebarPanel.offsetWidth;
+          chrome.storage.local.set({ 'history_sidebar_width_pref': finalWidth });
+          document.removeEventListener('mousemove', doDrag);
+          document.removeEventListener('mouseup', stopDrag);
+          
+          // recalculate rows for virtual scroller
+          this.calculateRowOffsets();
+          this.renderVirtualHistory();
         };
         
         document.addEventListener('mousemove', doDrag);
@@ -3757,7 +3799,7 @@ const BookmarkManager = {
             this.calculateRowOffsets();
             this.renderVirtualHistory();
           }
-        }, 300); // matches CSS transition duration
+        }, 250); // matches CSS transition duration
       });
     }
 

@@ -3,7 +3,7 @@
 .history-view-panel {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 0 !important;
   color: #fff;
   height: 100%;
   animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -97,23 +97,34 @@
 /* History Workspace Layout */
 .history-workspace {
   display: flex;
-  gap: 16px;
+  gap: 0 !important;
   flex-grow: 1;
   min-height: 0;
-  height: calc(100vh - 230px);
+  height: 100% !important;
+  background: rgba(18, 14, 38, 0.25) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
+  backdrop-filter: blur(20px) !important;
+  box-sizing: border-box;
 }
 
 /* Sidebar Filters */
 .history-sidebar-filters {
   width: 220px;
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.01);
-  border-right: 1px solid rgba(255, 255, 255, 0.05);
-  padding-right: 16px;
+  background: rgba(0, 0, 0, 0.18) !important;
+  padding: 16px !important;
   display: flex;
   flex-direction: column;
   gap: 16px;
   overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  transition: width 0.25s cubic-bezier(0.25, 1, 0.5, 1), padding 0.25s cubic-bezier(0.25, 1, 0.5, 1) !important;
+  box-sizing: border-box;
+  height: 100%;
 }
 
 .filter-section {
@@ -185,6 +196,9 @@
   flex-direction: column;
   min-width: 0;
   position: relative;
+  background: transparent !important;
+  padding: 16px !important;
+  box-sizing: border-box;
 }
 
 /* Controls Bar */
@@ -1033,88 +1047,103 @@
   transform: rotate(180deg);
 }
 
-/* History filter sidebar collapse */
-.filter-collapse-wrapper {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 8px;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-  padding-bottom: 6px;
-}
 
+
+
+
+/* Sidebar Collapse Button (Chevron inside border) */
 .filter-collapse-btn {
-  background: transparent;
-  border: none;
+  position: absolute;
+  right: -10px;
+  top: 32px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #100b26;
+  border: 1px solid rgba(255, 255, 255, 0.15);
   color: var(--text-muted);
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  display: flex;
+  display: flex !important;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  z-index: 100;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  padding: 0 !important;
+  pointer-events: auto !important; /* Allow clicks even if parent is collapsed/disabled */
 }
 
 .filter-collapse-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
   color: #fff;
+  border-color: var(--color-primary);
+  background: #1e1b4b;
+  transform: scale(1.1);
 }
 
-.history-sidebar-filters {
-  width: 220px;
-  flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.01);
-  border-right: 1px solid rgba(255, 255, 255, 0.05);
-  padding-right: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  overflow-y: auto;
-  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), padding 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+.filter-collapse-btn i {
+  font-size: 11px !important;
+  transition: transform 0.25s ease !important;
+  pointer-events: none;
 }
 
+/* Collapsed Sidebar State */
 .history-sidebar-filters.collapsed {
-  width: 52px !important;
-  padding-right: 0 !important;
-  align-items: center;
-}
-
-.history-sidebar-filters.collapsed .filter-section-title span,
-.history-sidebar-filters.collapsed .filter-btn span,
-.history-sidebar-filters.collapsed .filter-count,
-.history-sidebar-filters.collapsed #custom-date-range-container {
-  display: none !important;
-}
-
-.history-sidebar-filters.collapsed .filter-btn {
-  justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 0 !important;
   padding: 0 !important;
-  margin: 4px 0;
+  border: none !important;
+  pointer-events: none;
 }
 
-.history-sidebar-filters.collapsed .filter-btn i {
-  margin: 0 !important;
-  font-size: 14px;
-}
-
-.history-sidebar-filters.collapsed .filter-section-title {
-  justify-content: center;
-  margin-right: 0;
-  width: 100%;
-}
-
-.history-sidebar-filters.collapsed .filter-collapse-wrapper {
-  justify-content: center;
-  width: 100%;
-  border-bottom: none;
-  padding-bottom: 0;
+.history-sidebar-filters.collapsed .filter-collapse-btn {
+  right: -20px !important;
 }
 
 .history-sidebar-filters.collapsed .filter-collapse-btn i {
   transform: rotate(180deg);
+}
+
+/* Smooth fade for sidebar text labels when collapsing */
+.history-sidebar-filters .filter-label,
+.history-sidebar-filters .filter-section-title span,
+.history-sidebar-filters .filter-count,
+.history-sidebar-filters #custom-date-range-container {
+  opacity: 1;
+  transition: opacity 0.15s ease-out !important;
+  white-space: nowrap;
+}
+
+.history-sidebar-filters.collapsed .filter-label,
+.history-sidebar-filters.collapsed .filter-section-title span,
+.history-sidebar-filters.collapsed .filter-count,
+.history-sidebar-filters.collapsed #custom-date-range-container {
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+/* Subtle 1px Resize Divider */
+.history-resize-divider {
+  width: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  position: relative;
+  cursor: col-resize;
+  transition: all 0.2s ease;
+  z-index: 50;
+  flex-shrink: 0;
+  height: 100%;
+}
+
+.history-resize-divider:hover,
+.history-resize-divider.resizing {
+  background: var(--color-primary) !important;
+  box-shadow: 0 0 8px var(--color-primary);
+  width: 2px !important;
+}
+
+/* Hide resizer when sidebar is collapsed */
+.history-sidebar-filters.collapsed + .history-resize-divider {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  width: 0 !important;
 }
 
 /* Custom Dropdown Styling */
@@ -1392,7 +1421,10 @@
 .history-view-active #restructure-btn,
 .history-view-active #view-db-btn,
 .history-view-active #view-backups-btn,
-.history-view-active #toggle-wizard-btn {
+.history-view-active #toggle-wizard-btn,
+.history-view-active .explorer-toolbar,
+.history-view-active #history-toolbar,
+.history-view-active .search-section {
   display: none !important;
 }
 

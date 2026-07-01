@@ -850,10 +850,13 @@ function highlightSuggestion(sugItems) {
 
 function executeSelection() {
   if (selectedIndex < 0 || selectedIndex >= visibleItems.length) {
-    // If user has typed a command starting with /no and presses enter directly:
     const query = ccSearchInput.value.trim();
-    if (/^\/no(\s|$)/i.test(query)) {
+    if (/^\/no(\s|$)/i.test(query) || /^\/notes(\s|$)/i.test(query)) {
       executeNotesCommand(query);
+      return;
+    }
+    if (query.startsWith("/")) {
+      executeCCCommand(query);
       return;
     }
 
@@ -1359,6 +1362,9 @@ function executeNotesCommand(query) {
           showToast(`Note "${noteName}" does not exist.`, "error");
         }
       });
+    } else {
+      chrome.runtime.sendMessage({ action: "open_dashboard", view: "notes" });
+      closeCommandCenter();
     }
     return;
   }
