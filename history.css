@@ -1107,7 +1107,7 @@
   justify-content: center;
   cursor: pointer;
   z-index: 60;
-  opacity: 0; /* Hidden by default - only visible on hover */
+  opacity: 0.55; /* Partially visible by default for user guidance */
   pointer-events: auto; /* Clickable */
   transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
@@ -1116,7 +1116,7 @@
 
 .history-resize-divider:hover .filter-collapse-btn,
 .history-resize-divider.resizing .filter-collapse-btn {
-  opacity: 1; /* Revealed on hover of the resizer */
+  opacity: 1; /* Fully visible on hover of resizer */
 }
 
 .filter-collapse-btn:hover {
@@ -1355,50 +1355,7 @@
   display: none !important;
 }
 
-/* Thin Scrollbars on Hover */
-.history-viewport:hover,
-.history-sidebar-filters:hover,
-#blacklist-manager-panel:hover,
-.history-details-sidebar:hover,
-.manager-sidebar:hover {
-  scrollbar-width: thin !important;
-}
 
-.history-viewport:hover::-webkit-scrollbar,
-.history-sidebar-filters:hover::-webkit-scrollbar,
-#blacklist-manager-panel:hover::-webkit-scrollbar,
-.history-details-sidebar:hover::-webkit-scrollbar,
-.manager-sidebar:hover::-webkit-scrollbar {
-  width: 4px !important;
-  height: 4px !important;
-  display: block !important;
-}
-
-.history-viewport::-webkit-scrollbar-track,
-.history-sidebar-filters::-webkit-scrollbar-track,
-#blacklist-manager-panel::-webkit-scrollbar-track,
-.history-details-sidebar::-webkit-scrollbar-track,
-.manager-sidebar::-webkit-scrollbar-track {
-  background: transparent !important;
-}
-
-.history-viewport::-webkit-scrollbar-thumb,
-.history-sidebar-filters::-webkit-scrollbar-thumb,
-#blacklist-manager-panel::-webkit-scrollbar-thumb,
-.history-details-sidebar::-webkit-scrollbar-thumb,
-.manager-sidebar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08) !important;
-  border-radius: 2px !important;
-  transition: background 0.15s ease !important;
-}
-
-.history-viewport:hover::-webkit-scrollbar-thumb,
-.history-sidebar-filters:hover::-webkit-scrollbar-thumb,
-#blacklist-manager-panel:hover::-webkit-scrollbar-thumb,
-.history-details-sidebar:hover::-webkit-scrollbar-thumb,
-.manager-sidebar:hover::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.16) !important;
-}
 
 /* Overriding floating selection bar styling */
 .history-selection-toolbar {
