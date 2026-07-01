@@ -23,10 +23,6 @@
   <div class="app-container">
     <!-- Header -->
     <header class="app-header">
-      <div class="logo">
-        <span class="logo-icon">✨</span>
-        <span class="logo-text">Smart Bookmark Manager</span>
-      </div>
       <div class="header-actions" style="display: flex; gap: 10px; align-items: center;">
         <!-- Toggle views -->
         <button id="toggle-manager-btn" class="btn btn-secondary btn-small hidden">
@@ -54,26 +50,31 @@
     <div id="manager-view" class="manager-layout">
       <!-- Left Sidebar: Folder tree navigation and Sorter Card -->
       <aside class="manager-sidebar glass-panel">
+        <div class="sidebar-collapse-wrapper">
+          <button id="sidebar-collapse-toggle" class="sidebar-collapse-btn" title="Collapse Sidebar" type="button">
+            <i class="fi fi-rr-angle-double-left"></i>
+          </button>
+        </div>
         <div class="sidebar-tabs" style="display:flex; flex-direction:column; gap:8px; margin-bottom:20px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:15px;">
-          <div class="sidebar-tab active" id="tab-bookmarks" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:white; font-weight:600; font-size:14px; transition:background 0.2s;">
+          <div class="sidebar-tab active" id="tab-bookmarks" title="Bookmark Explorer" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:white; font-weight:600; font-size:14px; transition:background 0.2s;">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color:var(--color-primary);"><path d="M19.5,5H13.243a3,3,0,0,1-2.122-.879l-1.414-1.414A3,3,0,0,0,7.586,1.828H4.5A2.5,2.5,0,0,0,2,4.328V19.5A2.5,2.5,0,0,0,4.5,22h15A2.5,2.5,0,0,0,22,19.5V7.5A2.5,2.5,0,0,0,19.5,5ZM20,19.5a.5.5,0,0,1-.5.5H4.5a.5.5,0,0,1-.5-.5V7.5A.5.5,0,0,1,4.5,7h15a.5.5,0,0,1,.5.5Z"/></svg>
-            Bookmark Explorer
+            <span class="tab-label">Bookmark Explorer</span>
           </div>
-          <div class="sidebar-tab" id="tab-history" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:var(--text-muted); font-size:14px; transition:background 0.2s;">
+          <div class="sidebar-tab" id="tab-history" title="Browsing History" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:var(--text-muted); font-size:14px; transition:background 0.2s;">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color:#f43f5e;"><path d="M12,0A12,12,0,1,0,24,12,12.013,12.013,0,0,0,12,0Zm0,22A10,10,0,1,1,22,12,10.011,10.011,0,0,1,12,22Zm1-10V7a1,1,0,0,0-2,0v6a1,1,0,0,0,.553.894l3.5,1.75a1,1,0,1,0,.894-1.788Z"/></svg>
-            Browsing History
+            <span class="tab-label">Browsing History</span>
           </div>
-          <div class="sidebar-tab" id="tab-cookies" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:var(--text-muted); font-size:14px; transition:background 0.2s;">
+          <div class="sidebar-tab" id="tab-cookies" title="Cookie Manager" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:var(--text-muted); font-size:14px; transition:background 0.2s;">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color:#fbbf24;"><path d="M12,0A12,12,0,1,0,24,12,12.013,12.013,0,0,0,12,0Zm0,22A10,10,0,1,1,22,12,10.011,10.011,0,0,1,12,22ZM8,8A1.5,1.5,0,1,1,9.5,6.5,1.5,1.5,0,0,1,8,8Zm9.5,8A1.5,1.5,0,1,1,19,14.5,1.5,1.5,0,0,1,17.5,16ZM12,13a1.5,1.5,0,1,1,1.5-1.5,1.5,1.5,0,0,1-1.5,1.5Zm-4,4A1.5,1.5,0,1,1,9.5,15.5,1.5,1.5,0,0,1,8,17ZM15,9.5A1.5,1.5,0,1,1,16.5,8,1.5,1.5,0,0,1,15,9.5Z"/></svg>
-            Cookie Manager
+            <span class="tab-label">Cookie Manager</span>
           </div>
-          <div class="sidebar-tab" id="tab-notes" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:var(--text-muted); font-size:14px; transition:background 0.2s;">
+          <div class="sidebar-tab" id="tab-notes" title="Notes Manager" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:var(--text-muted); font-size:14px; transition:background 0.2s;">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color:#10b981;"><path d="M19,0H5A5.006,5.006,0,0,0,0,5V19a5.006,5.006,0,0,0,5,5H19a5.006,5.006,0,0,0,5-5V5A5.006,5.006,0,0,0,19,0Zm3,19a3,3,0,0,1-3,3H5a3,3,0,0,1-3-3V5A3,3,0,0,1,5,3H19a3,3,0,0,1,3,3Zm-4-7H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm0-4H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm-5,8H6a1,1,0,0,0,0,2h7a1,1,0,0,0,0-2Z"/></svg>
-            Notes Manager
+            <span class="tab-label">Notes Manager</span>
           </div>
-          <div class="sidebar-tab" id="tab-settings" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:var(--text-muted); font-size:14px; transition:background 0.2s;">
+          <div class="sidebar-tab" id="tab-settings" title="Settings" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:var(--text-muted); font-size:14px; transition:background 0.2s;">
             <i class="fi fi-br-settings-sliders" style="color:#a855f7; font-size:14px; display:flex; align-items:center;"></i>
-            Settings
+            <span class="tab-label">Settings</span>
           </div>
         </div>
         <div class="navigation-box">
@@ -94,6 +95,7 @@
           <div class="search-bar-wrapper">
             <span class="search-icon" style="display:flex; align-items:center;"><i class="fi fi-rr-search"></i></span>
             <input type="text" id="manager-search" placeholder="Search bookmarks or type / for commands (e.g. /help, /t movie, /sort date)..." autocomplete="off">
+            <span class="search-shortcut-hint">Ctrl + K</span>
             <button id="clear-search-btn" class="clear-btn hidden">✕</button>
           </div>
           
@@ -264,10 +266,15 @@
           <div id="notes-view-container" class="settings-view-panel hidden">
             <div class="notes-workspace-layout">
               <!-- Notes Sidebar (left) -->
-              <aside class="notes-sidebar">
+              <aside class="notes-sidebar" id="notes-sidebar-panel">
                 <div class="notes-sidebar-title">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color: var(--notes-accent);"><path d="M19,0H5A5.006,5.006,0,0,0,0,5V19a5.006,5.006,0,0,0,5,5H19a5.006,5.006,0,0,0,5-5V5A5.006,5.006,0,0,0,19,0Zm3,19a3,3,0,0,1-3,3H5a3,3,0,0,1-3-3V5A3,3,0,0,1,5,3H19a3,3,0,0,1,3,3Zm-4-7H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm0-4H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm-5,8H6a1,1,0,0,0,0,2h7a1,1,0,0,0,0-2Z"/></svg>
-                  Workspace Notes
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color: var(--notes-accent);"><path d="M19,0H5A5.006,5.006,0,0,0,0,5V19a5.006,5.006,0,0,0,5,5H19a5.006,5.006,0,0,0,5-5V5A5.006,5.006,0,0,0,19,0Zm3,19a3,3,0,0,1-3,3H5a3,3,0,0,1-3-3V5A3,3,0,0,1,5,3H19a3,3,0,0,1,3,3Zm-4-7H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm0-4H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm-5,8H6a1,1,0,0,0,0,2h7a1,1,0,0,0,0-2Z"/></svg>
+                    <span>Workspace Notes</span>
+                  </div>
+                  <button id="notes-sidebar-collapse" class="notes-sidebar-collapse-btn" title="Collapse Sidebar" type="button">
+                    <i class="fi fi-rr-angle-double-left"></i>
+                  </button>
                 </div>
                 <button id="notes-new-btn" class="btn btn-primary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; font-size: 13px;">
                   <i class="fi fi-br-plus"></i> New Note
@@ -276,6 +283,7 @@
                   <!-- Populated with notes names -->
                 </div>
               </aside>
+              <div class="notes-resizer" id="notes-sidebar-resizer"></div>
               
               <!-- Notes Main Content Area (right) -->
               <main class="notes-main-area">
@@ -283,12 +291,17 @@
                 <div id="note-editor-pane" class="note-editor-wrapper hidden">
                   <div class="note-editor-toolbar">
                     <div class="note-editor-toolbar-left">
+                      <button id="notes-sidebar-expand" class="notes-sidebar-expand-btn hidden" title="Expand Sidebar" type="button">
+                        <i class="fi fi-rr-angle-double-right"></i>
+                      </button>
                       <button id="note-close-btn" class="note-editor-back-btn" title="Back to Dashboard">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
                       </button>
                       <input type="text" id="note-editor-title" placeholder="Note Name" readonly>
                     </div>
                     <div style="display: flex; gap: 8px; flex-shrink: 0;">
+                      <button id="note-focus-btn" class="btn btn-secondary btn-small" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px;" title="Focus Mode (Distraction Free)" type="button"><i class="fi fi-rr-expand"></i> Focus</button>
+                      <button id="note-read-btn" class="btn btn-secondary btn-small" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px;" title="Reading Mode" type="button"><i class="fi fi-rr-eye"></i> Read</button>
                       <button id="note-save-btn" class="btn btn-success btn-small" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px;"><i class="fi fi-rs-disk"></i> Save Note</button>
                       <button id="note-delete-btn" class="btn btn-danger btn-small" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px;"><i class="fi fi-rr-trash"></i> Delete</button>
                     </div>
@@ -297,11 +310,13 @@
                   <div class="note-writing-canvas">
                     <!-- Note Text Area -->
                     <div class="note-editor-body-container">
-                      <textarea id="note-editor-body" placeholder="Type note content here... (Shift+Enter for newline)"></textarea>
+                      <div class="note-editor-scroll-container">
+                        <textarea id="note-editor-body" placeholder="Type note content here... (Shift+Enter for newline)"></textarea>
+                      </div>
                     </div>
                     
                     <!-- Version History Panel -->
-                    <div class="note-revisions-panel">
+                    <div class="note-revisions-panel" id="notes-revisions-panel">
                       <h3 class="note-revisions-title">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12,0A12,12,0,1,0,24,12,12.013,12.013,0,0,0,12,0Zm0,22A10,10,0,1,1,22,12,10.011,10.011,0,0,1,12,22Zm1-10V7a1,1,0,0,0-2,0v6a1,1,0,0,0,.553.894l3.5,1.75a1,1,0,1,0,.894-1.788Z"/></svg>
                         Revision Log
@@ -314,7 +329,7 @@
                 </div>
                 
                 <!-- Editor Placeholder -->
-              <div id="note-editor-placeholder" style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted);">
+              <div id="note-editor-placeholder">
                 <span style="font-size: 40px; display: block; margin-bottom: 12px;">📝</span>
                 <span>Select a note from the sidebar or click "New Note" to begin writing.</span>
               </div>
@@ -323,23 +338,24 @@
 
           <!-- Dedicated History View Container -->
           <div id="history-view-container" class="history-view-panel hidden">
-            <!-- Statistics Dashboard -->
-            <div class="history-stats-dashboard" id="history-stats">
-              <!-- Dynamically populated cards -->
-            </div>
 
             <!-- Main History Workspace -->
             <div class="history-workspace">
               <!-- Left Sidebar: Filters & Blacklist -->
               <div class="history-sidebar-filters">
+                <div class="filter-collapse-wrapper">
+                  <button id="filter-sidebar-collapse-toggle" class="filter-collapse-btn" title="Collapse Filters" type="button">
+                    <i class="fi fi-rr-angle-double-left"></i>
+                  </button>
+                </div>
                 <div class="filter-section">
-                  <span class="filter-section-title"><i class="fi fi-rr-clock"></i> Timeframe</span>
-                  <button class="filter-btn active" data-filter="time-all"><i class="fi fi-rr-calendar"></i> All History</button>
-                  <button class="filter-btn" data-filter="time-today"><i class="fi fi-rr-hourglass-end"></i> Today</button>
-                  <button class="filter-btn" data-filter="time-yesterday"><i class="fi fi-rr-undo"></i> Yesterday</button>
-                  <button class="filter-btn" data-filter="time-week"><i class="fi fi-rr-calendar-lines"></i> Last 7 Days</button>
-                  <button class="filter-btn" data-filter="time-month"><i class="fi fi-rr-calendar-clock"></i> Last 30 Days</button>
-                  <button class="filter-btn" data-filter="time-custom"><i class="fi fi-rr-settings-sliders"></i> Custom Date</button>
+                  <span class="filter-section-title"><i class="fi fi-rr-clock"></i> <span>Timeframe</span></span>
+                  <button class="filter-btn active" data-filter="time-all" title="All History"><i class="fi fi-rr-calendar"></i> <span class="filter-label">All History</span></button>
+                  <button class="filter-btn" data-filter="time-today" title="Today"><i class="fi fi-rr-hourglass-end"></i> <span class="filter-label">Today</span></button>
+                  <button class="filter-btn" data-filter="time-yesterday" title="Yesterday"><i class="fi fi-rr-undo"></i> <span class="filter-label">Yesterday</span></button>
+                  <button class="filter-btn" data-filter="time-week" title="Last 7 Days"><i class="fi fi-rr-calendar-lines"></i> <span class="filter-label">Last 7 Days</span></button>
+                  <button class="filter-btn" data-filter="time-month" title="Last 30 Days"><i class="fi fi-rr-calendar-clock"></i> <span class="filter-label">Last 30 Days</span></button>
+                  <button class="filter-btn" data-filter="time-custom" title="Custom Date"><i class="fi fi-rr-settings-sliders"></i> <span class="filter-label">Custom Date</span></button>
                   <div id="custom-date-range-container" class="hidden" style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px; padding: 6px; background: rgba(0,0,0,0.2); border-radius: 6px;">
                     <label style="font-size: 10px; color: var(--text-muted);">Start Date</label>
                     <input type="date" id="history-filter-start-date" class="history-select" style="padding: 4px 6px; font-size: 11px; width: 100%;">
@@ -349,55 +365,99 @@
                 </div>
 
                 <div class="filter-section">
-                  <span class="filter-section-title"><i class="fi fi-rr-filter"></i> Filters</span>
-                  <button class="filter-btn" data-filter="status-bookmarked"><i class="fi fi-rr-bookmark"></i> Bookmarked</button>
-                  <button class="filter-btn" data-filter="status-not-bookmarked"><i class="fi fi-rr-star-octagram"></i> Not Bookmarked</button>
-                  <button class="filter-btn" data-filter="status-blacklisted"><i class="fi fi-rr-ban"></i> Blacklisted Items</button>
-                  <button class="filter-btn" data-filter="subdomain-has"><i class="fi fi-rr-globe"></i> Has Subdomain</button>
-                  <button class="filter-btn" data-filter="subdomain-none"><i class="fi fi-rr-layout-fluid"></i> No Subdomain</button>
-                  <button class="filter-btn" data-filter="protocol-https"><i class="fi fi-rr-shield-check"></i> HTTPS Only</button>
-                  <button class="filter-btn" data-filter="protocol-http"><i class="fi fi-rr-warning"></i> HTTP Only</button>
+                  <span class="filter-section-title"><i class="fi fi-rr-filter"></i> <span>Filters</span></span>
+                  <button class="filter-btn" data-filter="status-bookmarked" title="Bookmarked"><i class="fi fi-rr-bookmark"></i> <span class="filter-label">Bookmarked</span></button>
+                  <button class="filter-btn" data-filter="status-not-bookmarked" title="Not Bookmarked"><i class="fi fi-rr-star-octagram"></i> <span class="filter-label">Not Bookmarked</span></button>
+                  <button class="filter-btn" data-filter="status-blacklisted" title="Blacklisted Items"><i class="fi fi-rr-ban"></i> <span class="filter-label">Blacklisted Items</span></button>
+                  <button class="filter-btn" data-filter="subdomain-has" title="Has Subdomain"><i class="fi fi-rr-globe"></i> <span class="filter-label">Has Subdomain</span></button>
+                  <button class="filter-btn" data-filter="subdomain-none" title="No Subdomain"><i class="fi fi-rr-layout-fluid"></i> <span class="filter-label">No Subdomain</span></button>
+                  <button class="filter-btn" data-filter="protocol-https" title="HTTPS Only"><i class="fi fi-rr-shield-check"></i> <span class="filter-label">HTTPS Only</span></button>
+                  <button class="filter-btn" data-filter="protocol-http" title="HTTP Only"><i class="fi fi-rr-warning"></i> <span class="filter-label">HTTP Only</span></button>
                 </div>
 
                 <div class="filter-section" style="margin-top: auto;">
-                  <span class="filter-section-title"><i class="fi fi-rr-shield"></i> Security</span>
-                  <button class="filter-btn" id="blacklist-manager-btn"><i class="fi fi-rr-lock"></i> Blacklist Manager</button>
+                  <span class="filter-section-title"><i class="fi fi-rr-shield"></i> <span>Security</span></span>
+                  <button class="filter-btn" id="blacklist-manager-btn" title="Blacklist Manager"><i class="fi fi-rr-lock"></i> <span class="filter-label">Blacklist Manager</span></button>
                 </div>
               </div>
 
               <!-- Center Area: Controls, List Viewport -->
               <div class="history-content-area">
                 <div class="history-controls-bar">
-                  <!-- View toggles -->
-                  <div class="history-view-toggles" id="history-view-mode-toggles">
-                    <button class="view-toggle-btn active" data-mode="list" title="List View"><i class="fi fi-rr-list"></i></button>
-                    <button class="view-toggle-btn" data-mode="compact" title="Compact View"><i class="fi fi-rr-menu-burger"></i></button>
-                    <button class="view-toggle-btn" data-mode="grid" title="Grid View"><i class="fi fi-rr-grid"></i></button>
-                    <button class="view-toggle-btn" data-mode="cards" title="Cards View"><i class="fi fi-rr-apps"></i></button>
-                    <button class="view-toggle-btn" data-mode="timeline" title="Timeline View"><i class="fi fi-rr-calendar"></i></button>
-                    <button class="view-toggle-btn" data-mode="grouped" title="Grouped Domains"><i class="fi fi-rr-folder-tree"></i></button>
+                  <!-- Search container takes the remaining horizontal space -->
+                  <div id="history-search-container" style="flex-grow: 1;"></div>
+
+                  <!-- View Mode selector dropdown -->
+                  <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                    <span style="font-size: 12px; color: var(--text-muted);">View:</span>
+                    <div class="custom-dropdown" id="history-view-mode-dropdown">
+                      <button class="dropdown-trigger" id="view-mode-dropdown-trigger" type="button">
+                        <i class="fi fi-rr-calendar trigger-icon"></i>
+                        <span class="trigger-text">Timeline View</span>
+                        <i class="fi fi-rr-angle-small-down arrow-icon"></i>
+                      </button>
+                      <div class="dropdown-menu hidden" id="view-mode-dropdown-menu">
+                        <button class="dropdown-item" data-mode="list" type="button"><i class="fi fi-rr-list"></i> List View</button>
+                        <button class="dropdown-item" data-mode="compact" type="button"><i class="fi fi-rr-menu-burger"></i> Compact View</button>
+                        <button class="dropdown-item" data-mode="grid" type="button"><i class="fi fi-rr-grid"></i> Grid View</button>
+                        <button class="dropdown-item" data-mode="cards" type="button"><i class="fi fi-rr-apps"></i> Cards View</button>
+                        <button class="dropdown-item active" data-mode="timeline" type="button"><i class="fi fi-rr-calendar"></i> Timeline View</button>
+                        <button class="dropdown-item" data-mode="grouped" type="button"><i class="fi fi-rr-folder-tree"></i> Grouped Domains</button>
+                      </div>
+                    </div>
                   </div>
 
-                  <!-- Sorting and settings -->
-                  <div class="history-actions-row">
-                    <div style="display: flex; align-items: center; gap: 6px;">
-                      <span style="font-size: 12px; color: var(--text-muted);">Sort:</span>
-                      <select id="history-sort-select-premium" class="history-select">
-                        <option value="newest">Newest Visited</option>
-                        <option value="oldest">Oldest Visited</option>
-                        <option value="most-visited">Most Visited</option>
-                        <option value="least-visited">Least Visited</option>
-                        <option value="alphabetical">Alphabetical (A-Z)</option>
-                        <option value="domain">Domain (A-Z)</option>
-                        <option value="subdomain">Subdomain (A-Z)</option>
-                        <option value="bookmarks-first">Bookmarks First</option>
-                        <option value="blacklisted-first">Blacklisted First</option>
-                      </select>
+                  <!-- Sort dropdown -->
+                  <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                    <span style="font-size: 12px; color: var(--text-muted);">Sort:</span>
+                    <select id="history-sort-select-premium" style="display: none;">
+                      <option value="newest">Newest Visited</option>
+                      <option value="oldest">Oldest Visited</option>
+                      <option value="most-visited">Most Visited</option>
+                      <option value="least-visited">Least Visited</option>
+                      <option value="alphabetical">Alphabetical (A-Z)</option>
+                      <option value="domain">Domain (A-Z)</option>
+                      <option value="subdomain">Subdomain (A-Z)</option>
+                      <option value="bookmarks-first">Bookmarks First</option>
+                      <option value="blacklisted-first">Blacklisted First</option>
+                    </select>
+                    
+                    <div class="custom-dropdown" id="history-sort-dropdown">
+                      <button class="dropdown-trigger" id="sort-dropdown-trigger" type="button">
+                        <i class="fi fi-rr-sort-alt trigger-icon"></i>
+                        <span class="trigger-text">Newest Visited</span>
+                        <i class="fi fi-rr-angle-small-down arrow-icon"></i>
+                      </button>
+                      <div class="dropdown-menu hidden" id="sort-dropdown-menu">
+                        <button class="dropdown-item active" data-value="newest" type="button"><i class="fi fi-rr-time-forward"></i> Newest Visited</button>
+                        <button class="dropdown-item" data-value="oldest" type="button"><i class="fi fi-rr-time-past"></i> Oldest Visited</button>
+                        <button class="dropdown-item" data-value="most-visited" type="button"><i class="fi fi-rr-flame"></i> Most Visited</button>
+                        <button class="dropdown-item" data-value="least-visited" type="button"><i class="fi fi-rr-layer-minus"></i> Least Visited</button>
+                        <button class="dropdown-item" data-value="alphabetical" type="button"><i class="fi fi-rr-text-size"></i> Alphabetical (A-Z)</button>
+                        <button class="dropdown-item" data-value="domain" type="button"><i class="fi fi-rr-globe"></i> Domain (A-Z)</button>
+                        <button class="dropdown-item" data-value="subdomain" type="button"><i class="fi fi-rr-subtitles"></i> Subdomain (A-Z)</button>
+                        <button class="dropdown-item" data-value="bookmarks-first" type="button"><i class="fi fi-rr-bookmark"></i> Bookmarks First</button>
+                        <button class="dropdown-item" data-value="blacklisted-first" type="button"><i class="fi fi-rr-ban"></i> Blacklisted First</button>
+                      </div>
                     </div>
+                  </div>
 
-                    <div style="display: flex; align-items: center; gap: 6px;">
-                      <span style="font-size: 12px; color: var(--text-muted);">Visits &ge;:</span>
-                      <input type="number" id="history-visit-threshold" min="0" value="0" class="history-select" style="width: 55px; padding: 4px 6px;">
+                  <!-- Three-dot compact overflow menu -->
+                  <div class="custom-dropdown" id="history-overflow-dropdown" style="flex-shrink: 0;">
+                    <button class="dropdown-trigger overflow-btn" id="history-overflow-trigger" type="button" title="More Actions" style="width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; padding: 0;">
+                      <i class="fi fi-rr-menu-dots-vertical" style="font-size: 14px;"></i>
+                    </button>
+                    <div class="dropdown-menu hidden" id="history-overflow-menu" style="right: 0; min-width: 190px;">
+                      <div class="menu-section-header">Actions</div>
+                      <button class="dropdown-item" id="overflow-act-export" type="button"><i class="fi fi-rr-download"></i> Export History</button>
+                      <button class="dropdown-item" id="overflow-act-import" type="button"><i class="fi fi-rr-upload"></i> Import Rules</button>
+                      <button class="dropdown-item" id="overflow-act-blacklist" type="button"><i class="fi fi-rr-shield-exclamation"></i> Blacklist Manager</button>
+                      <button class="dropdown-item" id="overflow-act-clear" type="button" style="color: var(--color-danger);"><i class="fi fi-rr-trash"></i> Clear History</button>
+                      <div class="menu-divider"></div>
+                      <div class="menu-section-header">Tools & Views</div>
+                      <button class="dropdown-item" id="overflow-act-restore" type="button"><i class="fi fi-sr-system-restore"></i> Restore Backup</button>
+                      <button class="dropdown-item" id="overflow-act-advanced-filters" type="button"><i class="fi fi-rr-filter"></i> Advanced Filters</button>
+                      <button class="dropdown-item" id="overflow-act-settings" type="button"><i class="fi fi-br-settings-sliders"></i> History Settings</button>
                     </div>
                   </div>
                 </div>
@@ -419,24 +479,84 @@
                   
                   <!-- Form -->
                   <div class="glass-panel" style="padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; background: rgba(255,255,255,0.01);">
-                    <select id="blacklist-add-type" class="history-select">
+                    <select id="blacklist-add-type" style="display: none;">
                       <option value="domain">Entire Domain</option>
                       <option value="subdomain">Single Subdomain</option>
                       <option value="url">Single URL</option>
                     </select>
-                    <input type="text" id="blacklist-add-pattern" class="history-select" placeholder="pattern (e.g. facebook.com)" style="flex-grow: 1; min-width: 150px;">
-                    <input type="text" id="blacklist-add-reason" class="history-select" placeholder="Reason (optional)" style="flex-grow: 1; min-width: 150px;">
-                    <button id="blacklist-add-submit-btn" class="btn btn-danger btn-small" style="padding: 6px 12px; font-size: 12px;">Add Rule</button>
+                    <div class="custom-dropdown" id="blacklist-add-type-dropdown">
+                      <button class="dropdown-trigger" id="blacklist-type-trigger" type="button">
+                        <i class="fi fi-rr-globe trigger-icon"></i>
+                        <span class="trigger-text">Entire Domain</span>
+                        <i class="fi fi-rr-angle-small-down arrow-icon"></i>
+                      </button>
+                      <div class="dropdown-menu hidden" id="blacklist-type-menu">
+                        <button class="dropdown-item active" data-value="domain" type="button"><i class="fi fi-rr-globe"></i> Entire Domain</button>
+                        <button class="dropdown-item" data-value="subdomain" type="button"><i class="fi fi-rr-subtitles"></i> Single Subdomain</button>
+                        <button class="dropdown-item" data-value="url" type="button"><i class="fi fi-rr-link"></i> Single URL</button>
+                      </div>
+                    </div>
+
+                    <!-- Behavior Selector -->
+                    <select id="blacklist-add-behavior" style="display: none;">
+                      <option value="hide">Hide (Internal)</option>
+                      <option value="delete-existing">Delete Existing</option>
+                      <option value="never-store">Never Store Again</option>
+                    </select>
+                    <div class="custom-dropdown" id="blacklist-add-behavior-dropdown">
+                      <button class="dropdown-trigger" id="blacklist-behavior-trigger" type="button">
+                        <i class="fi fi-rr-eye trigger-icon"></i>
+                        <span class="trigger-text">Hide (Internal)</span>
+                        <i class="fi fi-rr-angle-small-down arrow-icon"></i>
+                      </button>
+                      <div class="dropdown-menu hidden" id="blacklist-behavior-menu">
+                        <button class="dropdown-item active" data-value="hide" type="button"><i class="fi fi-rr-eye-crossed"></i> Hide (Internal)</button>
+                        <button class="dropdown-item" data-value="delete-existing" type="button"><i class="fi fi-rr-trash"></i> Delete Existing</button>
+                        <button class="dropdown-item" data-value="never-store" type="button"><i class="fi fi-rr-shield-block"></i> Never Store Again</button>
+                      </div>
+                    </div>
+
+                    <input type="text" id="blacklist-add-pattern" class="history-select" placeholder="pattern (e.g. facebook.com)" style="flex-grow: 1; min-width: 150px; height: 32px;">
+                    <input type="text" id="blacklist-add-reason" class="history-select" placeholder="Reason (optional)" style="flex-grow: 1; min-width: 150px; height: 32px;">
+                    <button id="blacklist-add-submit-btn" class="btn btn-danger btn-small" style="padding: 0 16px; font-size: 12px; height: 32px; display: inline-flex; align-items: center; border-radius: 8px;">Add Rule</button>
+                    
+                    <!-- Hidden Blacklist Rules Import Picker -->
+                    <input type="file" id="blacklist-import-input" style="display: none;" accept=".json">
+                  </div>
+
+                  <!-- Blacklist Filter Row -->
+                  <div style="display: flex; gap: 12px; margin-bottom: 15px; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; gap: 8px; flex-grow: 1; max-width: 320px; position: relative;">
+                      <input type="text" id="blacklist-search-input" class="history-select" placeholder="Search rules..." style="width: 100%; padding: 6px 12px 6px 32px; height: 32px; border-radius: 8px; font-size: 12.5px;">
+                      <i class="fi fi-rr-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 12px;"></i>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                      <span style="font-size: 12px; color: var(--text-muted);">Filter Type:</span>
+                      <div class="custom-dropdown" id="blacklist-filter-type-dropdown">
+                        <button class="dropdown-trigger" id="blacklist-filter-type-trigger" type="button">
+                          <span class="trigger-text">All Types</span>
+                          <i class="fi fi-rr-angle-small-down arrow-icon"></i>
+                        </button>
+                        <div class="dropdown-menu hidden" id="blacklist-filter-type-menu">
+                          <button class="dropdown-item active" data-value="all" type="button">All Types</button>
+                          <button class="dropdown-item" data-value="domain" type="button"><i class="fi fi-rr-globe"></i> Domain</button>
+                          <button class="dropdown-item" data-value="subdomain" type="button"><i class="fi fi-rr-subtitles"></i> Subdomain</button>
+                          <button class="dropdown-item" data-value="url" type="button"><i class="fi fi-rr-link"></i> URL</button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   <table class="blacklist-table">
                     <thead>
                       <tr>
-                        <th style="width: 15%;">Type</th>
-                        <th style="width: 35%;">Pattern</th>
-                        <th style="width: 25%;">Reason</th>
-                        <th style="width: 15%;">Added Date</th>
-                        <th style="width: 10%; text-align: center;">Actions</th>
+                        <th style="width: 25%;">Pattern / Domain</th>
+                        <th style="width: 12%;">Rule Type</th>
+                        <th style="width: 15%;">Behavior</th>
+                        <th style="width: 13%; text-align: center;">Blocked Entries</th>
+                        <th style="width: 15%; text-align: center;">Blocked Subdomains</th>
+                        <th style="width: 11%;">Date Added</th>
+                        <th style="width: 9%; text-align: center;">Actions</th>
                       </tr>
                     </thead>
                     <tbody id="blacklist-rules-table-body">

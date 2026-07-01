@@ -141,15 +141,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // Auto-delete history blacklist monitor
 chrome.history.onVisited.addListener((historyItem) => {
-  chrome.storage.local.get(['organizer_user_settings'], (result) => {
+  chrome.storage.local.get(['organizer_user_settings', 'history_blacklist_rules'], (result) => {
     const settings = result.organizer_user_settings || {};
     const blacklistStr = settings.historyBlacklist || '';
+    const rules = result.history_blacklist_rules || [];
+    const url = historyItem.url;
+    
+    // Check legacy blacklist string
+    let isLegacyBlacklisted = false;
     if (blacklistStr) {
       const blacklist = blacklistStr.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-      const domain = getDomain(historyItem.url);
-      if (blacklist.some(d => domain === d || domain.endsWith('.' + d))) {
-        chrome.history.deleteUrl({ url: historyItem.url });
-      }
+      const domain = getDomain(url);
+      isLegacyBlacklisted = blacklist.some(d => domain === d || domain.endsWith('.' + d));
+    }
+
+    // Check custom blacklist rules (Never Store Again behavior)
+    let isRuleBlacklisted = false;
+    if (rules.length > 0) {
+      const hostname = getDomain(url);
+      isRuleBlacklisted = rules.some(rule => {
+        if (rule.behavior !== 'never-store') return false;
+        if (rule.type === 'domain') {
+          return hostname === rule.pattern || hostname.endsWith('.' + rule.pattern);
+        } else if (rule.type === 'subdomain') {
+          return hostname === rule.pattern;
+        } else if (rule.type === 'url') {
+          return url === rule.pattern;
+        }
+        return false;
+      });
+    }
+
+    if (isLegacyBlacklisted || isRuleBlacklisted) {
+      chrome.history.deleteUrl({ url: url });
     }
   });
 });

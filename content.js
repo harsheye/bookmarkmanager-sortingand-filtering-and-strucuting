@@ -674,8 +674,7 @@ function handleCCSearch(val) {
     return;
   }
 
-  const valLower = val.toLowerCase();
-  if (valLower === "/no" || valLower.startsWith("/no ") || valLower === "/notes" || valLower.startsWith("/notes ")) {
+  if (/^\/no(\s|$)/i.test(val) || /^\/notes(\s|$)/i.test(val)) {
     hideSuggestions();
     renderNotesSuggestions(val);
     return;
@@ -853,7 +852,7 @@ function executeSelection() {
   if (selectedIndex < 0 || selectedIndex >= visibleItems.length) {
     // If user has typed a command starting with /no and presses enter directly:
     const query = ccSearchInput.value.trim();
-    if (query.startsWith("/no")) {
+    if (/^\/no(\s|$)/i.test(query)) {
       executeNotesCommand(query);
       return;
     }
@@ -1082,50 +1081,63 @@ function renderNotesSuggestions(val) {
   let queryStr = "";
   let isNotesCmd = false;
   
-  if (val.toLowerCase().startsWith("/notes")) {
+  if (/^\/notes(\s|$)/i.test(val)) {
     queryStr = val.substring(6).trim();
     isNotesCmd = true;
   } else {
     queryStr = val.substring(3).trim();
   }
   
-  const parts = queryStr.split(" ");
-  const subCommand = parts[0] ? parts[0].toLowerCase() : "";
+  const parts = queryStr.split(/\s+/);
+  const firstParam = parts[0] ? parts[0].toLowerCase() : "";
   
   chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
     const notes = result.bookmark_organizer_notes || {};
     const notesList = Object.keys(notes);
     
+    const getContentStr = (noteObj) => {
+      if (typeof noteObj === 'string') return noteObj;
+      if (noteObj && typeof noteObj.content === 'string') return noteObj.content;
+      return "";
+    };
+
     if (isNotesCmd) {
-      if (subCommand === "se") {
+      if (firstParam === "-se") {
         const query = parts.slice(1).join(" ").trim().toLowerCase();
         ccBreadcrumbs.textContent = `Search notes: "${query}"`;
         
         const matches = notesList.filter(name => {
-          return name.toLowerCase().includes(query) || notes[name].toLowerCase().includes(query);
-        }).map(name => ({
-          id: "note_" + name,
-          title: `📝 Note: ${name}`,
-          url: "",
-          contentSnippet: notes[name].substring(0, 40) + (notes[name].length > 40 ? "..." : ""),
-          isNote: true,
-          noteName: name,
-          noteContent: notes[name]
-        }));
+          const content = getContentStr(notes[name]);
+          return name.toLowerCase().includes(query) || content.toLowerCase().includes(query);
+        }).map(name => {
+          const content = getContentStr(notes[name]);
+          return {
+            id: "note_" + name,
+            title: `📝 Note: ${name}`,
+            url: "",
+            contentSnippet: content.substring(0, 40) + (content.length > 40 ? "..." : ""),
+            isNote: true,
+            noteName: name,
+            noteContent: content
+          };
+        });
         
         visibleItems = matches;
         renderItemsList(visibleItems);
       } else {
         ccBreadcrumbs.textContent = "Saved Notes";
-        visibleItems = notesList.map(name => ({
-          id: "note_" + name,
-          title: `📝 Note: ${name}`,
-          url: "",
-          contentSnippet: notes[name].substring(0, 40) + (notes[name].length > 40 ? "..." : ""),
-          isNote: true,
-          noteName: name,
-          noteContent: notes[name]
-        }));
+        visibleItems = notesList.map(name => {
+          const content = getContentStr(notes[name]);
+          return {
+            id: "note_" + name,
+            title: `📝 Note: ${name}`,
+            url: "",
+            contentSnippet: content.substring(0, 40) + (content.length > 40 ? "..." : ""),
+            isNote: true,
+            noteName: name,
+            noteContent: content
+          };
+        });
         
         if (visibleItems.length === 0) {
           visibleItems = [{
@@ -1139,26 +1151,104 @@ function renderNotesSuggestions(val) {
       }
       return;
     }
-    
-    if (subCommand === "se") {
-      const query = parts.slice(1).join(" ").trim().toLowerCase();
-      ccBreadcrumbs.textContent = `Search notes: "${query}"`;
-      
-      const matches = notesList.filter(name => {
-        return name.toLowerCase().includes(query) || notes[name].toLowerCase().includes(query);
-      }).map(name => ({
-        id: "note_" + name,
-        title: `📝 Note: ${name}`,
-        url: "",
-        contentSnippet: notes[name].substring(0, 40) + (notes[name].length > 40 ? "..." : ""),
-        isNote: true,
-        noteName: name,
-        noteContent: notes[name]
-      }));
-      
-      visibleItems = matches;
+
+    // Handle /no -g (General note)
+    if (firstParam === "-g") {
+      const textToAppend = queryStr.substring(2).trim();
+      const noteExists = notes["General"] !== undefined;
+      const content = getContentStr(notes["General"]);
+      if (noteExists) {
+        ccBreadcrumbs.textContent = `Note: General`;
+        visibleItems = [{
+          id: "note_General",
+          title: `📝 Note: General`,
+          contentSnippet: textToAppend ? `Append to General: "${textToAppend}"` : content,
+          isNote: true,
+          noteName: "General",
+          noteContent: content,
+          textToAppend: textToAppend
+        }];
+      } else {
+        ccBreadcrumbs.textContent = `New note: General`;
+        visibleItems = [{
+          id: "create_note_General",
+          title: `🆕 Create Note: "General"`,
+          contentSnippet: textToAppend || "Save empty note",
+          isCreateNoteAction: true,
+          noteName: "General",
+          noteContent: textToAppend
+        }];
+      }
       renderItemsList(visibleItems);
-    } else if (subCommand === "new") {
+      return;
+    }
+
+    // Handle /no -se
+    if (firstParam === "-se") {
+      const secondParam = parts[1] || "";
+      if (secondParam.startsWith("-") && secondParam.length > 1) {
+        const noteName = secondParam.substring(1);
+        const query = parts.slice(2).join(" ").trim().toLowerCase();
+        ccBreadcrumbs.textContent = `Search in Note "${noteName}": "${query}"`;
+        
+        const note = notes[noteName];
+        if (note === undefined) {
+          visibleItems = [{
+            id: "no_note_match",
+            title: `Note "${noteName}" not found`,
+            contentSnippet: "Check note name spelling.",
+            isStaticHelp: true
+          }];
+        } else {
+          const content = getContentStr(note);
+          const lines = content.split("\n");
+          const matchingLines = lines.filter(l => l.toLowerCase().includes(query));
+          
+          if (matchingLines.length > 0) {
+            visibleItems = matchingLines.slice(0, 5).map((l, lIdx) => ({
+              id: `note_line_${noteName}_${lIdx}`,
+              title: `🔍 Match: "${l.trim()}"`,
+              contentSnippet: `Note: ${noteName}`,
+              isNote: true,
+              noteName: noteName,
+              noteContent: content
+            }));
+          } else {
+            visibleItems = [{
+              id: "no_lines_match",
+              title: `No match found in "${noteName}"`,
+              contentSnippet: `Content does not contain "${query}"`,
+              isStaticHelp: true
+            }];
+          }
+        }
+      } else {
+        const query = parts.slice(1).join(" ").trim().toLowerCase();
+        ccBreadcrumbs.textContent = `Search notes: "${query}"`;
+        
+        const matches = notesList.filter(name => {
+          const content = getContentStr(notes[name]);
+          return name.toLowerCase().includes(query) || content.toLowerCase().includes(query);
+        }).map(name => {
+          const content = getContentStr(notes[name]);
+          return {
+            id: "note_" + name,
+            title: `📝 Note: ${name}`,
+            url: "",
+            contentSnippet: content.substring(0, 40) + (content.length > 40 ? "..." : ""),
+            isNote: true,
+            noteName: name,
+            noteContent: content
+          };
+        });
+        
+        visibleItems = matches;
+      }
+      renderItemsList(visibleItems);
+      return;
+    }
+
+    if (firstParam === "new") {
       const noteName = parts[1] || "";
       const noteContent = parts.slice(2).join(" ").trim();
       ccBreadcrumbs.textContent = `Create new note: "${noteName || 'untitled'}"`;
@@ -1172,55 +1262,61 @@ function renderNotesSuggestions(val) {
         noteContent: noteContent
       }];
       renderItemsList(visibleItems);
-    } else {
-      const noteName = parts[0] || "";
-      const textToAppend = parts.slice(1).join(" ").trim();
-      
-      if (!noteName) {
-        visibleItems = notesList.map(name => ({
+      return;
+    }
+
+    // Default note name matching
+    const noteName = parts[0] || "";
+    const textToAppend = parts.slice(1).join(" ").trim();
+    
+    if (!noteName) {
+      visibleItems = notesList.map(name => {
+        const content = getContentStr(notes[name]);
+        return {
           id: "note_" + name,
           title: `📝 Note: ${name}`,
-          contentSnippet: notes[name].substring(0, 40) + (notes[name].length > 40 ? "..." : ""),
+          contentSnippet: content.substring(0, 40) + (content.length > 40 ? "..." : ""),
           isNote: true,
           noteName: name,
-          noteContent: notes[name]
-        }));
-        
-        if (visibleItems.length === 0) {
-          visibleItems = [{
-            id: "no_notes",
-            title: "No notes saved yet",
-            contentSnippet: "Type /no <note_name> <text> to create one!",
-            isStaticHelp: true
-          }];
-        }
-      } else {
-        const noteExists = notes[noteName] !== undefined;
-        if (noteExists) {
-          ccBreadcrumbs.textContent = `Note: ${noteName}`;
-          visibleItems = [{
-            id: "note_" + noteName,
-            title: `📝 Note: ${noteName}`,
-            contentSnippet: textToAppend ? `Append: "${textToAppend}"` : notes[noteName],
-            isNote: true,
-            noteName: noteName,
-            noteContent: notes[noteName],
-            textToAppend: textToAppend
-          }];
-        } else {
-          ccBreadcrumbs.textContent = `New note: ${noteName}`;
-          visibleItems = [{
-            id: "create_note_" + noteName,
-            title: `🆕 Create Note: "${noteName}"`,
-            contentSnippet: textToAppend || "Save empty note",
-            isCreateNoteAction: true,
-            noteName: noteName,
-            noteContent: textToAppend
-          }];
-        }
+          noteContent: content
+        };
+      });
+      
+      if (visibleItems.length === 0) {
+        visibleItems = [{
+          id: "no_notes",
+          title: "No notes saved yet",
+          contentSnippet: "Type /no <note_name> <text> to create one!",
+          isStaticHelp: true
+        }];
       }
-      renderItemsList(visibleItems);
+    } else {
+      const noteExists = notes[noteName] !== undefined;
+      const content = getContentStr(notes[noteName]);
+      if (noteExists) {
+        ccBreadcrumbs.textContent = `Note: ${noteName}`;
+        visibleItems = [{
+          id: "note_" + noteName,
+          title: `📝 Note: ${noteName}`,
+          contentSnippet: textToAppend ? `Append: "${textToAppend}"` : content,
+          isNote: true,
+          noteName: noteName,
+          noteContent: content,
+          textToAppend: textToAppend
+        }];
+      } else {
+        ccBreadcrumbs.textContent = `New note: ${noteName}`;
+        visibleItems = [{
+          id: "create_note_" + noteName,
+          title: `🆕 Create Note: "${noteName}"`,
+          contentSnippet: textToAppend || "Save empty note",
+          isCreateNoteAction: true,
+          noteName: noteName,
+          noteContent: textToAppend
+        }];
+      }
     }
+    renderItemsList(visibleItems);
   });
 }
 
@@ -1228,25 +1324,32 @@ function executeNotesCommand(query) {
   let queryStr = "";
   let isNotesCmd = false;
   
-  if (query.toLowerCase().startsWith("/notes")) {
+  if (/^\/notes(\s|$)/i.test(query)) {
     queryStr = query.substring(6).trim();
     isNotesCmd = true;
   } else {
     queryStr = query.substring(3).trim();
   }
   
-  const parts = queryStr.split(" ");
-  const subCommand = parts[0] ? parts[0].toLowerCase() : "";
+  const parts = queryStr.split(/\s+/);
+  const firstParam = parts[0] ? parts[0].toLowerCase() : "";
+
+  const getContentStr = (noteObj) => {
+    if (typeof noteObj === 'string') return noteObj;
+    if (noteObj && typeof noteObj.content === 'string') return noteObj.content;
+    return "";
+  };
 
   if (isNotesCmd) {
-    if (subCommand === "se") return;
-    
+    if (firstParam === "-se") return;
     const noteName = parts[0] || "";
     if (noteName) {
       chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
         const notes = result.bookmark_organizer_notes || {};
+        const note = notes[noteName];
+        const content = getContentStr(note);
         if (notes[noteName] !== undefined) {
-          showToast(`Note "${noteName}":\n${notes[noteName]}`, "success");
+          showToast(`Note "${noteName}":\n${content}`, "success");
           closeCommandCenter();
         } else {
           showToast(`Note "${noteName}" does not exist.`, "error");
@@ -1256,9 +1359,52 @@ function executeNotesCommand(query) {
     return;
   }
 
-  if (subCommand === "se") return;
+  // Handle /no -g (General note shortcut)
+  if (firstParam === "-g") {
+    const textToAppend = queryStr.substring(2).trim(); // Skip "-g"
+    chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
+      const notes = result.bookmark_organizer_notes || {};
+      const noteExists = notes["General"] !== undefined;
+      if (noteExists) {
+        if (textToAppend) {
+          appendNoteContent("General", textToAppend);
+        } else {
+          const content = getContentStr(notes["General"]);
+          showToast(`Note "General":\n${content}`, "success");
+          closeCommandCenter();
+        }
+      } else {
+        createOrUpdateNote("General", textToAppend || "");
+      }
+    });
+    return;
+  }
 
-  if (subCommand === "new") {
+  // Handle /no -se (Search query)
+  if (firstParam === "-se") {
+    const secondParam = parts[1] || "";
+    if (secondParam.startsWith("-") && secondParam.length > 1) {
+      const noteName = secondParam.substring(1);
+      const searchVal = parts.slice(2).join(" ").trim();
+      chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
+        const notes = result.bookmark_organizer_notes || {};
+        const note = notes[noteName];
+        if (note === undefined) {
+          showToast(`Note "${noteName}" does not exist.`, "error");
+          return;
+        }
+        const content = getContentStr(note);
+        if (content.toLowerCase().includes(searchVal.toLowerCase())) {
+          showToast(`Note "${noteName}" matches search.`, "success");
+        } else {
+          showToast(`No match inside Note "${noteName}".`, "error");
+        }
+      });
+    }
+    return;
+  }
+
+  if (firstParam === "new") {
     const noteName = parts[1] || "";
     const noteContent = parts.slice(2).join(" ").trim();
     if (!noteName) {
@@ -1283,7 +1429,8 @@ function executeNotesCommand(query) {
       if (textToAppend) {
         appendNoteContent(noteName, textToAppend);
       } else {
-        showToast(`Note "${noteName}":\n${notes[noteName]}`, "success");
+        const content = getContentStr(notes[noteName]);
+        showToast(`Note "${noteName}":\n${content}`, "success");
         closeCommandCenter();
       }
     } else {
@@ -1295,7 +1442,28 @@ function executeNotesCommand(query) {
 function createOrUpdateNote(name, content) {
   chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
     const notes = result.bookmark_organizer_notes || {};
-    notes[name] = content;
+    const oldNote = notes[name];
+    
+    let noteObj = { content: "", versions: [] };
+    if (typeof oldNote === 'string') {
+      noteObj = { content: oldNote, versions: [] };
+    } else if (oldNote) {
+      noteObj = oldNote;
+    }
+    
+    if (noteObj.content && noteObj.content !== content) {
+      noteObj.versions.unshift({
+        content: noteObj.content,
+        timestamp: Date.now()
+      });
+      if (noteObj.versions.length > 15) {
+        noteObj.versions.pop();
+      }
+    }
+    
+    noteObj.content = content;
+    notes[name] = noteObj;
+    
     chrome.storage.local.set({ 'bookmark_organizer_notes': notes }, () => {
       showToast(`Note "${name}" saved!`, "success");
       closeCommandCenter();
@@ -1306,9 +1474,31 @@ function createOrUpdateNote(name, content) {
 function appendNoteContent(name, text) {
   chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
     const notes = result.bookmark_organizer_notes || {};
-    const oldContent = notes[name] || "";
+    const oldNote = notes[name];
+    
+    let noteObj = { content: "", versions: [] };
+    if (typeof oldNote === 'string') {
+      noteObj = { content: oldNote, versions: [] };
+    } else if (oldNote) {
+      noteObj = oldNote;
+    }
+    
+    const oldContent = noteObj.content || "";
     const newContent = oldContent ? oldContent + "\n" + text : text;
-    notes[name] = newContent;
+    
+    if (oldContent) {
+      noteObj.versions.unshift({
+        content: oldContent,
+        timestamp: Date.now()
+      });
+      if (noteObj.versions.length > 15) {
+        noteObj.versions.pop();
+      }
+    }
+    
+    noteObj.content = newContent;
+    notes[name] = noteObj;
+    
     chrome.storage.local.set({ 'bookmark_organizer_notes': notes }, () => {
       showToast(`Appended to note "${name}"!`, "success");
       closeCommandCenter();

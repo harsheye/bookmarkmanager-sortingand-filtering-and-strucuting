@@ -1273,6 +1273,12 @@ const BookmarkManager = {
     
     // Redesigned elements
     this.noteCloseBtn = document.getElementById('note-close-btn');
+    this.notesSidebarPanel = document.getElementById('notes-sidebar-panel');
+    this.notesSidebarCollapse = document.getElementById('notes-sidebar-collapse');
+    this.notesSidebarExpand = document.getElementById('notes-sidebar-expand');
+    this.notesSidebarResizer = document.getElementById('notes-sidebar-resizer');
+    this.noteFocusBtn = document.getElementById('note-focus-btn');
+    this.noteReadBtn = document.getElementById('note-read-btn');
 
     // Premium Redesigned History View elements
     this.historyViewContainer = document.getElementById('history-view-container');
@@ -1469,6 +1475,121 @@ const BookmarkManager = {
         this.loadNotesManager();
       });
     }
+
+    // Sidebar collapse & expand
+    if (this.notesSidebarCollapse && this.notesSidebarPanel) {
+      this.notesSidebarCollapse.addEventListener('click', () => {
+        this.notesSidebarPanel.classList.add('collapsed');
+        if (this.notesSidebarExpand) {
+          this.notesSidebarExpand.classList.remove('hidden');
+        }
+      });
+    }
+    if (this.notesSidebarExpand && this.notesSidebarPanel) {
+      this.notesSidebarExpand.addEventListener('click', () => {
+        this.notesSidebarPanel.classList.remove('collapsed');
+        this.notesSidebarExpand.classList.add('hidden');
+      });
+    }
+
+    // Split view resizer dragging
+    if (this.notesSidebarResizer && this.notesSidebarPanel) {
+      chrome.storage.local.get(['notes_sidebar_width_pref'], (result) => {
+        if (result.notes_sidebar_width_pref) {
+          const w = result.notes_sidebar_width_pref;
+          this.notesSidebarPanel.style.width = w + 'px';
+          document.documentElement.style.setProperty('--notes-sidebar-width', w + 'px');
+        }
+      });
+
+      this.notesSidebarResizer.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        this.notesSidebarResizer.classList.add('resizing');
+        
+        const startX = e.clientX;
+        const startWidth = this.notesSidebarPanel.offsetWidth;
+        
+        const doDrag = (moveEvent) => {
+          const currentWidth = startWidth + (moveEvent.clientX - startX);
+          if (currentWidth >= 150 && currentWidth <= 450) {
+            this.notesSidebarPanel.style.width = currentWidth + 'px';
+            document.documentElement.style.setProperty('--notes-sidebar-width', currentWidth + 'px');
+          }
+        };
+        
+        const stopDrag = () => {
+          this.notesSidebarResizer.classList.remove('resizing');
+          const finalWidth = this.notesSidebarPanel.offsetWidth;
+          chrome.storage.local.set({ 'notes_sidebar_width_pref': finalWidth });
+          document.removeEventListener('mousemove', doDrag);
+          document.removeEventListener('mouseup', stopDrag);
+        };
+        
+        document.addEventListener('mousemove', doDrag);
+        document.addEventListener('mouseup', stopDrag);
+      });
+    }
+
+    // Focus Mode Toggle
+    if (this.noteFocusBtn && this.notesViewContainer) {
+      this.noteFocusBtn.addEventListener('click', () => {
+        const isFocus = this.notesViewContainer.classList.toggle('focus-mode-active');
+        this.noteFocusBtn.innerHTML = isFocus 
+          ? '<i class="fi fi-rr-compress"></i> Exit Focus' 
+          : '<i class="fi fi-rr-expand"></i> Focus';
+        showToast(isFocus ? 'Focus Mode activated!' : 'Focus Mode deactivated', 'info');
+      });
+    }
+
+    // Reading Mode Toggle
+    if (this.noteReadBtn && this.notesViewContainer) {
+      this.noteReadBtn.addEventListener('click', () => {
+        const isRead = this.notesViewContainer.classList.toggle('reading-mode-active');
+        if (this.noteEditorBody) {
+          this.noteEditorBody.readOnly = isRead;
+        }
+        this.noteReadBtn.innerHTML = isRead 
+          ? '<i class="fi fi-rr-edit"></i> Edit Note' 
+          : '<i class="fi fi-rr-eye"></i> Read';
+        showToast(isRead ? 'Reading Mode: note is read-only' : 'Editing Mode activated', 'info');
+      });
+    }
+
+    // Keyboard navigation shortcuts (Ctrl+Alt+ArrowUp/ArrowDown)
+    document.addEventListener('keydown', (e) => {
+      if (this.activeView !== 'notes') return;
+      if (e.ctrlKey && e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        e.preventDefault();
+        
+        chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
+          const notes = result.bookmark_organizer_notes || {};
+          const names = Object.keys(notes);
+          if (names.length === 0) return;
+          
+          let currentIndex = names.indexOf(this.activeNoteName);
+          let nextIndex = currentIndex;
+          
+          if (e.key === 'ArrowUp') {
+            if (currentIndex === -1) {
+              nextIndex = names.length - 1;
+            } else {
+              nextIndex = (currentIndex - 1 + names.length) % names.length;
+            }
+          } else if (e.key === 'ArrowDown') {
+            if (currentIndex === -1) {
+              nextIndex = 0;
+            } else {
+              nextIndex = (currentIndex + 1) % names.length;
+            }
+          }
+          
+          const nextNoteName = names[nextIndex];
+          if (nextNoteName) {
+            this.selectNote(nextNoteName);
+          }
+        });
+      }
+    });
 
     // Premium Redesigned History View listeners
     this.initiateHistoryListeners();
@@ -3041,6 +3162,48 @@ const BookmarkManager = {
   switchView(viewName) {
     this.activeView = viewName;
     
+    // Toggle notes-active class on explorer-list-container
+    const explorerList = document.querySelector('.explorer-list-container');
+    if (explorerList) {
+      if (viewName === 'notes') {
+        explorerList.classList.add('notes-active');
+      } else {
+        explorerList.classList.remove('notes-active');
+      }
+    }
+    
+    // Toggle history-view-active class on app-container
+    const appContainer = document.querySelector('.app-container');
+    if (appContainer) {
+      if (viewName === 'history') {
+        appContainer.classList.add('history-view-active');
+      } else {
+        appContainer.classList.remove('history-view-active');
+      }
+    }
+
+    // Dynamically relocate search bar wrapper
+    const searchWrapper = document.querySelector('.search-bar-wrapper');
+    const searchSection = document.querySelector('.search-section');
+    const historySearchContainer = document.getElementById('history-search-container');
+    
+    if (searchWrapper) {
+      if (viewName === 'history') {
+        if (historySearchContainer) {
+          historySearchContainer.appendChild(searchWrapper);
+        }
+      } else {
+        if (searchSection) {
+          const suggestions = document.getElementById('command-suggestions');
+          if (suggestions) {
+            searchSection.insertBefore(searchWrapper, suggestions);
+          } else {
+            searchSection.appendChild(searchWrapper);
+          }
+        }
+      }
+    }
+    
     // Toggle active classes on sidebar tabs
     document.querySelectorAll('.sidebar-tab').forEach(el => el.classList.remove('active'));
     if (viewName === 'bookmarks' && this.tabBookmarks) this.tabBookmarks.classList.add('active');
@@ -3100,6 +3263,36 @@ const BookmarkManager = {
       if (settingsEl) settingsEl.classList.add('hidden');
       if (notesEl) notesEl.classList.add('hidden');
       if (this.historyViewContainer) this.historyViewContainer.classList.remove('hidden');
+      
+      // Force Timeline View as the default layout
+      this.historyViewMode = 'timeline';
+      
+      // Sync View mode dropdown trigger UI to timeline view
+      const viewTrigger = document.getElementById('view-mode-dropdown-trigger');
+      const viewMenu = document.getElementById('view-mode-dropdown-menu');
+      if (viewTrigger && viewMenu) {
+        const activeOption = viewMenu.querySelector('.dropdown-item[data-mode="timeline"]');
+        if (activeOption) {
+          viewTrigger.querySelector('.trigger-text').textContent = activeOption.textContent.trim();
+          viewMenu.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
+          activeOption.classList.add('active');
+          const triggerIcon = viewTrigger.querySelector('.trigger-icon');
+          const itemIcon = activeOption.querySelector('i');
+          if (triggerIcon && itemIcon) triggerIcon.className = itemIcon.className;
+        }
+      }
+      this.clearHistorySelection();
+      
+      // Auto-collapse main navigation sidebar when entering history for the first time in the session
+      if (!this.historySessionStarted && !this.hasManuallyToggledSidebarThisSession) {
+        this.historySessionStarted = true;
+        const managerSidebar = document.querySelector('.manager-sidebar');
+        if (managerSidebar && !managerSidebar.classList.contains('collapsed')) {
+          managerSidebar.classList.add('collapsed');
+          const toggle = document.getElementById('sidebar-collapse-toggle');
+          if (toggle) toggle.setAttribute('title', 'Expand Sidebar');
+        }
+      }
     } else {
       if (tableEl) tableEl.classList.remove('hidden');
       if (settingsEl) settingsEl.classList.add('hidden');
@@ -3418,13 +3611,14 @@ const BookmarkManager = {
     if (addBlacklistSubmitBtn) {
       addBlacklistSubmitBtn.addEventListener('click', () => {
         const type = document.getElementById('blacklist-add-type').value;
+        const behavior = document.getElementById('blacklist-add-behavior').value;
         const pattern = document.getElementById('blacklist-add-pattern').value.trim();
         const reason = document.getElementById('blacklist-add-reason').value.trim();
         if (!pattern) {
           showToast('Pattern cannot be empty!', 'error');
           return;
         }
-        this.addBlacklistRule(type, pattern, reason);
+        this.addBlacklistRule(type, pattern, reason, behavior);
       });
     }
 
@@ -3504,6 +3698,306 @@ const BookmarkManager = {
         }
       });
     }
+
+    // COLLAPSIBLE SIDEBAR: Main Left Sidebar (.manager-sidebar)
+    const sidebarCollapseToggle = document.getElementById('sidebar-collapse-toggle');
+    const managerSidebar = document.querySelector('.manager-sidebar');
+    if (sidebarCollapseToggle && managerSidebar) {
+      if (this.hasManuallyToggledSidebarThisSession === undefined) this.hasManuallyToggledSidebarThisSession = false;
+      if (this.historySessionStarted === undefined) this.historySessionStarted = false;
+
+      // Load saved preference
+      chrome.storage.local.get(['sidebar_collapsed_pref'], (result) => {
+        if (result.sidebar_collapsed_pref) {
+          managerSidebar.classList.add('collapsed');
+          sidebarCollapseToggle.setAttribute('title', 'Expand Sidebar');
+        }
+      });
+
+      sidebarCollapseToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.hasManuallyToggledSidebarThisSession = true;
+        const isCollapsed = managerSidebar.classList.toggle('collapsed');
+        sidebarCollapseToggle.setAttribute('title', isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar');
+        chrome.storage.local.set({ 'sidebar_collapsed_pref': isCollapsed });
+        // Recalculate virtual scrolling offsets if the workspace resized
+        setTimeout(() => {
+          if (this.activeView === 'history') {
+            this.calculateRowOffsets();
+            this.renderVirtualHistory();
+          }
+        }, 300); // matches CSS transition duration
+      });
+    }
+
+    // COLLAPSIBLE SIDEBAR: History Filter Sidebar (.history-sidebar-filters)
+    const filterCollapseToggle = document.getElementById('filter-sidebar-collapse-toggle');
+    const filterSidebar = document.querySelector('.history-sidebar-filters');
+    if (filterCollapseToggle && filterSidebar) {
+      filterCollapseToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isCollapsed = filterSidebar.classList.toggle('collapsed');
+        filterCollapseToggle.setAttribute('title', isCollapsed ? 'Expand Filters' : 'Collapse Filters');
+        
+        // Recalculate virtual scrolling offsets if workspace resized
+        setTimeout(() => {
+          if (this.activeView === 'history') {
+            this.calculateRowOffsets();
+            this.renderVirtualHistory();
+          }
+        }, 300); // matches CSS transition duration
+      });
+    }
+
+    // EXPANDABLE SEARCH EXPERIENCING
+    const searchWrapper = document.querySelector('.search-bar-wrapper');
+    const searchInputEl = document.getElementById('manager-search');
+    
+    if (searchWrapper && searchInputEl) {
+      searchWrapper.addEventListener('click', (e) => {
+        if (!searchWrapper.classList.contains('expanded')) {
+          searchWrapper.classList.add('expanded');
+          searchInputEl.focus();
+        }
+      });
+      
+      searchInputEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          searchInputEl.value = '';
+          searchInputEl.dispatchEvent(new Event('input')); // clear search
+          searchWrapper.classList.remove('expanded');
+          searchInputEl.blur();
+        }
+      });
+      
+      document.addEventListener('click', (e) => {
+        if (!searchWrapper.contains(e.target) && !searchInputEl.value.trim()) {
+          searchWrapper.classList.remove('expanded');
+        }
+      });
+    }
+
+    // GENERAL MUI-STYLE DROPDOWNS MANAGEMENT
+    const registerMuiDropdown = (containerId, triggerId, menuId, onSelectCallback = null) => {
+      const trigger = document.getElementById(triggerId);
+      const menu = document.getElementById(menuId);
+      if (!trigger || !menu) return;
+
+      trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Hide all other menus first
+        document.querySelectorAll('.dropdown-menu').forEach(m => {
+          if (m !== menu) m.classList.add('hidden');
+        });
+        menu.classList.toggle('hidden');
+      });
+
+      menu.querySelectorAll('.dropdown-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const val = item.dataset.value || item.dataset.mode;
+          
+          // Update active style
+          menu.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
+          item.classList.add('active');
+          
+          // Update trigger text (and icon if present)
+          const textSpan = trigger.querySelector('.trigger-text');
+          const triggerIcon = trigger.querySelector('.trigger-icon');
+          const itemIcon = item.querySelector('i');
+          if (textSpan) textSpan.textContent = item.textContent.trim();
+          if (triggerIcon && itemIcon) {
+            triggerIcon.className = itemIcon.className;
+          }
+
+          menu.classList.add('hidden');
+          
+          if (onSelectCallback) {
+            onSelectCallback(val);
+          }
+        });
+      });
+    };
+
+    // Close all menus when clicking outside
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.dropdown-menu').forEach(menu => {
+        if (menu.id !== 'visits-dropdown-menu') { // don't close visits filter on internal clicks
+          menu.classList.add('hidden');
+        }
+      });
+    });
+
+    // 1. Sort Menu
+    registerMuiDropdown('history-sort-dropdown', 'sort-dropdown-trigger', 'sort-dropdown-menu', (val) => {
+      const nativeSortSelect = document.getElementById('history-sort-select-premium');
+      if (nativeSortSelect) {
+        nativeSortSelect.value = val;
+        nativeSortSelect.dispatchEvent(new Event('change'));
+      }
+    });
+
+    // Sync initial sort trigger text
+    const sortMenu = document.getElementById('sort-dropdown-menu');
+    const sortTrigger = document.getElementById('sort-dropdown-trigger');
+    if (sortTrigger && sortMenu) {
+      const activeOption = sortMenu.querySelector(`.dropdown-item[data-value="${this.historySortMode || 'newest'}"]`);
+      if (activeOption) {
+        sortTrigger.querySelector('.trigger-text').textContent = activeOption.textContent.trim();
+        sortMenu.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
+        activeOption.classList.add('active');
+      }
+    }
+
+    // 2. View Mode Menu
+    registerMuiDropdown('history-view-mode-dropdown', 'view-mode-dropdown-trigger', 'view-mode-dropdown-menu', (val) => {
+      this.historyViewMode = val;
+      chrome.storage.local.set({ 'history_view_mode': this.historyViewMode });
+      
+      this.clearHistorySelection();
+      this.processHistoryData();
+    });
+
+    // Sync initial view mode trigger text
+    const viewMenu = document.getElementById('view-mode-dropdown-menu');
+    const viewTrigger = document.getElementById('view-mode-dropdown-trigger');
+    if (viewTrigger && viewMenu) {
+      const activeOption = viewMenu.querySelector(`.dropdown-item[data-mode="${this.historyViewMode || 'list'}"]`);
+      if (activeOption) {
+        viewTrigger.querySelector('.trigger-text').textContent = activeOption.textContent.trim();
+        viewMenu.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
+        activeOption.classList.add('active');
+        const triggerIcon = viewTrigger.querySelector('.trigger-icon');
+        const itemIcon = activeOption.querySelector('i');
+        if (triggerIcon && itemIcon) triggerIcon.className = itemIcon.className;
+      }
+    }
+
+    // 7. Three-Dot compact overflow menu Toggle
+    const overflowTrigger = document.getElementById('history-overflow-trigger');
+    const overflowMenu = document.getElementById('history-overflow-menu');
+    if (overflowTrigger && overflowMenu) {
+      overflowTrigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('.dropdown-menu').forEach(m => {
+          if (m !== overflowMenu) m.classList.add('hidden');
+        });
+        overflowMenu.classList.toggle('hidden');
+      });
+
+      // Bind actions in overflow menu:
+      document.getElementById('overflow-act-export')?.addEventListener('click', () => {
+        const urls = Array.from(this.historySelectedUrls);
+        if (urls.length > 0) {
+          this.exportSelectedUrls();
+        } else {
+          this.exportHistory(this.historyFilteredItems);
+        }
+      });
+
+      document.getElementById('overflow-act-import')?.addEventListener('click', () => {
+        document.getElementById('blacklist-import-input')?.click();
+      });
+
+      document.getElementById('overflow-act-blacklist')?.addEventListener('click', () => {
+        if (this.blacklistManagerPanel) {
+          this.blacklistManagerPanel.classList.remove('hidden');
+          this.loadBlacklistRules();
+        }
+      });
+
+      document.getElementById('overflow-act-clear')?.addEventListener('click', () => {
+        this.clearAllHistory();
+      });
+
+      document.getElementById('overflow-act-restore')?.addEventListener('click', () => {
+        document.getElementById('view-backups-btn')?.click();
+      });
+
+      document.getElementById('overflow-act-advanced-filters')?.addEventListener('click', () => {
+        const filterToggle = document.getElementById('filter-sidebar-collapse-toggle');
+        if (filterToggle) filterToggle.click();
+      });
+
+      document.getElementById('overflow-act-settings')?.addEventListener('click', () => {
+        this.switchView('settings');
+      });
+    }
+
+    // 8. Blacklist Search Input debounced filter
+    const blacklistSearchInput = document.getElementById('blacklist-search-input');
+    if (blacklistSearchInput) {
+      blacklistSearchInput.addEventListener('input', () => {
+        this.loadBlacklistRules();
+      });
+    }
+
+    // 9. Blacklist rules import parser
+    const importRulesInput = document.getElementById('blacklist-import-input');
+    if (importRulesInput) {
+      importRulesInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const imported = JSON.parse(event.target.result);
+            if (!Array.isArray(imported)) {
+              showToast('Invalid file format. Must be an array of rules.', 'error');
+              return;
+            }
+            const validRules = imported.filter(r => r.pattern && r.type);
+            if (validRules.length === 0) {
+              showToast('No valid rules found in file.', 'error');
+              return;
+            }
+
+            chrome.storage.local.get(['history_blacklist_rules'], (res) => {
+              const currentRules = res.history_blacklist_rules || [];
+              let addedCount = 0;
+              validRules.forEach(newRule => {
+                if (!currentRules.some(r => r.type === newRule.type && r.pattern === newRule.pattern)) {
+                  currentRules.push({
+                    id: newRule.id || 'bl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                    type: newRule.type,
+                    pattern: newRule.pattern,
+                    reason: newRule.reason || 'Imported rule',
+                    behavior: newRule.behavior || 'hide',
+                    addedDate: newRule.addedDate || Date.now()
+                  });
+                  addedCount++;
+                }
+              });
+
+              chrome.storage.local.set({ 'history_blacklist_rules': currentRules }, () => {
+                showToast(`Successfully imported ${addedCount} new rules!`, 'success');
+                this.syncBlacklistWithSettings(currentRules);
+                this.loadBlacklistRules();
+              });
+            });
+          } catch (err) {
+            showToast('Failed to parse JSON file.', 'error');
+          }
+        };
+        reader.readAsText(file);
+      });
+    }
+
+    // Blacklist dropdown setups
+    registerMuiDropdown('blacklist-add-type-dropdown', 'blacklist-type-trigger', 'blacklist-type-menu', (val) => {
+      const nativeSelect = document.getElementById('blacklist-add-type');
+      if (nativeSelect) nativeSelect.value = val;
+    });
+
+    registerMuiDropdown('blacklist-add-behavior-dropdown', 'blacklist-behavior-trigger', 'blacklist-behavior-menu', (val) => {
+      const nativeSelect = document.getElementById('blacklist-add-behavior');
+      if (nativeSelect) nativeSelect.value = val;
+    });
+
+    registerMuiDropdown('blacklist-filter-type-dropdown', 'blacklist-filter-type-trigger', 'blacklist-filter-type-menu', (val) => {
+      this.blacklistFilterType = val;
+      this.loadBlacklistRules();
+    });
   },
 
   loadHistory(query = '') {
@@ -4350,18 +4844,24 @@ const BookmarkManager = {
   exportSelectedUrls() {
     const urls = Array.from(this.historySelectedUrls);
     if (urls.length === 0) return;
-    
     const exportItems = this.historyFilteredItems.filter(i => urls.includes(i.url));
-    const jsonStr = JSON.stringify(exportItems, null, 2);
+    this.exportHistory(exportItems);
+  },
+
+  exportHistory(items) {
+    if (!items || items.length === 0) {
+      showToast('No history items to export!', 'error');
+      return;
+    }
+    const jsonStr = JSON.stringify(items, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    
     const a = document.createElement('a');
     a.href = url;
-    a.download = `bookmarks_history_export_${Date.now()}.json`;
+    a.download = `history_export_${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast('Export file downloaded!', 'success');
+    showToast(`Exported ${items.length} items successfully!`, 'success');
   },
 
   copySelectedUrls() {
@@ -4384,45 +4884,107 @@ const BookmarkManager = {
       this.historyBlacklistRules = res.history_blacklist_rules || [];
       
       if (this.blacklistRulesTableBody) {
-        if (this.historyBlacklistRules.length === 0) {
+        const searchQuery = (document.getElementById('blacklist-search-input')?.value || '').trim().toLowerCase();
+        const filterType = this.blacklistFilterType || 'all';
+
+        // Filter rules locally
+        const filteredRules = this.historyBlacklistRules.filter(rule => {
+          const matchSearch = rule.pattern.toLowerCase().includes(searchQuery) || (rule.reason || '').toLowerCase().includes(searchQuery);
+          const matchType = filterType === 'all' || rule.type === filterType;
+          return matchSearch && matchType;
+        });
+
+        if (filteredRules.length === 0) {
           this.blacklistRulesTableBody.innerHTML = `
             <tr>
-              <td colspan="5" style="text-align: center; color: var(--text-muted);">No blacklist rules active.</td>
+              <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">No blacklist rules found.</td>
             </tr>
           `;
           return;
         }
 
         let html = '';
-        this.historyBlacklistRules.forEach(rule => {
+        filteredRules.forEach(rule => {
           const typeBadge = `<span class="blacklist-badge ${rule.type}">${rule.type.toUpperCase()}</span>`;
+          const behaviorBadge = `<span class="blacklist-behavior-badge ${rule.behavior || 'hide'}">${(rule.behavior || 'hide').replace('-', ' ')}</span>`;
           const dateStr = new Date(rule.addedDate).toLocaleDateString();
+
+          // Calculate blocked entries and subdomains count from loaded raw history
+          let blockedEntriesCount = 0;
+          const blockedSubdomainsSet = new Set();
+          
+          (this.allRawHistoryItems || []).forEach(item => {
+            const parts = this.getDomainParts(item.url);
+            let matches = false;
+            if (rule.type === 'domain') {
+              matches = parts.root === rule.pattern || parts.root.endsWith('.' + rule.pattern);
+            } else if (rule.type === 'subdomain') {
+              matches = parts.subdomain === rule.pattern;
+            } else if (rule.type === 'url') {
+              matches = item.url === rule.pattern;
+            }
+            
+            if (matches) {
+              blockedEntriesCount += (item.visitCount || 1);
+              if (parts.subdomain) {
+                blockedSubdomainsSet.add(parts.subdomain);
+              }
+            }
+          });
+
+          const blockedSubdomainsCount = rule.type === 'domain' ? blockedSubdomainsSet.size : 0;
+
           html += `
-            <tr>
+            <tr data-id="${rule.id}">
+              <td style="word-break: break-all; font-family: monospace; font-size: 12.5px; color: #fff;">${rule.pattern}</td>
               <td>${typeBadge}</td>
-              <td style="word-break: break-all; font-family: monospace;">${rule.pattern}</td>
-              <td>${rule.reason || 'None'}</td>
-              <td>${dateStr}</td>
+              <td>${behaviorBadge}</td>
+              <td style="text-align: center; font-weight: 600; color: var(--text-muted);">${blockedEntriesCount}</td>
+              <td style="text-align: center; font-weight: 600; color: var(--text-muted);">${blockedSubdomainsCount}</td>
+              <td style="font-size: 11.5px; color: var(--text-muted);">${dateStr}</td>
               <td style="text-align: center;">
-                <button class="btn btn-secondary btn-small remove-rule-btn" data-id="${rule.id}" style="padding: 2px 6px; font-size: 11px;"><i class="fi fi-rr-undo"></i> Restore</button>
+                <div style="display: flex; gap: 4px; justify-content: center;">
+                  <button class="btn btn-secondary btn-small edit-rule-btn" data-id="${rule.id}" style="padding: 4px 6px; font-size: 11px;" title="Edit Rule"><i class="fi fi-rr-edit"></i></button>
+                  <button class="btn btn-danger btn-small remove-rule-btn" data-id="${rule.id}" style="padding: 4px 6px; font-size: 11px;" title="Delete Rule"><i class="fi fi-rr-trash"></i></button>
+                </div>
               </td>
             </tr>
           `;
         });
         this.blacklistRulesTableBody.innerHTML = html;
 
-        // Restore rule click bindings
+        // Bind event listeners
         this.blacklistRulesTableBody.querySelectorAll('.remove-rule-btn').forEach(btn => {
           btn.addEventListener('click', (e) => {
-            const ruleId = e.currentTarget.dataset.id;
+            e.stopPropagation();
+            const ruleId = btn.dataset.id;
             this.removeBlacklistRule(ruleId);
+          });
+        });
+
+        this.blacklistRulesTableBody.querySelectorAll('.edit-rule-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const ruleId = btn.dataset.id;
+            const rule = this.historyBlacklistRules.find(r => r.id === ruleId);
+            if (rule) {
+              const newReason = prompt('Edit blacklist reason:', rule.reason);
+              if (newReason === null) return; // user cancelled
+              const newBehavior = prompt('Edit behavior ("hide", "delete-existing", "never-store"):', rule.behavior || 'hide');
+              if (newBehavior === null) return;
+              if (!['hide', 'delete-existing', 'never-store'].includes(newBehavior)) {
+                showToast('Invalid behavior value! Use "hide", "delete-existing", or "never-store".', 'error');
+                return;
+              }
+              this.editBlacklistRule(ruleId, newReason, newBehavior);
+            }
           });
         });
       }
     });
   },
 
-  addBlacklistRule(type, pattern, reason) {
+  addBlacklistRule(type, pattern, reason, behavior = 'hide') {
     chrome.storage.local.get(['history_blacklist_rules'], (res) => {
       const rules = res.history_blacklist_rules || [];
       if (rules.some(r => r.type === type && r.pattern === pattern)) {
@@ -4435,6 +4997,7 @@ const BookmarkManager = {
         type: type,
         pattern: pattern,
         reason: reason || 'Manual blacklist entry',
+        behavior: behavior,
         addedDate: Date.now()
       };
       
@@ -4442,6 +5005,28 @@ const BookmarkManager = {
       chrome.storage.local.set({ 'history_blacklist_rules': rules }, () => {
         showToast('Blacklist rule created!', 'success');
         
+        // Delete matching existing history items immediately if behavior is delete-existing or never-store
+        if (behavior === 'delete-existing' || behavior === 'never-store') {
+          const matchingItems = (this.allRawHistoryItems || []).filter(item => {
+            const parts = this.getDomainParts(item.url);
+            if (type === 'domain') {
+              return parts.root === pattern || parts.root.endsWith('.' + pattern);
+            } else if (type === 'subdomain') {
+              return parts.subdomain === pattern;
+            } else if (type === 'url') {
+              return item.url === pattern;
+            }
+            return false;
+          });
+
+          matchingItems.forEach(item => {
+            chrome.history.deleteUrl({ url: item.url });
+          });
+          
+          this.allRawHistoryItems = null; // force reload history
+          this.loadHistory(this.historySearchQuery);
+        }
+
         // Clean fields
         const patternInput = document.getElementById('blacklist-add-pattern');
         const reasonInput = document.getElementById('blacklist-add-reason');
@@ -4460,10 +5045,34 @@ const BookmarkManager = {
       rules = rules.filter(r => r.id !== id);
       
       chrome.storage.local.set({ 'history_blacklist_rules': rules }, () => {
-        showToast('Blacklist rule restored!', 'success');
+        showToast('Blacklist rule deleted!', 'success');
         this.syncBlacklistWithSettings(rules);
         this.loadBlacklistRules();
+        this.allRawHistoryItems = null; // force reload history
+        this.loadHistory(this.historySearchQuery);
       });
+    });
+  },
+
+  editBlacklistRule(id, newReason, newBehavior) {
+    chrome.storage.local.get(['history_blacklist_rules'], (res) => {
+      const rules = res.history_blacklist_rules || [];
+      const rule = rules.find(r => r.id === id);
+      if (rule) {
+        rule.reason = newReason;
+        rule.behavior = newBehavior;
+        
+        chrome.storage.local.set({ 'history_blacklist_rules': rules }, () => {
+          showToast('Blacklist rule updated!', 'success');
+          this.syncBlacklistWithSettings(rules);
+          this.loadBlacklistRules();
+          
+          if (newBehavior === 'delete-existing' || newBehavior === 'never-store') {
+            this.allRawHistoryItems = null; // force reload history
+            this.loadHistory(this.historySearchQuery);
+          }
+        });
+      }
     });
   },
 
@@ -4687,7 +5296,7 @@ const BookmarkManager = {
     if (!this.historyStatsContainer) return;
 
     // Calculate global stats over all raw elements
-    const raw = this.allRawHistoryItems || [];
+    const raw = (this.allRawHistoryItems || []).filter(item => !this.isUrlBlacklisted(item.url, this.historyBlacklistRules));
     const count = raw.length;
     const visits = raw.reduce((sum, item) => sum + (item.visitCount || 1), 0);
     
@@ -5103,10 +5712,39 @@ const BookmarkManager = {
   },
 
   selectNote(name) {
+    // Cache current unsaved state, cursor and scroll of the note we are leaving
+    if (this.activeNoteName && this.activeNoteName !== name && this.noteEditorBody) {
+      this.unsavedNotesCache = this.unsavedNotesCache || {};
+      this.noteCursorPositions = this.noteCursorPositions || {};
+      this.noteScrollPositions = this.noteScrollPositions || {};
+      
+      this.unsavedNotesCache[this.activeNoteName] = this.noteEditorBody.value;
+      this.noteCursorPositions[this.activeNoteName] = {
+        start: this.noteEditorBody.selectionStart,
+        end: this.noteEditorBody.selectionEnd
+      };
+      
+      const scrollContainer = document.querySelector('.note-editor-scroll-container');
+      if (scrollContainer) {
+        this.noteScrollPositions[this.activeNoteName] = scrollContainer.scrollTop;
+      }
+    }
+
     this.activeNoteName = name;
     this.noteEditorPlaceholder.classList.add('hidden');
     this.noteEditorPane.classList.remove('hidden');
     this.noteEditorTitle.value = name;
+    
+    // Reset reading mode class when switching notes to let user edit new note immediately
+    if (this.notesViewContainer) {
+      this.notesViewContainer.classList.remove('reading-mode-active');
+      if (this.noteReadBtn) {
+        this.noteReadBtn.innerHTML = '<i class="fi fi-rr-eye"></i> Read';
+      }
+      if (this.noteEditorBody) {
+        this.noteEditorBody.readOnly = false;
+      }
+    }
     
     chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
       const notes = result.bookmark_organizer_notes || {};
@@ -5119,6 +5757,11 @@ const BookmarkManager = {
       } else if (note) {
         content = note.content;
         versions = note.versions || [];
+      }
+      
+      // If there is an unsaved content in memory cache, use it!
+      if (this.unsavedNotesCache && this.unsavedNotesCache[name] !== undefined) {
+        content = this.unsavedNotesCache[name];
       }
       
       this.noteEditorBody.value = content;
@@ -5135,6 +5778,24 @@ const BookmarkManager = {
           }
         });
       }
+      
+      // Restore cursor position and scroll position
+      setTimeout(() => {
+        if (this.noteCursorPositions && this.noteCursorPositions[name]) {
+          try {
+            this.noteEditorBody.setSelectionRange(
+              this.noteCursorPositions[name].start,
+              this.noteCursorPositions[name].end
+            );
+            this.noteEditorBody.focus();
+          } catch(e) {}
+        }
+        
+        const scrollContainer = document.querySelector('.note-editor-scroll-container');
+        if (scrollContainer && this.noteScrollPositions && this.noteScrollPositions[name] !== undefined) {
+          scrollContainer.scrollTop = this.noteScrollPositions[name];
+        }
+      }, 0);
     });
   },
 
@@ -5232,6 +5893,9 @@ const BookmarkManager = {
       
       chrome.storage.local.set({ 'bookmark_organizer_notes': notes }, () => {
         showToast(`Note "${name}" saved!`, 'success');
+        if (this.unsavedNotesCache) {
+          delete this.unsavedNotesCache[name];
+        }
         this.activeNoteName = name;
         this.selectNote(name);
       });
@@ -5250,6 +5914,10 @@ const BookmarkManager = {
       delete notes[name];
       chrome.storage.local.set({ 'bookmark_organizer_notes': notes }, () => {
         showToast(`Note "${name}" deleted!`, 'success');
+        if (this.unsavedNotesCache) delete this.unsavedNotesCache[name];
+        if (this.noteCursorPositions) delete this.noteCursorPositions[name];
+        if (this.noteScrollPositions) delete this.noteScrollPositions[name];
+        
         this.activeNoteName = null;
         this.noteEditorPane.classList.add('hidden');
         this.noteEditorPlaceholder.classList.remove('hidden');
