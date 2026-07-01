@@ -203,6 +203,9 @@ function createCommandCenter() {
     const style = document.createElement("style");
     style.textContent = `
       @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
+      @import url('https://cdn-uicons.flaticon.com/2.6.0/uicons-regular-rounded/css/uicons-regular-rounded.css');
+      @import url('https://cdn-uicons.flaticon.com/2.6.0/uicons-solid-rounded/css/uicons-solid-rounded.css');
+      @import url('https://cdn-uicons.flaticon.com/2.6.0/uicons-bold-rounded/css/uicons-bold-rounded.css');
       
       :host {
         all: initial;
@@ -619,8 +622,8 @@ function renderItemsList(items) {
       `;
       if (item.isHistory) {
         rightHtml = `
-          <span class="cc-item-right" title="${item.url}" style="color:#f43f5e; font-weight:600; display:flex; align-items:center; gap:4px;">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="flex-shrink:0;"><path d="M12,0A12,12,0,1,0,24,12,12.013,12.013,0,0,0,12,0Zm0,22A10,10,0,1,1,22,12,10.011,10.011,0,0,1,12,22Zm1-10V7a1,1,0,0,0-2,0v6a1,1,0,0,0,.553.894l3.5,1.75a1,1,0,1,0,.894-1.788Z"/></svg>
+          <span class="cc-item-right" title="${item.url}" style="color:#f43f5e; font-weight:600; display:flex; align-items:center; gap:6px;">
+            <i class="fi fi-rr-clock-three" style="font-size:12px; display:flex; align-items:center;"></i>
             History &bull; ${domain}
           </span>
         `;
@@ -630,14 +633,14 @@ function renderItemsList(items) {
     } else if (item.isNote || item.isCreateNoteAction || item.isStaticHelp) {
       // Note Card
       leftHtml = `
-        <span class="cc-item-icon" style="color:#10b981; display:flex; align-items:center;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19,0H5A5.006,5.006,0,0,0,0,5V19a5.006,5.006,0,0,0,5,5H19a5.006,5.006,0,0,0,5-5V5A5.006,5.006,0,0,0,19,0Zm3,19a3,3,0,0,1-3,3H5a3,3,0,0,1-3-3V5A3,3,0,0,1,5,3H19a3,3,0,0,1,3,3Zm-4-7H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm0-4H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm-5,8H6a1,1,0,0,0,0,2h7a1,1,0,0,0,0-2Z"/></svg></span>
+        <span class="cc-item-icon" style="color:#10b981; display:flex; align-items:center;"><i class="fi fi-rr-document" style="font-size:14px;"></i></span>
         <span class="cc-item-title" style="font-weight:600; color:inherit;">${item.title}</span>
       `;
       rightHtml = `<span class="cc-item-right" style="color:#10b981; font-family:monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${item.contentSnippet || ''}">${item.contentSnippet || ''}</span>`;
     } else {
       // Folder Directory
       leftHtml = `
-        <span class="cc-item-icon" style="color:#a855f7; display:flex; align-items:center;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19.5,5H13.243a3,3,0,0,1-2.122-.879l-1.414-1.414A3,3,0,0,0,7.586,1.828H4.5A2.5,2.5,0,0,0,2,4.328V19.5A2.5,2.5,0,0,0,4.5,22h15A2.5,2.5,0,0,0,22,19.5V7.5A2.5,2.5,0,0,0,19.5,5ZM20,19.5a.5.5,0,0,1-.5.5H4.5a.5.5,0,0,1-.5-.5V7.5A.5.5,0,0,1,4.5,7h15a.5.5,0,0,1,.5.5Z"/></svg></span>
+        <span class="cc-item-icon" style="color:#a855f7; display:flex; align-items:center;"><i class="fi fi-rr-folder" style="font-size:14px;"></i></span>
         <span class="cc-item-title" style="font-weight:600; color:inherit;">${item.title}</span>
       `;
       rightHtml = `<span class="cc-item-right" style="color:#a855f7; font-weight:600; font-style:italic;">Folder</span>`;
@@ -1321,23 +1324,35 @@ function showToast(message, type = 'success') {
     position: fixed;
     bottom: 24px;
     right: 24px;
-    background: ${type === 'success' ? 'rgba(16, 185, 129, 0.88)' : 'rgba(239, 68, 68, 0.88)'};
-    border: 1px solid ${type === 'success' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'};
+    background: ${type === 'success' ? 'rgba(16, 185, 129, 0.22)' : 'rgba(244, 63, 94, 0.22)'};
+    border: 1px solid ${type === 'success' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(244, 63, 94, 0.4)'};
+    border-left: 5px solid ${type === 'success' ? '#10b981' : '#f43f5e'};
     color: white;
-    padding: 12px 24px;
+    padding: 14px 22px;
     border-radius: 12px;
     font-family: system-ui, -apple-system, sans-serif;
     font-size: 13.5px;
     font-weight: 600;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.45);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 10px 30px ${type === 'success' ? 'rgba(16, 185, 129, 0.22)' : 'rgba(244, 63, 94, 0.22)'};
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
     z-index: 2147483647;
     transform: translateY(100px);
     opacity: 0;
-    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   `;
-  toast.textContent = message;
+  
+  const iconSvg = type === 'success' 
+    ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:flex; align-items:center; flex-shrink:0;"><polyline points="20 6 9 17 4 12"></polyline></svg>`
+    : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#f43f5e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:flex; align-items:center; flex-shrink:0;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
+
+  toast.innerHTML = `
+    ${iconSvg}
+    <span>${message}</span>
+  `;
   container.appendChild(toast);
   
   setTimeout(() => {
@@ -1348,6 +1363,6 @@ function showToast(message, type = 'success') {
   setTimeout(() => {
     toast.style.transform = 'translateY(100px)';
     toast.style.opacity = '0';
-    setTimeout(() => toast.remove(), 300);
+    setTimeout(() => toast.remove(), 400);
   }, 3500);
 }

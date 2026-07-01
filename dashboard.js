@@ -3884,27 +3884,14 @@ const COMMANDS = [
 function showToast(message, type = 'success') {
   const toast = document.createElement('div');
   toast.className = `custom-toast toast-${type}`;
-  toast.style.cssText = `
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    background: ${type === 'success' ? 'rgba(16, 185, 129, 0.9)' : 'rgba(239, 68, 68, 0.9)'};
-    border: 1px solid ${type === 'success' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'};
-    color: white;
-    padding: 12px 24px;
-    border-radius: 12px;
-    font-family: system-ui, -apple-system, sans-serif;
-    font-size: 13.5px;
-    font-weight: 600;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.45);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    z-index: 99999;
-    transform: translateY(100px);
-    opacity: 0;
-    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  
+  const iconClass = type === 'success' ? 'fi fi-rr-checkbox' : 'fi fi-rr-exclamation';
+  const iconColor = type === 'success' ? '#10b981' : '#f43f5e';
+  
+  toast.innerHTML = `
+    <i class="${iconClass}" style="color: ${iconColor}; font-size: 16px; display: flex; align-items: center;"></i>
+    <span>${message}</span>
   `;
-  toast.textContent = message;
   document.body.appendChild(toast);
   
   setTimeout(() => {
@@ -3915,7 +3902,7 @@ function showToast(message, type = 'success') {
   setTimeout(() => {
     toast.style.transform = 'translateY(100px)';
     toast.style.opacity = '0';
-    setTimeout(() => toast.remove(), 300);
+    setTimeout(() => toast.remove(), 400);
   }, 3500);
 }
 

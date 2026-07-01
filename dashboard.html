@@ -108,28 +108,28 @@
             <span class="breadcrumb-item active" data-folder-id="0">Library</span>
           </div>
           <div class="explorer-actions">
-             <button id="add-bookmark-btn" class="btn btn-success btn-small">
-               <span>➕</span> Add Bookmark
+             <button id="add-bookmark-btn" class="btn btn-success btn-small" style="display: flex; align-items: center; gap: 6px;">
+               <i class="fi fi-br-plus"></i> Add Bookmark
              </button>
           </div>
         </div>
 
         <!-- Table Explorer list -->
         <!-- History Explorer Options Toolbar -->
-        <div id="history-toolbar" class="hidden" style="display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 12px; background: rgba(255,255,255,0.02); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); color: white;">
+        <div id="history-toolbar" class="history-toolbar-panel hidden">
           <div style="display: flex; align-items: center; gap: 10px;">
             <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; margin: 0; user-select: none;">
               <input type="checkbox" id="history-select-all" style="cursor: pointer;">
               <span>Select All</span>
             </label>
-            <button id="history-delete-selected" class="btn btn-danger btn-small" style="padding: 4px 10px; font-size: 12px;">Delete Selected</button>
-            <button id="history-clear-all" class="btn btn-secondary btn-small" style="padding: 4px 10px; font-size: 12px;">Clear History</button>
+            <button id="history-delete-selected" class="btn btn-danger btn-small" style="padding: 6px 10px; font-size: 12px; display: flex; align-items: center; gap: 6px;"><i class="fi fi-rr-trash"></i> Delete Selected</button>
+            <button id="history-clear-all" class="btn btn-secondary btn-small" style="padding: 6px 10px; font-size: 12px; display: flex; align-items: center; gap: 6px;"><i class="fi fi-rr-trash"></i> Clear History</button>
           </div>
           
           <div style="display: flex; align-items: center; gap: 12px;">
             <div style="display: flex; align-items: center; gap: 6px;">
               <span style="font-size: 12.5px; color: var(--text-muted);">Sort:</span>
-              <select id="history-sort-select" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer;">
+              <select id="history-sort-select">
                 <option value="date-desc">Last Visited (Newest)</option>
                 <option value="date-asc">Last Visited (Oldest)</option>
                 <option value="visits-desc">Most Visited</option>
@@ -255,7 +255,7 @@
             </div>
 
             <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
-              <button id="settings-save-btn" class="btn btn-success" style="padding: 10px 24px;">Save & Apply Settings</button>
+              <button id="settings-save-btn" class="btn btn-success" style="padding: 10px 24px; display: flex; align-items: center; gap: 6px;"><i class="fi fi-rs-disk"></i> Save & Apply Settings</button>
             </div>
           </div>
 
@@ -265,7 +265,7 @@
               <!-- Notes Sidebar (left) -->
               <div style="width: 240px; display: flex; flex-direction: column; gap: 12px; border-right: 1px solid rgba(255,255,255,0.08); padding-right: 16px; flex-shrink: 0;">
                 <button id="notes-new-btn" class="btn btn-primary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; font-size: 13px;">
-                  <span>➕</span> New Note
+                  <i class="fi fi-br-plus"></i> New Note
                 </button>
                 <div id="notes-sidebar-list" style="display: flex; flex-direction: column; gap: 8px; overflow-y: auto; flex-grow: 1; padding-right: 4px;">
                   <!-- Populated with notes names -->
@@ -277,8 +277,8 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-shrink: 0;">
                   <input type="text" id="note-editor-title" class="text-input" placeholder="Note Name" style="font-size: 18px; font-weight: 700; width: 60%; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.1); padding: 5px 0; color: white;" readonly>
                   <div style="display: flex; gap: 8px;">
-                    <button id="note-save-btn" class="btn btn-success btn-small">Save Note</button>
-                    <button id="note-delete-btn" class="btn btn-danger btn-small">Delete</button>
+                    <button id="note-save-btn" class="btn btn-success btn-small" style="display: flex; align-items: center; gap: 6px;"><i class="fi fi-rs-disk"></i> Save Note</button>
+                    <button id="note-delete-btn" class="btn btn-danger btn-small" style="display: flex; align-items: center; gap: 6px;"><i class="fi fi-rr-trash"></i> Delete</button>
                   </div>
                 </div>
                 
