@@ -62,11 +62,6 @@
     <div id="manager-view" class="manager-layout">
       <!-- Left Sidebar: Folder tree navigation and Sorter Card -->
       <aside class="manager-sidebar glass-panel">
-        <div class="sidebar-collapse-wrapper">
-          <button id="sidebar-collapse-toggle" class="sidebar-collapse-btn" title="Collapse Sidebar" type="button">
-            <i class="fi fi-rr-angle-double-left"></i>
-          </button>
-        </div>
         <div class="sidebar-tabs" style="display:flex; flex-direction:column; gap:8px; margin-bottom:20px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:15px;">
           <div class="sidebar-tab active" id="tab-bookmarks" title="Bookmark Explorer" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:white; font-weight:600; font-size:14px; transition:background 0.2s;">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color:var(--color-primary);"><path d="M19.5,5H13.243a3,3,0,0,1-2.122-.879l-1.414-1.414A3,3,0,0,0,7.586,1.828H4.5A2.5,2.5,0,0,0,2,4.328V19.5A2.5,2.5,0,0,0,4.5,22h15A2.5,2.5,0,0,0,22,19.5V7.5A2.5,2.5,0,0,0,19.5,5ZM20,19.5a.5.5,0,0,1-.5.5H4.5a.5.5,0,0,1-.5-.5V7.5A.5.5,0,0,1,4.5,7h15a.5.5,0,0,1,.5.5Z"/></svg>
@@ -99,6 +94,13 @@
           </div>
         </div>
       </aside>
+
+      <!-- Subtle 1px Resize Divider with integrated centered collapse button for main navigation sidebar -->
+      <div class="manager-resize-divider" id="manager-sidebar-resizer">
+        <button id="sidebar-collapse-toggle" class="sidebar-collapse-btn" title="Collapse Sidebar" type="button">
+          <i class="fi fi-rr-angle-small-left"></i>
+        </button>
+      </div>
 
       <!-- Right Panel: Command Search, Breadcrumbs and Bookmarks Explorer -->
       <section class="manager-explorer glass-panel">
@@ -174,104 +176,462 @@
           </div>
 
           <!-- Settings View Container -->
-          <div id="settings-view-container" class="settings-view-panel hidden" style="padding: 20px; display: flex; flex-direction: column; gap: 20px; color: white;">
-            <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 5px; color: white;">⚙️ Organizer Settings</h2>
-            <p style="color: var(--text-muted); font-size: 13.5px; margin-bottom: 15px;">Configure the default parent routing, threshold clustering limits, and active matching categories.</p>
+          <div id="settings-view-container" class="settings-view-panel hidden" style="padding: 0; display: flex; flex-direction: column; height: 100%; color: white; overflow: hidden;">
             
-            <div class="form-group glass-panel" style="padding: 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02);">
-              <label for="settings-parent-name" style="display:block; font-weight:600; margin-bottom:8px; font-size:13.5px; color: white;">Parent Folder Target</label>
-              <input type="text" id="settings-parent-name" value="Bookmarks Bar" class="text-input" style="width: 100%; box-sizing: border-box;">
-              <span style="font-size:12px; color:var(--text-muted); display:block; margin-top:6px;">
-                Type <strong>Bookmarks Bar</strong> to sort directly on the root bar, or enter a custom folder name to nest organized categories.
-              </span>
-            </div>
-
-            <div class="form-group glass-panel" style="padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02);">
-              <label style="font-weight:600; font-size:13.5px; color: white;">Clustering Threshold limit</label>
-              <div style="display:flex; align-items:center; gap:12px;">
-                <input type="range" id="settings-threshold-slider" min="2" max="10" value="5" style="flex-grow:1;">
-                <span id="settings-threshold-val" style="font-weight:700; color:var(--color-primary); min-width:20px; text-align:center;">5</span>
+            <!-- Settings Dashboard Header -->
+            <div class="settings-dashboard-header">
+              <div class="settings-title-section">
+                <h2>⚙️ Settings Control Center</h2>
+                <p>Configure interface options, smart features, automated backups, and view statistics.</p>
               </div>
-              <span style="font-size:12px; color:var(--text-muted);">
-                Number of similar bookmarks required within a group before the sorter creates a dedicated category folder.
-              </span>
-            </div>
-
-            <div class="form-group glass-panel" style="padding: 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02);">
-              <label style="display:block; font-weight:600; margin-bottom:12px; font-size:13.5px; color: white;">Enabled Smart Categories</label>
-              <div id="settings-categories-list" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:10px;">
-                <!-- Populated dynamically with checkboxes -->
+              <div class="settings-search-wrapper">
+                <i class="fi fi-rr-search"></i>
+                <input type="text" id="settings-search" placeholder="Search settings (e.g., theme, backup, shortcut, scale)...">
               </div>
             </div>
 
-            <!-- Command Center Customizations -->
-            <div class="form-group glass-panel" style="padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 15px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02);">
-              <label style="font-weight:600; font-size:13.5px; color: white; display: flex; align-items: center; gap: 8px;">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="color:var(--color-primary);"><path d="M23.707,22.293l-5.969-5.969a10.016,10.016,0,1,0-1.414,1.414l5.969,5.969a10.025,10.025,0,0,0,1.414-1.414ZM10,18a8,8,0,1,1,8-8A8.009,8.009,0,0,1,10,18Z"/></svg>
-                Command Center Customizations
-              </label>
-              
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                <div>
-                  <label for="settings-cc-theme" style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">Overlay Theme</label>
-                  <select id="settings-cc-theme" class="text-input" style="width: 100%; box-sizing: border-box; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 8px 12px; border-radius: 8px;">
-                    <option value="black">Glass Black (Frosted)</option>
-                    <option value="white">Glass White (Frosted)</option>
-                  </select>
-                </div>
-                <div>
-                  <label for="settings-cc-blur" style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">Backdrop Blur Intensity</label>
-                  <div style="display:flex; align-items:center; gap:12px;">
-                    <input type="range" id="settings-cc-blur" min="0" max="25" value="15" style="flex-grow:1;">
-                    <span id="settings-cc-blur-val" style="font-weight:700; color:var(--color-primary); min-width:24px; text-align:center;">15px</span>
+            <!-- Settings Dashboard Body -->
+            <div class="settings-dashboard-body">
+              <!-- Left Sidebar Sub-Navigation -->
+              <aside class="settings-sub-sidebar">
+                <button type="button" class="settings-nav-item active" data-target="settings-sec-appearance">
+                  <i class="fi fi-rr-paint-brush"></i><span>Appearance</span>
+                </button>
+                <button type="button" class="settings-nav-item" data-target="settings-sec-bookmarks">
+                  <i class="fi fi-rr-books-medical"></i><span>Bookmarks</span>
+                </button>
+                <button type="button" class="settings-nav-item" data-target="settings-sec-history">
+                  <i class="fi fi-sr-system-restore"></i><span>History</span>
+                </button>
+                <button type="button" class="settings-nav-item" data-target="settings-sec-notes">
+                  <i class="fi fi-rr-document"></i><span>Notes Editor</span>
+                </button>
+                <button type="button" class="settings-nav-item" data-target="settings-sec-privacy">
+                  <i class="fi fi-rr-lock"></i><span>Privacy & Data</span>
+                </button>
+                <button type="button" class="settings-nav-item" data-target="settings-sec-performance">
+                  <i class="fi fi-rr-dashboard"></i><span>Performance</span>
+                </button>
+                <button type="button" class="settings-nav-item" data-target="settings-sec-backups">
+                  <i class="fi fi-rs-disk"></i><span>Backup & Restore</span>
+                </button>
+                <button type="button" class="settings-nav-item" data-target="settings-sec-shortcuts">
+                  <i class="fi fi-rr-keyboard"></i><span>Shortcuts</span>
+                </button>
+                <button type="button" class="settings-nav-item" data-target="settings-sec-accessibility">
+                  <i class="fi fi-rr-eye"></i><span>Accessibility</span>
+                </button>
+                <button type="button" class="settings-nav-item" data-target="settings-sec-about">
+                  <i class="fi fi-rr-info"></i><span>About & Stats</span>
+                </button>
+              </aside>
+
+              <!-- Right Content Area -->
+              <div class="settings-content-pane">
+                
+                <!-- SECTION: Appearance -->
+                <div class="settings-section active" id="settings-sec-appearance">
+                  <h3 class="section-title">Appearance & Customization</h3>
+                  
+                  <div class="settings-card settings-item" data-keywords="theme accent color glass mode light dark">
+                    <h4>Theme & Styling</h4>
+                    
+                    <div class="settings-row">
+                      <div class="settings-col">
+                        <label for="settings-theme-preset">Theme Mode</label>
+                        <select id="settings-theme-preset" class="settings-select">
+                          <option value="dark">Dark Theme (Default)</option>
+                          <option value="light">Light Theme</option>
+                          <option value="amethyst">Amethyst Dusk (Purple)</option>
+                          <option value="emerald">Emerald Forest (Green)</option>
+                        </select>
+                      </div>
+                      <div class="settings-col">
+                        <label>Accent Preset</label>
+                        <div class="accent-color-presets">
+                          <span class="accent-dot active" data-color="indigo" style="background:#6366f1;"></span>
+                          <span class="accent-dot" data-color="cyan" style="background:#06b6d4;"></span>
+                          <span class="accent-dot" data-color="rose" style="background:#f43f5e;"></span>
+                          <span class="accent-dot" data-color="green" style="background:#10b981;"></span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="settings-row" style="margin-top: 15px;">
+                      <div class="settings-col">
+                        <label>Custom Border Radius (<span id="radius-val">14px</span>)</label>
+                        <input type="range" id="settings-custom-radius" min="4" max="24" value="14" class="settings-range">
+                      </div>
+                      <div class="settings-col">
+                        <label>Glass Transparency (<span id="glass-opacity-val">0.45</span>)</label>
+                        <input type="range" id="settings-glass-opacity" min="10" max="95" value="45" class="settings-range">
+                      </div>
+                    </div>
+
+                    <div class="settings-row" style="margin-top: 15px;">
+                      <div class="settings-col">
+                        <label>Backdrop Blur Intensity (<span id="settings-cc-blur-val">15px</span>)</label>
+                        <input type="range" id="settings-cc-blur" min="0" max="25" value="15" class="settings-range">
+                      </div>
+                      <div class="settings-col">
+                        <label>Animation Transition Speed (<span id="animation-speed-val">0.3s</span>)</label>
+                        <input type="range" id="settings-animation-speed" min="0" max="100" value="30" class="settings-range">
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="settings-card settings-item" data-keywords="density compact overlay theme settings">
+                    <h4>Interface Density</h4>
+                    <label class="switch-row">
+                      <div class="switch-text">
+                        <span>Compact Mode Layout</span>
+                        <small>Reduce paddings and list heights to fit more items on-screen.</small>
+                      </div>
+                      <input type="checkbox" id="settings-compact-mode">
+                      <span class="switch-slider"></span>
+                    </label>
                   </div>
                 </div>
-              </div>
 
-              <div style="margin-top: 4px;">
-                <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:white; cursor:pointer;">
-                  <input type="checkbox" id="settings-cc-history" checked style="cursor:pointer;">
-                  <span>Query browsing history fallback when bookmarks have no matching results</span>
-                </label>
+                <!-- SECTION: Bookmarks -->
+                <div class="settings-section" id="settings-sec-bookmarks">
+                  <h3 class="section-title">Bookmarks Organization</h3>
+                  
+                  <div class="settings-card settings-item" data-keywords="parent folder target destination name">
+                    <h4>Routing target</h4>
+                    <div class="settings-row">
+                      <div class="settings-col" style="flex-grow: 1;">
+                        <label for="settings-parent-name">Parent Folder Name</label>
+                        <input type="text" id="settings-parent-name" value="Smart Sorted Bookmarks" class="text-input" style="width: 100%;">
+                        <small>Target folder name on the bookmarks bar where categorized folders will be placed.</small>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="settings-card settings-item" data-keywords="clustering threshold limit sorting categories similarity">
+                    <h4>Smart Sorter Tuning</h4>
+                    <div class="settings-row">
+                      <div class="settings-col">
+                        <label>Minimum Similarity Cluster Size (<span id="settings-threshold-val">5</span>)</label>
+                        <input type="range" id="settings-threshold-slider" min="2" max="10" value="5" class="settings-range">
+                        <small>Required bookmarks inside a topic matches pool before a folder is made.</small>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="settings-card settings-item" data-keywords="categories smart bookmarks tags checkbox">
+                    <h4>Smart Clustering Categories</h4>
+                    <div id="settings-categories-list" class="categories-settings-grid">
+                      <!-- Populated dynamically via javascript -->
+                    </div>
+                  </div>
+                </div>
+
+                <!-- SECTION: History -->
+                <div class="settings-section" id="settings-sec-history">
+                  <h3 class="section-title">History Management</h3>
+                  
+                  <div class="settings-card settings-item" data-keywords="blacklist history domains delete blocks">
+                    <h4>History Auto-Delete Blacklist</h4>
+                    <div class="settings-row">
+                      <div class="settings-col" style="flex-grow: 1;">
+                        <label for="settings-history-blacklist">Domain Blacklist (comma-separated)</label>
+                        <input type="text" id="settings-history-blacklist" class="text-input" placeholder="e.g. facebook.com, twitter.com" style="width: 100%;">
+                        <small>Visits to these domains will be automatically cleared from Chrome history.</small>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="settings-card settings-item" data-keywords="whitelist history domains allowed only view">
+                    <h4>Dashboard History Whitelist</h4>
+                    <div class="settings-row">
+                      <div class="settings-col" style="flex-grow: 1;">
+                        <label for="settings-history-whitelist">Domain Whitelist (comma-separated)</label>
+                        <input type="text" id="settings-history-whitelist" class="text-input" placeholder="e.g. github.com, stackoverflow.com" style="width: 100%;">
+                        <small>Optional: If whitelist is not empty, only whitelisted domains will load in the history dashboard.</small>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="settings-card settings-item" data-keywords="retention auto delete history interval time">
+                    <h4>History Auto-Cleanup Retention</h4>
+                    <div class="settings-row">
+                      <div class="settings-col">
+                        <label for="settings-history-retention">Auto-Delete History Entries Older Than</label>
+                        <select id="settings-history-retention" class="settings-select">
+                          <option value="never">Never (Keep indefinitely)</option>
+                          <option value="7">7 Days</option>
+                          <option value="30">30 Days</option>
+                          <option value="90">90 Days</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- SECTION: Notes -->
+                <div class="settings-section" id="settings-sec-notes">
+                  <h3 class="section-title">Notes Editor Workspace</h3>
+                  
+                  <div class="settings-card settings-item" data-keywords="notes autosave interval timing minutes seconds">
+                    <h4>Auto-Save Settings</h4>
+                    <div class="settings-row">
+                      <div class="settings-col">
+                        <label for="settings-notes-autosave">Auto-Save Interval</label>
+                        <select id="settings-notes-autosave" class="settings-select">
+                          <option value="10">Every 10 Seconds</option>
+                          <option value="30">Every 30 Seconds</option>
+                          <option value="60">Every 1 Minute</option>
+                          <option value="manual">Manual Save Only</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="settings-card settings-item" data-keywords="editor markdown view preview defaults rich focus">
+                    <h4>Editor Options</h4>
+                    <label class="switch-row">
+                      <div class="switch-text">
+                        <span>Launch in Focus Mode</span>
+                        <small>Collapse notes side panel automatically when editing a note.</small>
+                      </div>
+                      <input type="checkbox" id="settings-notes-focus-default">
+                      <span class="switch-slider"></span>
+                    </label>
+                    <label class="switch-row" style="margin-top: 15px;">
+                      <div class="switch-text">
+                        <span>Markdown Preview Sync</span>
+                        <small>Render styled markdown headers and lists on the fly.</small>
+                      </div>
+                      <input type="checkbox" id="settings-notes-markdown" checked>
+                      <span class="switch-slider"></span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- SECTION: Privacy -->
+                <div class="settings-section" id="settings-sec-privacy">
+                  <h3 class="section-title">Privacy & Chrome Permissions</h3>
+                  
+                  <div class="settings-card settings-item" data-keywords="permissions cookies history grant local storage">
+                    <h4>API Database Access Permissions</h4>
+                    <label class="switch-row">
+                      <div class="switch-text">
+                        <span>Browsing History Integration</span>
+                        <small>Search and view local web visits logs inside the dashboard.</small>
+                      </div>
+                      <input type="checkbox" id="settings-perm-history" checked>
+                      <span class="switch-slider"></span>
+                    </label>
+                    <label class="switch-row" style="margin-top: 15px;">
+                      <div class="switch-text">
+                        <span>Cookie Session Reader</span>
+                        <small>Read and clear security sessions cookies from storage.</small>
+                      </div>
+                      <input type="checkbox" id="settings-perm-cookies" checked>
+                      <span class="switch-slider"></span>
+                    </label>
+                  </div>
+
+                  <div class="settings-card settings-item" data-keywords="collection local storage usage cache clean clear">
+                    <h4>Data Storage Breakdown</h4>
+                    <div class="settings-row">
+                      <div class="settings-col">
+                        <span style="font-size:12.5px; color:var(--text-muted);">Current local storage usage size is tracked securely in browser.</span>
+                        <button type="button" id="btn-clear-cache" class="btn btn-danger" style="margin-top: 10px; font-size:11.5px; padding: 6px 12px; width: fit-content;">Clear Temp Cache</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- SECTION: Performance -->
+                <div class="settings-section" id="settings-sec-performance">
+                  <h3 class="section-title">Performance & Optimization</h3>
+                  
+                  <div class="settings-card settings-item" data-keywords="virtual scrolling rows caching limits memory entries shadow">
+                    <h4>Optimization Tweaks</h4>
+                    <label class="switch-row">
+                      <div class="switch-text">
+                        <span>Virtual Scrolling Render List</span>
+                        <small>Only render rows visible inside the viewport (handles 100,000+ entries seamlessly).</small>
+                      </div>
+                      <input type="checkbox" id="settings-perf-virtual-scroll" checked>
+                      <span class="switch-slider"></span>
+                    </label>
+                    <label class="switch-row" style="margin-top: 15px;">
+                      <div class="switch-text">
+                        <span>Active Memory Unloading</span>
+                        <small>Automatically dump inactive items cache after 5 minutes of idle state.</small>
+                      </div>
+                      <input type="checkbox" id="settings-perf-memory-opt">
+                      <span class="switch-slider"></span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- SECTION: Backups -->
+                <div class="settings-section" id="settings-sec-backups">
+                  <h3 class="section-title">Backup & Restore Manager</h3>
+                  
+                  <div class="settings-card settings-item" data-keywords="backup create restore points restore list history">
+                    <h4>Restore Points Registry</h4>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+                      <span style="font-size:12.5px; color:var(--text-muted);">Saved snapshots of extension configuration, notes, and preferences.</span>
+                      <button type="button" id="btn-create-backup-now" class="btn btn-primary btn-small">Create Restore Point</button>
+                    </div>
+                    
+                    <div id="settings-backups-list" class="backups-registry-list">
+                      <!-- Populated dynamically via JS -->
+                      <div class="no-backups-hint">No restore points created yet.</div>
+                    </div>
+                  </div>
+
+                  <div class="settings-card settings-item" data-keywords="export import download config settings upload config">
+                    <h4>Configuration Transfer Utilities</h4>
+                    <div class="transfer-actions-row">
+                      <button type="button" id="btn-export-full-config" class="btn btn-secondary" style="display:flex; align-items:center; gap:6px;"><i class="fi fi-rr-download"></i> Export Config JSON</button>
+                      <button type="button" id="btn-import-full-config" class="btn btn-secondary" style="display:flex; align-items:center; gap:6px;"><i class="fi fi-rr-upload"></i> Import Config JSON</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- SECTION: Shortcuts -->
+                <div class="settings-section" id="settings-sec-shortcuts">
+                  <h3 class="section-title">System Keyboard Shortcuts</h3>
+                  
+                  <div class="settings-card settings-item" data-keywords="keyboard shortcuts quick commands hotkeys search notes settings">
+                    <h4>Shortcut Command Bindings</h4>
+                    <div class="shortcuts-legend-list">
+                      <div class="shortcut-legend-row">
+                        <span class="shortcut-desc">Open Command Search Center</span>
+                        <kbd class="shortcut-kbd">Ctrl + K</kbd>
+                      </div>
+                      <div class="shortcut-legend-row">
+                        <span class="shortcut-desc">Navigate to Bookmarks Explorer</span>
+                        <kbd class="shortcut-kbd">Ctrl + Shift + B</kbd>
+                      </div>
+                      <div class="shortcut-legend-row">
+                        <span class="shortcut-desc">Navigate to Browsing History</span>
+                        <kbd class="shortcut-kbd">Ctrl + Shift + H</kbd>
+                      </div>
+                      <div class="shortcut-legend-row">
+                        <span class="shortcut-desc">Navigate to Notes Manager</span>
+                        <kbd class="shortcut-kbd">Ctrl + Shift + N</kbd>
+                      </div>
+                      <div class="shortcut-legend-row">
+                        <span class="shortcut-desc">Open Settings Control Center</span>
+                        <kbd class="shortcut-kbd">Ctrl + ,</kbd>
+                      </div>
+                    </div>
+                    <small style="display:block; margin-top:15px; color:var(--text-muted);">Note: Global shortcuts require focus on the extension page window bounds.</small>
+                  </div>
+                </div>
+
+                <!-- SECTION: Accessibility -->
+                <div class="settings-section" id="settings-sec-accessibility">
+                  <h3 class="section-title">Accessibility & Legibility</h3>
+                  
+                  <div class="settings-card settings-item" data-keywords="accessibility contrast motion keyboard scale font legibility">
+                    <h4>Legibility Adjustments</h4>
+                    <label class="switch-row">
+                      <div class="switch-text">
+                        <span>High Contrast Mode Colors</span>
+                        <small>Increase structural border and text colors values contrast ratio.</small>
+                      </div>
+                      <input type="checkbox" id="settings-access-contrast">
+                      <span class="switch-slider"></span>
+                    </label>
+                    <label class="switch-row" style="margin-top: 15px;">
+                      <div class="switch-text">
+                        <span>Reduced Motion Settings</span>
+                        <small>Deactivate hover scaling and views loading transition animations.</small>
+                      </div>
+                      <input type="checkbox" id="settings-access-motion">
+                      <span class="switch-slider"></span>
+                    </label>
+                    
+                    <div class="settings-row" style="margin-top: 20px;">
+                      <div class="settings-col">
+                        <label>Font Size Scaling (<span id="font-scale-val">100%</span>)</label>
+                        <input type="range" id="settings-access-font-scale" min="90" max="130" value="100" class="settings-range">
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- SECTION: About -->
+                <div class="settings-section" id="settings-sec-about">
+                  <h3 class="section-title">About & System Metrics</h3>
+                  
+                  <!-- Database Stats Grid -->
+                  <div class="settings-grid-stats settings-item" data-keywords="statistics metrics counters counts total bookmark entries notes cookies usage">
+                    <div class="stat-box">
+                      <span class="stat-value counter-animate" id="stat-count-bookmarks">0</span>
+                      <span class="stat-label">Bookmarks</span>
+                    </div>
+                    <div class="stat-box">
+                      <span class="stat-value counter-animate" id="stat-count-folders">0</span>
+                      <span class="stat-label">Folders</span>
+                    </div>
+                    <div class="stat-box">
+                      <span class="stat-value counter-animate" id="stat-count-history">0</span>
+                      <span class="stat-label">History Entries</span>
+                    </div>
+                    <div class="stat-box">
+                      <span class="stat-value counter-animate" id="stat-count-cookies">0</span>
+                      <span class="stat-label">Cookie Domains</span>
+                    </div>
+                    <div class="stat-box">
+                      <span class="stat-value counter-animate" id="stat-count-notes">0</span>
+                      <span class="stat-label">Notes</span>
+                    </div>
+                    <div class="stat-box">
+                      <span class="stat-value" id="stat-count-storage">0 KB</span>
+                      <span class="stat-label">Local Storage</span>
+                    </div>
+                  </div>
+
+                  <div class="settings-card settings-item" data-keywords="system details chrome version operating system platform manifest sync">
+                    <h4>System Diagnostics Information</h4>
+                    <div class="diagnostics-list">
+                      <div class="diag-row"><span>Browser Platform</span><span id="diag-browser">Google Chrome</span></div>
+                      <div class="diag-row"><span>Operating System</span><span id="diag-os">Windows</span></div>
+                      <div class="diag-row"><span>Extension Framework</span><span>Manifest V3</span></div>
+                      <div class="diag-row"><span>Sync Node Status</span><span style="color:#10b981;">Active Syncing</span></div>
+                      <div class="diag-row"><span>Last Backup Creation</span><span id="diag-last-backup">Never</span></div>
+                    </div>
+                  </div>
+
+                  <div class="settings-card settings-item" data-keywords="about logo build release license copyright developer github repository">
+                    <div class="about-brand-section">
+                      <div class="about-brand-logo">✨</div>
+                      <div class="about-brand-info">
+                        <h4>Smart Bookmark Organizer</h4>
+                        <span class="about-version">Version 2.4.0 (Stable Channel)</span>
+                        <span class="about-build">Build #20260702.1</span>
+                      </div>
+                    </div>
+                    
+                    <div class="diagnostics-list" style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 15px;">
+                      <div class="diag-row"><span>Developer Team</span><span>Advanced Agentic Coding (DeepMind)</span></div>
+                      <div class="diag-row"><span>GitHub Repository</span><span><a href="https://github.com/harsheye/bookmarkmanager-sortingand-filtering-and-strucuting" target="_blank" style="color:var(--color-primary);">harsheye/bookmarkmanager</a></span></div>
+                      <div class="diag-row"><span>License Agreement</span><span>MIT License</span></div>
+                      <div class="diag-row"><span>Copyright Notice</span><span>© 2026 Google DeepMind. All Rights Reserved.</span></div>
+                    </div>
+                  </div>
+                </div>
+
               </div>
             </div>
 
-            <!-- History Domain Filters -->
-            <div class="form-group glass-panel" style="padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 15px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02);">
-              <label style="font-weight:600; font-size:13.5px; color: white; display: flex; align-items: center; gap: 8px;">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="color:#ef4444;"><path d="M12,0A12,12,0,1,0,24,12,12.013,12.013,0,0,0,12,0Zm0,22A10,10,0,1,1,22,12,10.011,10.011,0,0,1,12,22ZM17,11H7a1,1,0,0,0,0,2H17a1,1,0,0,0,0-2Z"/></svg>
-                History Domain Filters
-              </label>
-              
-              <div>
-                <label for="settings-history-blacklist" style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">Auto-Delete Blacklist (comma-separated subdomains)</label>
-                <input type="text" id="settings-history-blacklist" class="text-input" placeholder="e.g. facebook.com, twitter.com, reddit.com" style="width: 100%; box-sizing: border-box;">
-                <span style="font-size:11px; color:var(--text-muted); margin-top:4px; display:block;">Any visits to these domains will be automatically cleared from Chrome history and filtered out of your history view.</span>
-              </div>
-              <div>
-                <label for="settings-history-whitelist" style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;">Whitelist (comma-separated subdomains)</label>
-                <input type="text" id="settings-history-whitelist" class="text-input" placeholder="e.g. github.com, stackoverflow.com, wikipedia.org" style="width: 100%; box-sizing: border-box;">
-                <span style="font-size:11px; color:var(--text-muted); margin-top:4px; display:block;">Optional: If whitelist contains values, only domains in the whitelist will show up in the history manager dashboard.</span>
-              </div>
+            <!-- Redesigned Footer Actions Row -->
+            <div class="settings-footer-actions">
+              <button type="button" id="settings-reset-btn" class="btn btn-secondary" style="padding: 10px 18px;">Reset Defaults</button>
+              <button type="button" id="settings-save-btn" class="btn btn-success" style="padding: 10px 24px; display: flex; align-items: center; gap: 6px;">
+                <i class="fi fi-rs-disk"></i> Save & Apply Settings
+              </button>
             </div>
 
-            <div class="form-group glass-panel" style="padding: 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02);">
-              <label style="display:block; font-weight:600; margin-bottom:8px; font-size:13.5px; color:#10b981;">🛡️ Cookie & History Permissions</label>
-              <p style="font-size:12.5px; color:var(--text-muted); line-height:1.5;">
-                To view history items or login cookies, the extension requires standard Chrome permissions. 
-                These have been declared in the manifest. If you loaded this extension as an unpacked folder:
-                <br><br>
-                1. Navigate to <a href="chrome://extensions/" target="_blank" style="color:var(--color-primary); text-decoration:underline;">chrome://extensions/</a> in a new tab.
-                <br>
-                2. Locate <strong>Smart Bookmark Organizer</strong>.
-                <br>
-                3. Click the <strong>Reload (🔄)</strong> icon. Chrome will automatically reload the manifest and grant the declared History and Cookie database access.
-              </p>
-            </div>
-
-            <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
-              <button id="settings-save-btn" class="btn btn-success" style="padding: 10px 24px; display: flex; align-items: center; gap: 6px;"><i class="fi fi-rs-disk"></i> Save & Apply Settings</button>
-            </div>
           </div>
 
           <!-- Notes Manager View Container -->
@@ -313,11 +673,39 @@
                     </div>
                   </div>
                   
+                  <!-- Checklist Utility Toolbar & Progress Bar -->
+                  <div class="note-checklist-utility" id="note-checklist-utility">
+                    <div class="checklist-progress-container">
+                      <div class="checklist-progress-label">
+                        <span class="checklist-progress-title"><i class="fi fi-rr-list-check"></i> Project Progress</span>
+                        <span class="checklist-progress-text" id="checklist-progress-text">0% (0 / 0 Tasks Completed)</span>
+                      </div>
+                      <div class="checklist-progress-bar-track">
+                        <div class="checklist-progress-bar-fill" id="checklist-progress-bar-fill" style="width: 0%;"></div>
+                      </div>
+                    </div>
+                    <div class="checklist-actions-toolbar">
+                      <div class="checklist-actions-left">
+                        <button class="btn-checklist-action" id="chk-insert-btn" title="Insert Checklist Item (☐)" type="button"><i class="fi fi-rr-add"></i> Checklist</button>
+                        <button class="btn-checklist-action" id="chk-toggle-btn" title="Toggle Current Checkbox" type="button"><i class="fi fi-rr-check"></i> Toggle</button>
+                        <button class="btn-checklist-action" id="chk-complete-all" title="Mark All Complete" type="button"><i class="fi fi-rr-checkbox"></i> Complete All</button>
+                        <button class="btn-checklist-action" id="chk-incomplete-all" title="Mark All Incomplete" type="button"><i class="fi fi-rr-square"></i> Reset All</button>
+                        <button class="btn-checklist-action" id="chk-remove-completed" title="Remove Completed Tasks" type="button"><i class="fi fi-rr-trash"></i> Clear Completed</button>
+                        <button class="btn-checklist-action" id="chk-sort-tasks" title="Sort Completed Tasks to Bottom" type="button"><i class="fi fi-rr-sort"></i> Sort Tasks</button>
+                      </div>
+                      <div class="checklist-actions-stats" id="checklist-actions-stats">
+                        <span>Total: 0</span>
+                        <span>Pending: 0</span>
+                      </div>
+                    </div>
+                  </div>
+                  
                   <div class="note-writing-canvas">
                     <!-- Note Text Area -->
                     <div class="note-editor-body-container">
                       <div class="note-editor-scroll-container">
                         <textarea id="note-editor-body" placeholder="Type note content here... (Shift+Enter for newline)"></textarea>
+                        <div id="note-editor-preview" class="note-editor-preview-container hidden"></div>
                       </div>
                     </div>
                     
@@ -327,6 +715,7 @@
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12,0A12,12,0,1,0,24,12,12.013,12.013,0,0,0,12,0Zm0,22A10,10,0,1,1,22,12,10.011,10.011,0,0,1,12,22Zm1-10V7a1,1,0,0,0-2,0v6a1,1,0,0,0,.553.894l3.5,1.75a1,1,0,1,0,.894-1.788Z"/></svg>
                         Revision Log
                       </h3>
+                      <input type="text" id="version-search-input" placeholder="Search versions..." style="margin-bottom: 10px; width: 100%; font-size: 11px; padding: 6px 8px; border-radius: 6px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: white; outline: none; box-sizing: border-box;">
                       <div id="note-versions-list">
                         <!-- Dynamically listed versions -->
                       </div>
@@ -338,6 +727,30 @@
               <div id="note-editor-placeholder">
                 <span style="font-size: 40px; display: block; margin-bottom: 12px;">📝</span>
                 <span>Select a note from the sidebar or click "New Note" to begin writing.</span>
+              </div>
+            </div>
+            
+            <!-- Git-style Version Diff Overlay Modal -->
+            <div id="notes-diff-overlay" class="notes-diff-overlay hidden">
+              <div class="diff-overlay-header">
+                <div class="diff-header-left">
+                  <h3><i class="fi fi-rr-time-past"></i> Version Comparison</h3>
+                  <span id="diff-version-info" class="diff-version-badge">Version 14 vs Current</span>
+                </div>
+                <div class="diff-header-actions">
+                  <div class="diff-mode-toggles">
+                    <button class="diff-mode-btn active" id="diff-mode-inline" type="button">Inline</button>
+                    <button class="diff-mode-btn" id="diff-mode-side" type="button">Side-by-Side</button>
+                  </div>
+                  <button class="btn btn-success btn-small" id="diff-restore-btn" type="button"><i class="fi fi-sr-system-restore"></i> Restore Version</button>
+                  <button class="btn btn-danger btn-small" id="diff-close-btn" type="button"><i class="fi fi-rr-cross"></i> Close Diff</button>
+                </div>
+              </div>
+              <div class="diff-metadata-row" id="diff-metadata-row">
+                <!-- Word changes stats, timestamp, save type -->
+              </div>
+              <div class="diff-viewer-content" id="diff-viewer-content">
+                <!-- Diff lines generated dynamically -->
               </div>
             </div>
           </div>

@@ -1287,6 +1287,17 @@ const BookmarkManager = {
     this.notesSidebarResizer = document.getElementById('notes-sidebar-resizer');
     this.noteFocusBtn = document.getElementById('note-focus-btn');
     this.noteReadBtn = document.getElementById('note-read-btn');
+    
+    // Checklist and Diff DOM elements
+    this.noteChecklistUtility = document.getElementById('note-checklist-utility');
+    this.checklistProgressText = document.getElementById('checklist-progress-text');
+    this.checklistProgressBarFill = document.getElementById('checklist-progress-bar-fill');
+    this.noteEditorPreview = document.getElementById('note-editor-preview');
+    this.notesDiffOverlay = document.getElementById('notes-diff-overlay');
+    this.diffVersionInfo = document.getElementById('diff-version-info');
+    this.diffMetadataRow = document.getElementById('diff-metadata-row');
+    this.diffViewerContent = document.getElementById('diff-viewer-content');
+    this.versionSearchInput = document.getElementById('version-search-input');
 
     // Premium Redesigned History View elements
     this.historyViewContainer = document.getElementById('history-view-container');
@@ -3466,7 +3477,6 @@ const BookmarkManager = {
       this.settingsCategoriesList.innerHTML = '';
       BookmarkRules.categories.forEach(cat => {
         const label = document.createElement('label');
-        label.style.cssText = 'display:flex; align-items:center; gap:8px; font-size:13px; color:white; cursor:pointer; padding:6px; border-radius:6px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.04);';
         label.innerHTML = `
           <input type="checkbox" class="settings-cat-cb" data-cat-id="${cat.id}" ${cat.enabled !== false ? 'checked' : ''}>
           <span>${cat.name}</span>
@@ -3496,6 +3506,260 @@ const BookmarkManager = {
       if (this.settingsHistoryWhitelist) {
         this.settingsHistoryWhitelist.value = settings.historyWhitelist || '';
       }
+    });
+
+    // Initialize Settings Control Center sub-sidebar navigation
+    this.initSettingsSubNav();
+    // Initialize Settings search
+    this.initSettingsSearch();
+    // Load live statistics
+    this.loadSettingsStats();
+    // Load diagnostics info
+    this.loadSettingsDiagnostics();
+    // Initialize range slider live labels
+    this.initSettingsSliderLabels();
+  },
+
+  initSettingsSubNav() {
+    const navItems = document.querySelectorAll('.settings-nav-item');
+    const sections = document.querySelectorAll('.settings-section');
+    
+    navItems.forEach(item => {
+      // Remove existing listeners by cloning
+      const newItem = item.cloneNode(true);
+      item.parentNode.replaceChild(newItem, item);
+      
+      newItem.addEventListener('click', () => {
+        const targetId = newItem.dataset.target;
+        
+        // Update active nav item
+        document.querySelectorAll('.settings-nav-item').forEach(n => n.classList.remove('active'));
+        newItem.classList.add('active');
+        
+        // Show target section, hide others
+        sections.forEach(sec => {
+          sec.classList.remove('active');
+          if (sec.id === targetId) {
+            sec.classList.add('active');
+          }
+        });
+
+        // Clear search when switching tabs
+        const searchInput = document.getElementById('settings-search');
+        if (searchInput) {
+          searchInput.value = '';
+          document.querySelectorAll('.settings-item').forEach(item => {
+            item.classList.remove('search-match', 'search-hidden');
+          });
+        }
+      });
+    });
+  },
+
+  initSettingsSearch() {
+    const searchInput = document.getElementById('settings-search');
+    if (!searchInput) return;
+
+    // Remove old listeners
+    const newSearch = searchInput.cloneNode(true);
+    searchInput.parentNode.replaceChild(newSearch, searchInput);
+
+    newSearch.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase().trim();
+      const allItems = document.querySelectorAll('.settings-item');
+      const sections = document.querySelectorAll('.settings-section');
+      const navItems = document.querySelectorAll('.settings-nav-item');
+
+      if (!query) {
+        // Reset: show all items, remove highlights
+        allItems.forEach(item => item.classList.remove('search-match', 'search-hidden'));
+        return;
+      }
+
+      // Search across ALL sections (show all sections during search)
+      sections.forEach(sec => sec.classList.add('active'));
+      navItems.forEach(n => n.classList.remove('active'));
+
+      allItems.forEach(item => {
+        const keywords = (item.dataset.keywords || '').toLowerCase();
+        const textContent = item.textContent.toLowerCase();
+        const isMatch = keywords.includes(query) || textContent.includes(query);
+        
+        if (isMatch) {
+          item.classList.add('search-match');
+          item.classList.remove('search-hidden');
+        } else {
+          item.classList.remove('search-match');
+          item.classList.add('search-hidden');
+        }
+      });
+    });
+  },
+
+  loadSettingsStats() {
+    // Animated counter helper
+    const animateCounter = (el, target) => {
+      if (!el) return;
+      const duration = 800;
+      const start = 0;
+      const startTime = performance.now();
+      
+      const step = (currentTime) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3); // Ease-out cubic
+        const current = Math.floor(start + (target - start) * eased);
+        el.textContent = current.toLocaleString();
+        if (progress < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    };
+
+    // Bookmarks count
+    if (typeof chrome !== 'undefined' && chrome.bookmarks) {
+      chrome.bookmarks.getTree((tree) => {
+        let bookmarks = 0, folders = 0;
+        const walk = (nodes) => {
+          nodes.forEach(node => {
+            if (node.url) bookmarks++;
+            else folders++;
+            if (node.children) walk(node.children);
+          });
+        };
+        walk(tree);
+        animateCounter(document.getElementById('stat-count-bookmarks'), bookmarks);
+        animateCounter(document.getElementById('stat-count-folders'), folders);
+      });
+    }
+
+    // History count
+    if (typeof chrome !== 'undefined' && chrome.history) {
+      chrome.history.search({ text: '', maxResults: 0, startTime: 0 }, (results) => {
+        animateCounter(document.getElementById('stat-count-history'), results ? results.length : 0);
+      });
+    }
+
+    // Cookies count
+    if (typeof chrome !== 'undefined' && chrome.cookies) {
+      chrome.cookies.getAll({}, (cookies) => {
+        const domains = new Set();
+        if (cookies) cookies.forEach(c => domains.add(c.domain));
+        animateCounter(document.getElementById('stat-count-cookies'), domains.size);
+      });
+    }
+
+    // Notes count
+    chrome.storage.local.get(['bookmark_organizer_notes'], (res) => {
+      const notes = res.bookmark_organizer_notes || {};
+      animateCounter(document.getElementById('stat-count-notes'), Object.keys(notes).length);
+    });
+
+    // Storage usage
+    if (chrome.storage && chrome.storage.local.getBytesInUse) {
+      chrome.storage.local.getBytesInUse(null, (bytes) => {
+        const el = document.getElementById('stat-count-storage');
+        if (el) {
+          if (bytes > 1048576) {
+            el.textContent = (bytes / 1048576).toFixed(1) + ' MB';
+          } else {
+            el.textContent = (bytes / 1024).toFixed(0) + ' KB';
+          }
+        }
+      });
+    }
+  },
+
+  loadSettingsDiagnostics() {
+    // Browser
+    const browserEl = document.getElementById('diag-browser');
+    if (browserEl) {
+      const ua = navigator.userAgent;
+      if (ua.includes('Chrome')) browserEl.textContent = 'Google Chrome ' + (ua.match(/Chrome\/(\d+)/)?.[1] || '');
+      else if (ua.includes('Firefox')) browserEl.textContent = 'Mozilla Firefox';
+      else if (ua.includes('Edg')) browserEl.textContent = 'Microsoft Edge';
+      else browserEl.textContent = 'Chromium Based';
+    }
+
+    // OS
+    const osEl = document.getElementById('diag-os');
+    if (osEl) {
+      const platform = navigator.platform || navigator.userAgentData?.platform || 'Unknown';
+      if (platform.includes('Win')) osEl.textContent = 'Windows';
+      else if (platform.includes('Mac')) osEl.textContent = 'macOS';
+      else if (platform.includes('Linux')) osEl.textContent = 'Linux';
+      else osEl.textContent = platform;
+    }
+
+    // Last backup
+    chrome.storage.local.get(['bookmark_organizer_notes_backup'], (res) => {
+      const el = document.getElementById('diag-last-backup');
+      if (el) {
+        el.textContent = res.bookmark_organizer_notes_backup ? 'Available' : 'Never';
+      }
+    });
+  },
+
+  initSettingsSliderLabels() {
+    // Blur slider
+    const blurSlider = document.getElementById('settings-cc-blur');
+    const blurVal = document.getElementById('settings-cc-blur-val');
+    if (blurSlider && blurVal) {
+      blurSlider.addEventListener('input', () => {
+        blurVal.textContent = blurSlider.value + 'px';
+      });
+    }
+
+    // Threshold slider
+    const threshSlider = document.getElementById('settings-threshold-slider');
+    const threshVal = document.getElementById('settings-threshold-val');
+    if (threshSlider && threshVal) {
+      threshSlider.addEventListener('input', () => {
+        threshVal.textContent = threshSlider.value;
+      });
+    }
+
+    // Border radius slider
+    const radiusSlider = document.getElementById('settings-custom-radius');
+    const radiusVal = document.getElementById('radius-val');
+    if (radiusSlider && radiusVal) {
+      radiusSlider.addEventListener('input', () => {
+        radiusVal.textContent = radiusSlider.value + 'px';
+      });
+    }
+
+    // Glass opacity slider
+    const glassSlider = document.getElementById('settings-glass-opacity');
+    const glassVal = document.getElementById('glass-opacity-val');
+    if (glassSlider && glassVal) {
+      glassSlider.addEventListener('input', () => {
+        glassVal.textContent = (glassSlider.value / 100).toFixed(2);
+      });
+    }
+
+    // Animation speed slider
+    const animSlider = document.getElementById('settings-animation-speed');
+    const animVal = document.getElementById('animation-speed-val');
+    if (animSlider && animVal) {
+      animSlider.addEventListener('input', () => {
+        animVal.textContent = (animSlider.value / 100).toFixed(1) + 's';
+      });
+    }
+
+    // Font scale slider
+    const fontSlider = document.getElementById('settings-access-font-scale');
+    const fontVal = document.getElementById('font-scale-val');
+    if (fontSlider && fontVal) {
+      fontSlider.addEventListener('input', () => {
+        fontVal.textContent = fontSlider.value + '%';
+      });
+    }
+
+    // Accent color picker dots
+    document.querySelectorAll('.accent-dot').forEach(dot => {
+      dot.addEventListener('click', () => {
+        document.querySelectorAll('.accent-dot').forEach(d => d.classList.remove('active'));
+        dot.classList.add('active');
+      });
     });
   },
 
