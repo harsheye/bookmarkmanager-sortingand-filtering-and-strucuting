@@ -11,6 +11,7 @@
   <link href="https://cdn-uicons.flaticon.com/2.6.0/uicons-solid-rounded/css/uicons-solid-rounded.css" rel="stylesheet">
   <link href="https://cdn-uicons.flaticon.com/2.6.0/uicons-bold-rounded/css/uicons-bold-rounded.css" rel="stylesheet">
   <link rel="stylesheet" href="dashboard.css">
+  <link rel="stylesheet" href="history.css">
 </head>
 <body>
   <!-- Animated Background Glows -->
@@ -260,52 +261,255 @@
           </div>
 
           <!-- Notes Manager View Container -->
-          <div id="notes-view-container" class="settings-view-panel hidden" style="padding: 20px; color: white;">
-            <div style="display: flex; gap: 20px; height: calc(100vh - 220px);">
+          <div id="notes-view-container" class="settings-view-panel hidden">
+            <div class="notes-workspace-layout">
               <!-- Notes Sidebar (left) -->
-              <div style="width: 240px; display: flex; flex-direction: column; gap: 12px; border-right: 1px solid rgba(255,255,255,0.08); padding-right: 16px; flex-shrink: 0;">
+              <aside class="notes-sidebar">
+                <div class="notes-sidebar-title">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color: var(--notes-accent);"><path d="M19,0H5A5.006,5.006,0,0,0,0,5V19a5.006,5.006,0,0,0,5,5H19a5.006,5.006,0,0,0,5-5V5A5.006,5.006,0,0,0,19,0Zm3,19a3,3,0,0,1-3,3H5a3,3,0,0,1-3-3V5A3,3,0,0,1,5,3H19a3,3,0,0,1,3,3Zm-4-7H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm0-4H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm-5,8H6a1,1,0,0,0,0,2h7a1,1,0,0,0,0-2Z"/></svg>
+                  Workspace Notes
+                </div>
                 <button id="notes-new-btn" class="btn btn-primary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; font-size: 13px;">
                   <i class="fi fi-br-plus"></i> New Note
                 </button>
-                <div id="notes-sidebar-list" style="display: flex; flex-direction: column; gap: 8px; overflow-y: auto; flex-grow: 1; padding-right: 4px;">
+                <div id="notes-sidebar-list">
                   <!-- Populated with notes names -->
                 </div>
-              </div>
+              </aside>
               
-              <!-- Note Editor Workspace (right) -->
-              <div id="note-editor-pane" class="hidden" style="flex-grow: 1; display: flex; flex-direction: column; gap: 15px; min-width: 0;">
-                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-shrink: 0;">
-                  <input type="text" id="note-editor-title" class="text-input" placeholder="Note Name" style="font-size: 18px; font-weight: 700; width: 60%; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.1); padding: 5px 0; color: white;" readonly>
-                  <div style="display: flex; gap: 8px;">
-                    <button id="note-save-btn" class="btn btn-success btn-small" style="display: flex; align-items: center; gap: 6px;"><i class="fi fi-rs-disk"></i> Save Note</button>
-                    <button id="note-delete-btn" class="btn btn-danger btn-small" style="display: flex; align-items: center; gap: 6px;"><i class="fi fi-rr-trash"></i> Delete</button>
-                  </div>
-                </div>
-                
-                <div style="display: flex; gap: 20px; flex-grow: 1; min-height: 0;">
-                  <!-- Note Text Area -->
-                  <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
-                    <textarea id="note-editor-body" class="text-input" placeholder="Type note content here... (Shift+Enter for newline)" style="flex-grow: 1; resize: none; font-family: inherit; font-size: 14px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; line-height: 1.5; color: white;"></textarea>
+              <!-- Notes Main Content Area (right) -->
+              <main class="notes-main-area">
+                <!-- Note Editor Workspace (active note) -->
+                <div id="note-editor-pane" class="note-editor-wrapper hidden">
+                  <div class="note-editor-toolbar">
+                    <div class="note-editor-toolbar-left">
+                      <button id="note-close-btn" class="note-editor-back-btn" title="Back to Dashboard">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                      </button>
+                      <input type="text" id="note-editor-title" placeholder="Note Name" readonly>
+                    </div>
+                    <div style="display: flex; gap: 8px; flex-shrink: 0;">
+                      <button id="note-save-btn" class="btn btn-success btn-small" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px;"><i class="fi fi-rs-disk"></i> Save Note</button>
+                      <button id="note-delete-btn" class="btn btn-danger btn-small" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px;"><i class="fi fi-rr-trash"></i> Delete</button>
+                    </div>
                   </div>
                   
-                  <!-- Version History Panel -->
-                  <div style="width: 240px; display: flex; flex-direction: column; gap: 10px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 12px; flex-shrink: 0; min-height: 0;">
-                    <h3 style="font-size: 13px; font-weight: 600; color: #a5b4fc; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; margin: 0; display: flex; align-items: center; gap: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12,0A12,12,0,1,0,24,12,12.013,12.013,0,0,0,12,0Zm0,22A10,10,0,1,1,22,12,10.011,10.011,0,0,1,12,22Zm1-10V7a1,1,0,0,0-2,0v6a1,1,0,0,0,.553.894l3.5,1.75a1,1,0,1,0,.894-1.788Z"/></svg>
-                      Version Control
-                    </h3>
-                    <div id="note-versions-list" style="display: flex; flex-direction: column; gap: 8px; overflow-y: auto; flex-grow: 1; padding-right: 2px;">
-                      <!-- Dynamically listed versions -->
+                  <div class="note-writing-canvas">
+                    <!-- Note Text Area -->
+                    <div class="note-editor-body-container">
+                      <textarea id="note-editor-body" placeholder="Type note content here... (Shift+Enter for newline)"></textarea>
+                    </div>
+                    
+                    <!-- Version History Panel -->
+                    <div class="note-revisions-panel">
+                      <h3 class="note-revisions-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12,0A12,12,0,1,0,24,12,12.013,12.013,0,0,0,12,0Zm0,22A10,10,0,1,1,22,12,10.011,10.011,0,0,1,12,22Zm1-10V7a1,1,0,0,0-2,0v6a1,1,0,0,0,.553.894l3.5,1.75a1,1,0,1,0,.894-1.788Z"/></svg>
+                        Revision Log
+                      </h3>
+                      <div id="note-versions-list">
+                        <!-- Dynamically listed versions -->
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-              
-              <!-- Editor Placeholder -->
+                
+                <!-- Editor Placeholder -->
               <div id="note-editor-placeholder" style="flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted);">
                 <span style="font-size: 40px; display: block; margin-bottom: 12px;">📝</span>
                 <span>Select a note from the sidebar or click "New Note" to begin writing.</span>
               </div>
+            </div>
+          </div>
+
+          <!-- Dedicated History View Container -->
+          <div id="history-view-container" class="history-view-panel hidden">
+            <!-- Statistics Dashboard -->
+            <div class="history-stats-dashboard" id="history-stats">
+              <!-- Dynamically populated cards -->
+            </div>
+
+            <!-- Main History Workspace -->
+            <div class="history-workspace">
+              <!-- Left Sidebar: Filters & Blacklist -->
+              <div class="history-sidebar-filters">
+                <div class="filter-section">
+                  <span class="filter-section-title"><i class="fi fi-rr-clock"></i> Timeframe</span>
+                  <button class="filter-btn active" data-filter="time-all"><i class="fi fi-rr-calendar"></i> All History</button>
+                  <button class="filter-btn" data-filter="time-today"><i class="fi fi-rr-hourglass-end"></i> Today</button>
+                  <button class="filter-btn" data-filter="time-yesterday"><i class="fi fi-rr-undo"></i> Yesterday</button>
+                  <button class="filter-btn" data-filter="time-week"><i class="fi fi-rr-calendar-lines"></i> Last 7 Days</button>
+                  <button class="filter-btn" data-filter="time-month"><i class="fi fi-rr-calendar-clock"></i> Last 30 Days</button>
+                  <button class="filter-btn" data-filter="time-custom"><i class="fi fi-rr-settings-sliders"></i> Custom Date</button>
+                  <div id="custom-date-range-container" class="hidden" style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px; padding: 6px; background: rgba(0,0,0,0.2); border-radius: 6px;">
+                    <label style="font-size: 10px; color: var(--text-muted);">Start Date</label>
+                    <input type="date" id="history-filter-start-date" class="history-select" style="padding: 4px 6px; font-size: 11px; width: 100%;">
+                    <label style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">End Date</label>
+                    <input type="date" id="history-filter-end-date" class="history-select" style="padding: 4px 6px; font-size: 11px; width: 100%;">
+                  </div>
+                </div>
+
+                <div class="filter-section">
+                  <span class="filter-section-title"><i class="fi fi-rr-filter"></i> Filters</span>
+                  <button class="filter-btn" data-filter="status-bookmarked"><i class="fi fi-rr-bookmark"></i> Bookmarked</button>
+                  <button class="filter-btn" data-filter="status-not-bookmarked"><i class="fi fi-rr-star-octagram"></i> Not Bookmarked</button>
+                  <button class="filter-btn" data-filter="status-blacklisted"><i class="fi fi-rr-ban"></i> Blacklisted Items</button>
+                  <button class="filter-btn" data-filter="subdomain-has"><i class="fi fi-rr-globe"></i> Has Subdomain</button>
+                  <button class="filter-btn" data-filter="subdomain-none"><i class="fi fi-rr-layout-fluid"></i> No Subdomain</button>
+                  <button class="filter-btn" data-filter="protocol-https"><i class="fi fi-rr-shield-check"></i> HTTPS Only</button>
+                  <button class="filter-btn" data-filter="protocol-http"><i class="fi fi-rr-warning"></i> HTTP Only</button>
+                </div>
+
+                <div class="filter-section" style="margin-top: auto;">
+                  <span class="filter-section-title"><i class="fi fi-rr-shield"></i> Security</span>
+                  <button class="filter-btn" id="blacklist-manager-btn"><i class="fi fi-rr-lock"></i> Blacklist Manager</button>
+                </div>
+              </div>
+
+              <!-- Center Area: Controls, List Viewport -->
+              <div class="history-content-area">
+                <div class="history-controls-bar">
+                  <!-- View toggles -->
+                  <div class="history-view-toggles" id="history-view-mode-toggles">
+                    <button class="view-toggle-btn active" data-mode="list" title="List View"><i class="fi fi-rr-list"></i></button>
+                    <button class="view-toggle-btn" data-mode="compact" title="Compact View"><i class="fi fi-rr-menu-burger"></i></button>
+                    <button class="view-toggle-btn" data-mode="grid" title="Grid View"><i class="fi fi-rr-grid"></i></button>
+                    <button class="view-toggle-btn" data-mode="cards" title="Cards View"><i class="fi fi-rr-apps"></i></button>
+                    <button class="view-toggle-btn" data-mode="timeline" title="Timeline View"><i class="fi fi-rr-calendar"></i></button>
+                    <button class="view-toggle-btn" data-mode="grouped" title="Grouped Domains"><i class="fi fi-rr-folder-tree"></i></button>
+                  </div>
+
+                  <!-- Sorting and settings -->
+                  <div class="history-actions-row">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      <span style="font-size: 12px; color: var(--text-muted);">Sort:</span>
+                      <select id="history-sort-select-premium" class="history-select">
+                        <option value="newest">Newest Visited</option>
+                        <option value="oldest">Oldest Visited</option>
+                        <option value="most-visited">Most Visited</option>
+                        <option value="least-visited">Least Visited</option>
+                        <option value="alphabetical">Alphabetical (A-Z)</option>
+                        <option value="domain">Domain (A-Z)</option>
+                        <option value="subdomain">Subdomain (A-Z)</option>
+                        <option value="bookmarks-first">Bookmarks First</option>
+                        <option value="blacklisted-first">Blacklisted First</option>
+                      </select>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      <span style="font-size: 12px; color: var(--text-muted);">Visits &ge;:</span>
+                      <input type="number" id="history-visit-threshold" min="0" value="0" class="history-select" style="width: 55px; padding: 4px 6px;">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Virtual Scroll Viewport -->
+                <div class="history-viewport" id="history-viewport" tabindex="0">
+                  <div class="history-spacer" id="history-viewport-spacer"></div>
+                  <div class="history-list-content" id="history-viewport-content">
+                    <!-- Loaded dynamically -->
+                  </div>
+                </div>
+
+                <!-- Blacklist Manager Sub-view -->
+                <div class="history-viewport hidden" id="blacklist-manager-panel" style="background: rgba(12, 8, 25, 0.98); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 20px; z-index: 100; position: absolute; top: 48px; left: 0; right: 0; bottom: 0; overflow-y: auto; backdrop-filter: blur(25px);">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 10px;">
+                    <h2 style="font-size: 16px; font-weight: 700; color: #f43f5e; display: flex; align-items: center; gap: 8px;"><i class="fi fi-rr-shield-exclamation"></i> Blacklist Rules Manager</h2>
+                    <button id="close-blacklist-manager-btn" class="btn btn-secondary btn-small" style="padding: 4px 10px;">Close</button>
+                  </div>
+                  
+                  <!-- Form -->
+                  <div class="glass-panel" style="padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; background: rgba(255,255,255,0.01);">
+                    <select id="blacklist-add-type" class="history-select">
+                      <option value="domain">Entire Domain</option>
+                      <option value="subdomain">Single Subdomain</option>
+                      <option value="url">Single URL</option>
+                    </select>
+                    <input type="text" id="blacklist-add-pattern" class="history-select" placeholder="pattern (e.g. facebook.com)" style="flex-grow: 1; min-width: 150px;">
+                    <input type="text" id="blacklist-add-reason" class="history-select" placeholder="Reason (optional)" style="flex-grow: 1; min-width: 150px;">
+                    <button id="blacklist-add-submit-btn" class="btn btn-danger btn-small" style="padding: 6px 12px; font-size: 12px;">Add Rule</button>
+                  </div>
+
+                  <table class="blacklist-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 15%;">Type</th>
+                        <th style="width: 35%;">Pattern</th>
+                        <th style="width: 25%;">Reason</th>
+                        <th style="width: 15%;">Added Date</th>
+                        <th style="width: 10%; text-align: center;">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="blacklist-rules-table-body">
+                      <!-- Populated by JS -->
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Floating Selection Bar -->
+                <div class="history-selection-toolbar" id="history-selection-bar">
+                  <span class="selection-count-text" id="history-selection-count">0 items selected</span>
+                  <div class="selection-actions-container">
+                    <button class="selection-action-btn primary" id="history-select-bookmark-all"><i class="fi fi-rr-bookmark"></i> Bookmark</button>
+                    <button class="selection-action-btn danger" id="history-select-delete-all"><i class="fi fi-rr-trash"></i> Delete</button>
+                    <button class="selection-action-btn" id="history-select-blacklist-all"><i class="fi fi-rr-ban"></i> Blacklist</button>
+                    <button class="selection-action-btn" id="history-select-export"><i class="fi fi-rr-download"></i> Export</button>
+                    <button class="selection-action-btn" id="history-select-copy"><i class="fi fi-rr-copy"></i> Copy URLs</button>
+                    <button class="selection-action-btn" id="history-select-clear" style="margin-left: 8px; color: var(--text-muted);"><i class="fi fi-rr-cross"></i> Clear</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right Sidebar: Collapsible Domain Details -->
+              <div class="history-details-sidebar hidden" id="history-details-panel">
+                <!-- Loaded dynamically -->
+              </div>
+            </div>
+          </div>          <!-- Notes Search Bar -->
+                    <div class="notes-search-wrapper">
+                      <span class="notes-search-icon"><i class="fi fi-rr-search"></i></span>
+                      <input type="text" id="notes-search-input" class="notes-search-input" placeholder="Search notes...">
+                      <button id="notes-search-clear" class="notes-search-clear hidden">✕</button>
+                    </div>
+                  </div>
+
+                  <!-- Statistics -->
+                  <div class="notes-stats-row">
+                    <div class="notes-stat-card">
+                      <div style="font-size: 20px;">📝</div>
+                      <div style="display: flex; flex-direction: column;">
+                        <span id="notes-stat-total" class="notes-stat-value">0</span>
+                        <span class="notes-stat-label">Total Notes</span>
+                      </div>
+                    </div>
+                    <div class="notes-stat-card">
+                      <div style="font-size: 20px;">🔤</div>
+                      <div style="display: flex; flex-direction: column;">
+                        <span id="notes-stat-words" class="notes-stat-value">0</span>
+                        <span class="notes-stat-label">Word Count</span>
+                      </div>
+                    </div>
+                    <div class="notes-stat-card">
+                      <div style="font-size: 20px;">⏱️</div>
+                      <div style="display: flex; flex-direction: column;">
+                        <span id="notes-stat-updated" class="notes-stat-value">-</span>
+                        <span class="notes-stat-label">Last Edited</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Notes Cards Grid -->
+                  <div id="notes-grid" class="notes-grid">
+                    <!-- Note Cards dynamically rendered here -->
+                  </div>
+
+                  <!-- Empty State -->
+                  <div id="notes-empty-state" class="notes-empty-state hidden">
+                    <div class="notes-empty-icon">📂</div>
+                    <h3 id="notes-empty-title">No Notes Saved Yet</h3>
+                    <p id="notes-empty-desc">Create your first note to start organizing your thoughts, code snippets, or tasks!</p>
+                  </div>
+                </div>
+              </main>
             </div>
           </div>
         </div>
@@ -511,11 +715,6 @@
         </div>
       </section>
     </div>
-
-    <!-- Footer -->
-    <footer class="app-footer-bottom">
-      <p>Smart Bookmark Organizer v1.0.0 &bull; Private & Secure</p>
-    </footer>
   </div>
 
   <!-- BOOKMARK ADD/EDIT MODAL -->

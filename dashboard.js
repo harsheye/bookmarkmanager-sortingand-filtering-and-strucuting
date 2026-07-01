@@ -1270,6 +1270,34 @@ const BookmarkManager = {
     this.noteSaveBtn = document.getElementById('note-save-btn');
     this.noteDeleteBtn = document.getElementById('note-delete-btn');
     this.noteVersionsList = document.getElementById('note-versions-list');
+    
+    // Redesigned elements
+    this.notesSearchInput = document.getElementById('notes-search-input');
+    this.notesSearchClear = document.getElementById('notes-search-clear');
+    this.notesStatTotal = document.getElementById('notes-stat-total');
+    this.notesStatWords = document.getElementById('notes-stat-words');
+    this.notesStatUpdated = document.getElementById('notes-stat-updated');
+    this.notesGrid = document.getElementById('notes-grid');
+    this.notesEmptyState = document.getElementById('notes-empty-state');
+    this.notesEmptyTitle = document.getElementById('notes-empty-title');
+    this.notesEmptyDesc = document.getElementById('notes-empty-desc');
+    this.noteCloseBtn = document.getElementById('note-close-btn');
+
+    // Premium Redesigned History View elements
+    this.historyViewContainer = document.getElementById('history-view-container');
+    this.historyViewport = document.getElementById('history-viewport');
+    this.historyViewportSpacer = document.getElementById('history-viewport-spacer');
+    this.historyViewportContent = document.getElementById('history-viewport-content');
+    this.historyStatsContainer = document.getElementById('history-stats');
+    this.historySortSelectPremium = document.getElementById('history-sort-select-premium');
+    this.historyVisitThresholdInput = document.getElementById('history-visit-threshold');
+    this.historySelectionBar = document.getElementById('history-selection-bar');
+    this.historySelectionCount = document.getElementById('history-selection-count');
+    this.blacklistManagerPanel = document.getElementById('blacklist-manager-panel');
+    this.blacklistRulesTableBody = document.getElementById('blacklist-rules-table-body');
+    this.historyDetailsPanel = document.getElementById('history-details-panel');
+    this.historyStartDateInput = document.getElementById('history-filter-start-date');
+    this.historyEndDateInput = document.getElementById('history-filter-end-date');
   },
 
   setupListeners() {
@@ -1442,79 +1470,39 @@ const BookmarkManager = {
     if (this.noteDeleteBtn) {
       this.noteDeleteBtn.addEventListener('click', () => this.deleteActiveNote());
     }
-
-    // History Toolbar listeners
-    const selectAllCb = document.getElementById('history-select-all');
-    if (selectAllCb) {
-      selectAllCb.addEventListener('change', (e) => {
-        const checked = e.target.checked;
-        document.querySelectorAll('.history-row-cb').forEach(cb => {
-          cb.checked = checked;
-        });
+    if (this.noteCloseBtn) {
+      this.noteCloseBtn.addEventListener('click', () => {
+        this.activeNoteName = null;
+        this.noteEditorPane.classList.add('hidden');
+        this.noteEditorPlaceholder.classList.remove('hidden');
+        this.loadNotesManager();
       });
     }
-
-    const deleteSelectedBtn = document.getElementById('history-delete-selected');
-    if (deleteSelectedBtn) {
-      deleteSelectedBtn.addEventListener('click', () => {
-        const checkedCbs = document.querySelectorAll('.history-row-cb:checked');
-        if (checkedCbs.length === 0) {
-          showToast('No history items selected!', 'error');
-          return;
+    if (this.notesSearchInput) {
+      this.notesSearchInput.addEventListener('input', (e) => {
+        const val = e.target.value.trim().toLowerCase();
+        if (this.notesSearchClear) {
+          if (val) {
+            this.notesSearchClear.classList.remove('hidden');
+          } else {
+            this.notesSearchClear.classList.add('hidden');
+          }
         }
-        const confirmDelete = confirm(`Are you sure you want to delete the ${checkedCbs.length} selected history items?`);
-        if (!confirmDelete) return;
-
-        let deletedCount = 0;
-        checkedCbs.forEach(cb => {
-          const url = cb.dataset.url;
-          chrome.history.deleteUrl({ url: url }, () => {
-            const tr = cb.closest('tr');
-            if (tr) tr.remove();
-            deletedCount++;
-            if (deletedCount === checkedCbs.length) {
-              showToast(`Deleted ${deletedCount} history items!`, 'success');
-              if (selectAllCb) selectAllCb.checked = false;
-              if (this.bookmarksBody.children.length === 0) {
-                this.emptyState.classList.remove('hidden');
-                document.getElementById('empty-state-text').textContent = "No history items found.";
-              }
-            }
-          });
-        });
+        this.loadNotesManager(val);
+      });
+    }
+    if (this.notesSearchClear) {
+      this.notesSearchClear.addEventListener('click', () => {
+        if (this.notesSearchInput) {
+          this.notesSearchInput.value = '';
+        }
+        this.notesSearchClear.classList.add('hidden');
+        this.loadNotesManager();
       });
     }
 
-    const clearAllBtn = document.getElementById('history-clear-all');
-    if (clearAllBtn) {
-      clearAllBtn.addEventListener('click', () => {
-        const confirmClear = confirm("Are you sure you want to clear ALL browsing history? This will delete all search results visible here from Chrome's database.");
-        if (!confirmClear) return;
-        chrome.history.deleteAll(() => {
-          this.loadHistory();
-          showToast('History cleared completely!', 'success');
-        });
-      });
-    }
-
-    const sortSelect = document.getElementById('history-sort-select');
-    if (sortSelect) {
-      sortSelect.addEventListener('change', () => {
-        this.loadHistory();
-      });
-    }
-
-    const manageListsBtn = document.getElementById('history-manage-lists-btn');
-    if (manageListsBtn) {
-      manageListsBtn.addEventListener('click', () => {
-        this.switchView('settings');
-      });
-    }
-
-    // Close any history row dropdown menus when clicking outside
-    document.addEventListener('click', () => {
-      document.querySelectorAll('.history-row-menu').forEach(el => el.classList.add('hidden'));
-    });
+    // Premium Redesigned History View listeners
+    this.initiateHistoryListeners();
   },
 
   showWizard() {
@@ -3123,7 +3111,7 @@ const BookmarkManager = {
       }
     }
 
-    // Toggle visibility of bookmarks table vs settings view vs notes view
+    // Toggle visibility of bookmarks table vs settings view vs notes view vs history view
     const tableEl = document.getElementById('bookmarks-table');
     const settingsEl = document.getElementById('settings-view-container');
     const notesEl = document.getElementById('notes-view-container');
@@ -3132,14 +3120,22 @@ const BookmarkManager = {
       if (tableEl) tableEl.classList.add('hidden');
       if (settingsEl) settingsEl.classList.remove('hidden');
       if (notesEl) notesEl.classList.add('hidden');
+      if (this.historyViewContainer) this.historyViewContainer.classList.add('hidden');
     } else if (viewName === 'notes') {
       if (tableEl) tableEl.classList.add('hidden');
       if (settingsEl) settingsEl.classList.add('hidden');
       if (notesEl) notesEl.classList.remove('hidden');
+      if (this.historyViewContainer) this.historyViewContainer.classList.add('hidden');
+    } else if (viewName === 'history') {
+      if (tableEl) tableEl.classList.add('hidden');
+      if (settingsEl) settingsEl.classList.add('hidden');
+      if (notesEl) notesEl.classList.add('hidden');
+      if (this.historyViewContainer) this.historyViewContainer.classList.remove('hidden');
     } else {
       if (tableEl) tableEl.classList.remove('hidden');
       if (settingsEl) settingsEl.classList.add('hidden');
       if (notesEl) notesEl.classList.add('hidden');
+      if (this.historyViewContainer) this.historyViewContainer.classList.add('hidden');
     }
     
     // Refresh content
@@ -3319,167 +3315,1589 @@ const BookmarkManager = {
     });
   },
 
-  loadHistory(query = '') {
-    this.bookmarksBody.innerHTML = '';
-    
-    // Show history toolbar actions
-    const historyToolbar = document.getElementById('history-toolbar');
-    if (historyToolbar) historyToolbar.classList.remove('hidden');
-    
-    chrome.storage.local.get(['organizer_user_settings'], (settingsResult) => {
-      const settings = settingsResult.organizer_user_settings || {};
-      const blacklistStr = settings.historyBlacklist || '';
-      const whitelistStr = settings.historyWhitelist || '';
-      
-      const blacklist = blacklistStr.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-      const whitelist = whitelistStr.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-      
-      chrome.history.search({ text: query, maxResults: 200 }, (historyItems) => {
-        if (chrome.runtime.lastError || !historyItems || historyItems.length === 0) {
-          this.emptyState.classList.remove('hidden');
-          document.getElementById('empty-state-text').textContent = "No history items found.";
-          return;
-        }
-        
-        // Filter history items by blacklist & whitelist
-        let filteredItems = historyItems.filter(item => {
-          const domain = BookmarkRules.getDomain(item.url);
-          // 1. Blacklist check
-          if (blacklist.some(d => domain === d || domain.endsWith('.' + d))) {
-            return false;
-          }
-          // 2. Whitelist check
-          if (whitelist.length > 0 && !whitelist.some(d => domain === d || domain.endsWith('.' + d))) {
-            return false;
-          }
-          return true;
-        });
+  // Redesign History View state
+  historyItems: [],
+  historyFilteredItems: [],
+  historyRenderRows: [],
+  historyRowOffsets: [],
+  historyTotalHeight: 0,
+  historySearchQuery: '',
+  historyViewMode: 'list',
+  historySelectedUrls: new Set(),
+  historyLastClickedIndex: null,
+  historyFilterTime: 'time-all',
+  historyFilterStatus: null,
+  historySortMode: 'newest',
+  historyVisitThreshold: 0,
+  historyBlacklistRules: [],
+  historyExpandedDomains: new Set(),
+  historyExpandedTimelines: new Set(['Today', 'Yesterday', 'This Week']),
+  bookmarkedUrlsSet: new Set(),
+  allRawHistoryItems: null,
 
-        if (filteredItems.length === 0) {
-          this.emptyState.classList.remove('hidden');
-          document.getElementById('empty-state-text').textContent = "No history items match your filters.";
-          return;
-        }
-        
-        this.emptyState.classList.add('hidden');
-
-        // Sort filteredItems based on the selected option
-        const sortSelect = document.getElementById('history-sort-select');
-        const sortVal = sortSelect ? sortSelect.value : 'date-desc';
-        if (sortVal === 'date-desc') {
-          filteredItems.sort((a, b) => b.lastVisitTime - a.lastVisitTime);
-        } else if (sortVal === 'date-asc') {
-          filteredItems.sort((a, b) => a.lastVisitTime - b.lastVisitTime);
-        } else if (sortVal === 'visits-desc') {
-          filteredItems.sort((a, b) => b.visitCount - a.visitCount);
-        } else if (sortVal === 'title-asc') {
-          filteredItems.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
-        }
-
-        filteredItems.forEach(item => {
-          const tr = document.createElement('tr');
-          tr.dataset.itemId = item.id;
-          tr.dataset.itemUrl = item.url;
-          
-          const visitTime = new Date(item.lastVisitTime).toLocaleString();
-          const cleanDomain = BookmarkRules.getDomain(item.url);
-          const faviconUrl = `https://www.google.com/s2/favicons?sz=32&domain=${cleanDomain}`;
-          
-          tr.innerHTML = `
-            <td>
-              <div class="table-cell-name">
-                <input type="checkbox" class="history-row-cb" data-url="${item.url}" style="margin-right: 8px; cursor: pointer;" onclick="event.stopPropagation()">
-                <span><img class="table-favicon" src="${faviconUrl}" onerror="this.src='../icons/icon16.png'"></span>
-                <a href="${item.url}" target="_blank" class="table-link" title="${item.title || item.url}">${item.title || item.url}</a>
-              </div>
-            </td>
-            <td title="${item.url}">
-              <div style="display:flex; flex-direction:column; gap:2px;">
-                <a href="${item.url}" target="_blank" style="color:var(--text-muted); text-decoration:none; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; max-width:400px;">${item.url}</a>
-                <span style="font-size:11px; color:rgba(255,255,255,0.4);">Visited: ${visitTime} &bull; Visits: ${item.visitCount}</span>
-              </div>
-            </td>
-            <td class="table-actions-cell" style="text-align:center; position: relative;">
-              <div class="history-actions-menu" style="display: flex; gap: 8px; justify-content: center; align-items: center;">
-                <button class="action-icon-btn delete-history-btn" title="Delete from History">🗑️</button>
-                <button class="action-icon-btn history-more-btn" title="More options" style="font-size: 14px; padding: 2px 6px;">⋮</button>
-                <!-- Row Dropdown Context Menu -->
-                <div class="history-row-menu hidden" style="position: absolute; right: 20px; top: 30px; background: #1e1e24; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 100; min-width: 140px; display: flex; flex-direction: column; padding: 4px 0;">
-                  <button class="menu-item blacklist-domain-btn" style="background: transparent; border: none; color: white; padding: 8px 12px; text-align: left; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; width: 100%;">🚫 Blacklist Domain</button>
-                  <button class="menu-item whitelist-domain-btn" style="background: transparent; border: none; color: white; padding: 8px 12px; text-align: left; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; width: 100%;">✔️ Whitelist Domain</button>
-                </div>
-              </div>
-            </td>
-          `;
-          
-          tr.querySelector('.delete-history-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            chrome.history.deleteUrl({ url: item.url }, () => {
-              tr.remove();
-              showToast('History item removed!', 'success');
-              if (this.bookmarksBody.children.length === 0) {
-                this.emptyState.classList.remove('hidden');
-                document.getElementById('empty-state-text').textContent = "No history items found.";
-              }
-            });
-          });
-
-          const moreBtn = tr.querySelector('.history-more-btn');
-          const rowMenu = tr.querySelector('.history-row-menu');
-          moreBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            document.querySelectorAll('.history-row-menu').forEach(el => {
-              if (el !== rowMenu) el.classList.add('hidden');
-            });
-            rowMenu.classList.toggle('hidden');
-          });
-
-          tr.querySelector('.blacklist-domain-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            rowMenu.classList.add('hidden');
-            this.addDomainToFilter(cleanDomain, 'blacklist');
-          });
-
-          tr.querySelector('.whitelist-domain-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            rowMenu.classList.add('hidden');
-            this.addDomainToFilter(cleanDomain, 'whitelist');
-          });
-          
-          this.bookmarksBody.appendChild(tr);
-        });
+  async cacheBookmarksTree() {
+    return new Promise((resolve) => {
+      chrome.bookmarks.getTree((tree) => {
+        this.bookmarkedUrlsSet.clear();
+        const traverse = (node) => {
+          if (node.url) this.bookmarkedUrlsSet.add(node.url);
+          if (node.children) node.children.forEach(traverse);
+        };
+        if (tree) tree.forEach(traverse);
+        resolve();
       });
     });
   },
 
-  addDomainToFilter(domain, type) {
-    chrome.storage.local.get(['organizer_user_settings'], (result) => {
-      const settings = result.organizer_user_settings || {};
-      const key = type === 'blacklist' ? 'historyBlacklist' : 'historyWhitelist';
-      const oldStr = settings[key] || '';
-      const list = oldStr.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  initiateHistoryListeners() {
+    // Scroll listener for virtual scrolling
+    if (this.historyViewport) {
+      this.historyViewport.addEventListener('scroll', () => {
+        this.renderVirtualHistory();
+      });
+    }
+
+    // View mode toggles
+    document.querySelectorAll('#history-view-mode-toggles .view-toggle-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const btnEl = e.currentTarget;
+        document.querySelectorAll('#history-view-mode-toggles .view-toggle-btn').forEach(b => b.classList.remove('active'));
+        btnEl.classList.add('active');
+        this.historyViewMode = btnEl.dataset.mode;
+        chrome.storage.local.set({ 'history_view_mode': this.historyViewMode });
+        
+        this.clearHistorySelection();
+        this.processHistoryData();
+      });
+    });
+
+    // Timeframe and status filters in Sidebar
+    document.querySelectorAll('.history-sidebar-filters .filter-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const btnEl = e.currentTarget;
+        if (btnEl.id === 'blacklist-manager-btn') {
+          // Open blacklist manager panel
+          if (this.blacklistManagerPanel) {
+            this.blacklistManagerPanel.classList.remove('hidden');
+            this.loadBlacklistRules();
+          }
+          return;
+        }
+
+        // Toggle active style
+        const filterVal = btnEl.dataset.filter;
+        if (filterVal.startsWith('time-')) {
+          document.querySelectorAll('.history-sidebar-filters .filter-btn[data-filter^="time-"]').forEach(b => b.classList.remove('active'));
+          btnEl.classList.add('active');
+          this.historyFilterTime = filterVal;
+
+          const dateRangeContainer = document.getElementById('custom-date-range-container');
+          if (dateRangeContainer) {
+            dateRangeContainer.classList.toggle('hidden', filterVal !== 'time-custom');
+          }
+        } else {
+          // Status/protocol toggle filters
+          const isActive = btnEl.classList.contains('active');
+          document.querySelectorAll('.history-sidebar-filters .filter-btn:not([data-filter^="time-"])').forEach(b => b.classList.remove('active'));
+          if (!isActive) {
+            btnEl.classList.add('active');
+            this.historyFilterStatus = filterVal;
+          } else {
+            this.historyFilterStatus = null;
+          }
+        }
+
+        this.processHistoryData();
+      });
+    });
+
+    // Custom date filters
+    if (this.historyStartDateInput) {
+      this.historyStartDateInput.addEventListener('change', () => this.processHistoryData());
+    }
+    if (this.historyEndDateInput) {
+      this.historyEndDateInput.addEventListener('change', () => this.processHistoryData());
+    }
+
+    // Sort select
+    if (this.historySortSelectPremium) {
+      this.historySortSelectPremium.addEventListener('change', (e) => {
+        this.historySortMode = e.target.value;
+        this.processHistoryData();
+      });
+    }
+
+    // Visit threshold count
+    if (this.historyVisitThresholdInput) {
+      this.historyVisitThresholdInput.addEventListener('input', (e) => {
+        this.historyVisitThreshold = parseInt(e.target.value) || 0;
+        this.processHistoryData();
+      });
+    }
+
+    // Blacklist manager close / add buttons
+    const closeBlacklistBtn = document.getElementById('close-blacklist-manager-btn');
+    if (closeBlacklistBtn) {
+      closeBlacklistBtn.addEventListener('click', () => {
+        if (this.blacklistManagerPanel) this.blacklistManagerPanel.classList.add('hidden');
+        this.allRawHistoryItems = null; // force reload to filter
+        this.loadHistory(this.historySearchQuery);
+      });
+    }
+
+    const addBlacklistSubmitBtn = document.getElementById('blacklist-add-submit-btn');
+    if (addBlacklistSubmitBtn) {
+      addBlacklistSubmitBtn.addEventListener('click', () => {
+        const type = document.getElementById('blacklist-add-type').value;
+        const pattern = document.getElementById('blacklist-add-pattern').value.trim();
+        const reason = document.getElementById('blacklist-add-reason').value.trim();
+        if (!pattern) {
+          showToast('Pattern cannot be empty!', 'error');
+          return;
+        }
+        this.addBlacklistRule(type, pattern, reason);
+      });
+    }
+
+    // Selection floating bar actions
+    const selectBookmarkAllBtn = document.getElementById('history-select-bookmark-all');
+    if (selectBookmarkAllBtn) {
+      selectBookmarkAllBtn.addEventListener('click', () => this.bookmarkSelectedUrls());
+    }
+    const selectDeleteAllBtn = document.getElementById('history-select-delete-all');
+    if (selectDeleteAllBtn) {
+      selectDeleteAllBtn.addEventListener('click', () => this.deleteSelectedUrls());
+    }
+    const selectBlacklistAllBtn = document.getElementById('history-select-blacklist-all');
+    if (selectBlacklistAllBtn) {
+      selectBlacklistAllBtn.addEventListener('click', () => this.blacklistSelectedUrls());
+    }
+    const selectExportBtn = document.getElementById('history-select-export');
+    if (selectExportBtn) {
+      selectExportBtn.addEventListener('click', () => this.exportSelectedUrls());
+    }
+    const selectCopyBtn = document.getElementById('history-select-copy');
+    if (selectCopyBtn) {
+      selectCopyBtn.addEventListener('click', () => this.copySelectedUrls());
+    }
+    const selectClearBtn = document.getElementById('history-select-clear');
+    if (selectClearBtn) {
+      selectClearBtn.addEventListener('click', () => this.clearHistorySelection());
+    }
+
+    // Context menu click outsides
+    document.addEventListener('click', (e) => {
+      this.hideHistoryContextMenu();
+    });
+
+    // Resize viewport resets offsets
+    window.addEventListener('resize', () => {
+      if (this.activeView === 'history') {
+        this.calculateRowOffsets();
+        this.renderVirtualHistory();
+      }
+    });
+
+    // Keyboard navigation
+    if (this.historyViewport) {
+      this.historyViewport.addEventListener('keydown', (e) => {
+        if (this.activeView !== 'history') return;
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const items = this.historyRenderRows.filter(r => r.type === 'item');
+          if (items.length === 0) return;
+          let newIndex = 0;
+          if (this.historyLastClickedIndex !== null) {
+            const currentItemIdx = items.findIndex(r => r.index === this.historyLastClickedIndex);
+            if (e.key === 'ArrowDown') {
+              newIndex = Math.min(items.length - 1, currentItemIdx + 1);
+            } else {
+              newIndex = Math.max(0, currentItemIdx - 1);
+            }
+          }
+          const targetItem = items[newIndex];
+          if (targetItem) {
+            this.historyLastClickedIndex = targetItem.index;
+            this.historySelectedUrls.clear();
+            this.historySelectedUrls.add(targetItem.data.url);
+            this.updateHistorySelectionBar();
+            this.renderVirtualHistory();
+            
+            // Scroll into view if needed
+            const rowTop = this.historyRowOffsets[targetItem.index];
+            const viewHeight = this.historyViewport.clientHeight;
+            if (rowTop < this.historyViewport.scrollTop) {
+              this.historyViewport.scrollTop = rowTop;
+            } else if (rowTop + 54 > this.historyViewport.scrollTop + viewHeight) {
+              this.historyViewport.scrollTop = rowTop + 54 - viewHeight;
+            }
+          }
+        }
+      });
+    }
+  },
+
+  loadHistory(query = '') {
+    this.historySearchQuery = query;
+    if (this.historyDetailsPanel) this.historyDetailsPanel.classList.add('hidden');
+    
+    // Auto sync blacklist rules on boot
+    chrome.storage.local.get(['history_blacklist_rules', 'history_view_mode'], (res) => {
+      this.historyBlacklistRules = res.history_blacklist_rules || [];
+      if (res.history_view_mode) this.historyViewMode = res.history_view_mode;
+
+      if (this.bookmarkedUrlsSet.size === 0) {
+        this.cacheBookmarksTree().then(() => {
+          this.fetchAndProcessHistory();
+        });
+      } else {
+        this.fetchAndProcessHistory();
+      }
+    });
+  },
+
+  fetchAndProcessHistory() {
+    if (this.allRawHistoryItems && this.allRawHistoryItems.length > 0) {
+      this.processHistoryData();
+      return;
+    }
+
+    if (this.historyViewportContent) {
+      this.historyViewportContent.innerHTML = `
+        <div class="skeleton-row"></div>
+        <div class="skeleton-row"></div>
+        <div class="skeleton-row"></div>
+        <div class="skeleton-row"></div>
+        <div class="skeleton-row"></div>
+      `;
+    }
+
+    chrome.history.search({ text: '', maxResults: 100000, startTime: 0 }, (results) => {
+      this.allRawHistoryItems = results || [];
+      this.processHistoryData();
+    });
+  },
+
+  processHistoryData() {
+    let items = [...this.allRawHistoryItems];
+
+    // 1. Blacklist checks (hide matching items by default unless filter is explicitly status-blacklisted)
+    const isShowingBlacklistFilter = (this.historyFilterStatus === 'status-blacklisted');
+    items = items.filter(item => {
+      const isBlacklisted = this.isUrlBlacklisted(item.url, this.historyBlacklistRules);
+      if (isShowingBlacklistFilter) return isBlacklisted;
+      return !isBlacklisted;
+    });
+
+    // 2. Filter by search query
+    if (this.historySearchQuery) {
+      const q = this.historySearchQuery.toLowerCase();
+      items = items.filter(item => {
+        const parts = this.getDomainParts(item.url);
+        return (
+          (item.title && item.title.toLowerCase().includes(q)) ||
+          item.url.toLowerCase().includes(q) ||
+          parts.root.includes(q) ||
+          parts.subdomain.includes(q)
+        );
+      });
+    }
+
+    // 3. Filter by Timeframe
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    
+    // Get local day boundary
+    const getStartOfDay = (date) => {
+      const d = new Date(date);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    };
+    const startOfToday = getStartOfDay(now);
+    const startOfYesterday = startOfToday - dayMs;
+
+    if (this.historyFilterTime === 'time-today') {
+      items = items.filter(item => item.lastVisitTime >= startOfToday);
+    } else if (this.historyFilterTime === 'time-yesterday') {
+      items = items.filter(item => item.lastVisitTime >= startOfYesterday && item.lastVisitTime < startOfToday);
+    } else if (this.historyFilterTime === 'time-week') {
+      items = items.filter(item => item.lastVisitTime >= (startOfToday - 7 * dayMs));
+    } else if (this.historyFilterTime === 'time-month') {
+      items = items.filter(item => item.lastVisitTime >= (startOfToday - 30 * dayMs));
+    } else if (this.historyFilterTime === 'time-custom') {
+      const startVal = this.historyStartDateInput?.value;
+      const endVal = this.historyEndDateInput?.value;
+      if (startVal && endVal) {
+        const startTime = new Date(startVal + 'T00:00:00').getTime();
+        const endTime = new Date(endVal + 'T23:59:59').getTime();
+        items = items.filter(item => item.lastVisitTime >= startTime && item.lastVisitTime <= endTime);
+      }
+    }
+
+    // 4. Filter by Status/Protocols
+    if (this.historyFilterStatus && this.historyFilterStatus !== 'status-blacklisted') {
+      if (this.historyFilterStatus === 'status-bookmarked') {
+        items = items.filter(item => this.bookmarkedUrlsSet.has(item.url));
+      } else if (this.historyFilterStatus === 'status-not-bookmarked') {
+        items = items.filter(item => !this.bookmarkedUrlsSet.has(item.url));
+      } else if (this.historyFilterStatus === 'subdomain-has') {
+        items = items.filter(item => {
+          const parts = this.getDomainParts(item.url);
+          return parts.subdomain !== parts.root;
+        });
+      } else if (this.historyFilterStatus === 'subdomain-none') {
+        items = items.filter(item => {
+          const parts = this.getDomainParts(item.url);
+          return parts.subdomain === parts.root;
+        });
+      } else if (this.historyFilterStatus === 'protocol-https') {
+        items = items.filter(item => item.url.startsWith('https://'));
+      } else if (this.historyFilterStatus === 'protocol-http') {
+        items = items.filter(item => item.url.startsWith('http://'));
+      }
+    }
+
+    // 5. Filter by Visit Count threshold
+    if (this.historyVisitThreshold > 0) {
+      items = items.filter(item => (item.visitCount || 1) >= this.historyVisitThreshold);
+    }
+
+    // Save filtered list
+    this.historyFilteredItems = items;
+
+    // 6. Sort items
+    const sort = this.historySortMode;
+    this.historyFilteredItems.sort((a, b) => {
+      if (sort === 'newest') return b.lastVisitTime - a.lastVisitTime;
+      if (sort === 'oldest') return a.lastVisitTime - b.lastVisitTime;
+      if (sort === 'most-visited') return b.visitCount - a.visitCount;
+      if (sort === 'least-visited') return a.visitCount - b.visitCount;
       
-      if (!list.includes(domain)) {
-        list.push(domain);
-        settings[key] = list.join(', ');
-        chrome.storage.local.set({ 'organizer_user_settings': settings }, () => {
-          showToast(`Added ${domain} to history ${type}!`, 'success');
-          if (type === 'blacklist') {
-            chrome.history.search({ text: domain, maxResults: 1000 }, (historyItems) => {
-              historyItems.forEach(item => {
-                const itemDomain = BookmarkRules.getDomain(item.url);
-                if (itemDomain === domain || itemDomain.endsWith('.' + domain)) {
-                  chrome.history.deleteUrl({ url: item.url });
-                }
+      const titleA = a.title || a.url;
+      const titleB = b.title || b.url;
+      if (sort === 'alphabetical') return titleA.localeCompare(titleB);
+      
+      const partsA = this.getDomainParts(a.url);
+      const partsB = this.getDomainParts(b.url);
+      if (sort === 'domain') return partsA.root.localeCompare(partsB.root);
+      if (sort === 'subdomain') return partsA.subdomain.localeCompare(partsB.subdomain);
+      
+      if (sort === 'bookmarks-first') {
+        const isBmA = this.bookmarkedUrlsSet.has(a.url) ? 1 : 0;
+        const isBmB = this.bookmarkedUrlsSet.has(b.url) ? 1 : 0;
+        return isBmB - isBmA || b.lastVisitTime - a.lastVisitTime;
+      }
+      if (sort === 'blacklisted-first') {
+        const isBla = this.isUrlBlacklisted(a.url, this.historyBlacklistRules) ? 1 : 0;
+        const isBlb = this.isUrlBlacklisted(b.url, this.historyBlacklistRules) ? 1 : 0;
+        return isBlb - isBla || b.lastVisitTime - a.lastVisitTime;
+      }
+      return b.lastVisitTime - a.lastVisitTime;
+    });
+
+    // 7. Update Dashboard Statistics
+    this.updateStatsCounters();
+
+    // 8. Flatten into virtual rows based on View Mode
+    this.historyRenderRows = [];
+    
+    if (this.historyFilteredItems.length === 0) {
+      // Empty state row
+      this.historyRenderRows.push({ type: 'empty_state' });
+    } else if (this.historyViewMode === 'list' || this.historyViewMode === 'compact') {
+      this.historyRenderRows = this.historyFilteredItems.map((item, idx) => ({
+        type: 'item',
+        data: item,
+        index: idx
+      }));
+    } else if (this.historyViewMode === 'grid' || this.historyViewMode === 'cards') {
+      const cols = this.historyViewMode === 'grid' ? 4 : 3;
+      for (let i = 0; i < this.historyFilteredItems.length; i += cols) {
+        this.historyRenderRows.push({
+          type: 'grid_row',
+          items: this.historyFilteredItems.slice(i, i + cols),
+          startIndex: i
+        });
+      }
+    } else if (this.historyViewMode === 'timeline') {
+      // Group by timeframe sections
+      const sections = {
+        'Today': [],
+        'Yesterday': [],
+        'This Week': [],
+        'Last Week': [],
+        'Last Month': [],
+        'Older': []
+      };
+
+      this.historyFilteredItems.forEach(item => {
+        const age = now - item.lastVisitTime;
+        if (item.lastVisitTime >= startOfToday) {
+          sections['Today'].push(item);
+        } else if (item.lastVisitTime >= startOfYesterday) {
+          sections['Yesterday'].push(item);
+        } else if (age < 7 * dayMs) {
+          sections['This Week'].push(item);
+        } else if (age < 14 * dayMs) {
+          sections['Last Week'].push(item);
+        } else if (age < 30 * dayMs) {
+          sections['Last Month'].push(item);
+        } else {
+          sections['Older'].push(item);
+        }
+      });
+
+      Object.keys(sections).forEach(label => {
+        const sectItems = sections[label];
+        if (sectItems.length > 0) {
+          const isCollapsed = !this.historyExpandedTimelines.has(label);
+          this.historyRenderRows.push({
+            type: 'timeline_header',
+            label: label,
+            count: sectItems.length,
+            collapsed: isCollapsed
+          });
+          if (!isCollapsed) {
+            sectItems.forEach((item, idx) => {
+              this.historyRenderRows.push({
+                type: 'item',
+                data: item,
+                index: this.historyFilteredItems.indexOf(item)
               });
             });
           }
-          this.loadHistory();
+        }
+      });
+    } else if (this.historyViewMode === 'grouped') {
+      // Group by Domain
+      const domainGroups = {};
+      this.historyFilteredItems.forEach(item => {
+        const parts = this.getDomainParts(item.url);
+        if (!domainGroups[parts.root]) {
+          domainGroups[parts.root] = {
+            domain: parts.root,
+            visits: 0,
+            subdomains: new Set(),
+            items: []
+          };
+        }
+        domainGroups[parts.root].visits += (item.visitCount || 1);
+        domainGroups[parts.root].subdomains.add(parts.subdomain);
+        domainGroups[parts.root].items.push(item);
+      });
+
+      // Sort domain cards by visit counts
+      const sortedDomains = Object.values(domainGroups).sort((a, b) => b.visits - a.visits);
+
+      sortedDomains.forEach(grp => {
+        const isCollapsed = !this.historyExpandedDomains.has(grp.domain);
+        this.historyRenderRows.push({
+          type: 'group_header',
+          domain: grp.domain,
+          count: grp.visits,
+          subdomainsCount: grp.subdomains.size,
+          collapsed: isCollapsed,
+          items: grp.items
         });
+
+        if (!isCollapsed) {
+          // Group by subdomain within expanded list
+          const subGroups = {};
+          grp.items.forEach(item => {
+            const parts = this.getDomainParts(item.url);
+            if (!subGroups[parts.subdomain]) subGroups[parts.subdomain] = [];
+            subGroups[parts.subdomain].push(item);
+          });
+
+          Object.keys(subGroups).forEach(sub => {
+            this.historyRenderRows.push({
+              type: 'subdomain_header',
+              subdomain: sub,
+              root: grp.domain
+            });
+            subGroups[sub].forEach(item => {
+              this.historyRenderRows.push({
+                type: 'item',
+                data: item,
+                index: this.historyFilteredItems.indexOf(item),
+                indent: true
+              });
+            });
+          });
+        }
+      });
+    }
+
+    this.calculateRowOffsets();
+    if (this.historyViewport) this.historyViewport.scrollTop = 0;
+    this.renderVirtualHistory();
+  },
+
+  calculateRowOffsets() {
+    this.historyRowOffsets = [];
+    let currentOffset = 0;
+    this.historyRenderRows.forEach(row => {
+      this.historyRowOffsets.push(currentOffset);
+      currentOffset += this.getRowHeight(row);
+    });
+    this.historyTotalHeight = currentOffset;
+  },
+
+  getRowHeight(row) {
+    if (row.type === 'empty_state') return 300;
+    if (row.type === 'group_header') return 80;
+    if (row.type === 'subdomain_header') return 32;
+    if (row.type === 'timeline_header') return 38;
+    if (row.type === 'grid_row') {
+      return this.historyViewMode === 'grid' ? 140 : 155;
+    }
+    // Item row height
+    return this.historyViewMode === 'compact' ? 34 : 54;
+  },
+
+  findStartIndex(scrollTop) {
+    let low = 0, high = this.historyRowOffsets.length - 1;
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      if (this.historyRowOffsets[mid] <= scrollTop) {
+        if (mid === this.historyRowOffsets.length - 1 || this.historyRowOffsets[mid + 1] > scrollTop) {
+          return mid;
+        }
+        low = mid + 1;
       } else {
-        showToast(`${domain} is already in the ${type} list.`, 'error');
+        high = mid - 1;
+      }
+    }
+    return 0;
+  },
+
+  renderVirtualHistory() {
+    const viewport = this.historyViewport;
+    if (!viewport) return;
+    const scrollTop = viewport.scrollTop;
+    const viewportHeight = viewport.clientHeight || 500;
+
+    if (this.historyViewportSpacer) {
+      this.historyViewportSpacer.style.height = `${this.historyTotalHeight}px`;
+    }
+
+    const startIndex = this.findStartIndex(scrollTop);
+    const buffer = 4;
+    const renderStart = Math.max(0, startIndex - buffer);
+    let renderEnd = renderStart;
+
+    const viewportBottom = scrollTop + viewportHeight;
+    while (renderEnd < this.historyRenderRows.length && this.historyRowOffsets[renderEnd] < viewportBottom + 150) {
+      renderEnd++;
+    }
+    renderEnd = Math.min(this.historyRenderRows.length, renderEnd + buffer);
+
+    const contentContainer = this.historyViewportContent;
+    if (!contentContainer) return;
+
+    let html = '';
+    for (let i = renderStart; i < renderEnd; i++) {
+      const row = this.historyRenderRows[i];
+      const top = this.historyRowOffsets[i];
+      html += this.renderRowHTML(row, top, i);
+    }
+    contentContainer.innerHTML = html;
+
+    this.bindRenderedRowListeners();
+  },
+
+  renderRowHTML(row, top, rowIndex) {
+    const style = `position: absolute; top: 0; left: 0; right: 0; transform: translateY(${top}px); height: ${this.getRowHeight(row)}px;`;
+    
+    if (row.type === 'empty_state') {
+      return `
+        <div class="history-empty-state" style="${style}">
+          <span class="empty-state-icon">🔍</span>
+          <span class="empty-state-title">No History Found</span>
+          <span style="font-size: 13px;">No history records match your search or filter settings.</span>
+        </div>
+      `;
+    }
+
+    if (row.type === 'timeline_header') {
+      const arrowClass = row.collapsed ? 'collapsed' : '';
+      return `
+        <div class="history-header-row timeline-hdr" data-label="${row.label}" style="${style}">
+          <span class="history-header-arrow ${arrowClass}">▼</span>
+          <span>${row.label}</span>
+          <span class="history-header-meta">${row.count} visits</span>
+        </div>
+      `;
+    }
+
+    if (row.type === 'group_header') {
+      const arrowClass = row.collapsed ? 'collapsed' : '';
+      const cleanDomain = row.domain;
+      const faviconUrl = `https://www.google.com/s2/favicons?sz=32&domain=${cleanDomain}`;
+      return `
+        <div class="history-header-row domain-group-card" data-domain="${row.domain}" style="${style} padding: 12px 16px; display: flex; flex-direction: row; align-items: center; gap: 15px; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 13px;">
+          <span class="history-header-arrow ${arrowClass}" style="font-size: 11px;">▼</span>
+          <div class="history-row-favicon" style="width: 24px; height: 24px;">
+            <img src="${faviconUrl}" onerror="this.src='../icons/icon16.png'" style="width: 20px; height: 20px;">
+          </div>
+          <div style="display: flex; flex-direction: column; flex-grow: 1; min-width: 0; gap: 2px;">
+            <span class="domain-group-name" style="font-size: 14px; font-weight: 700; color: #fff;">${row.domain}</span>
+            <span style="font-size: 11.5px; color: var(--text-muted);">${row.count} visits &bull; ${row.subdomainsCount} subdomains</span>
+          </div>
+          <div class="domain-group-actions" style="margin-left: auto; display: flex; gap: 8px;">
+            <button class="btn btn-secondary btn-small grp-bookmark-btn" data-domain="${row.domain}" style="padding: 4px 8px; font-size: 11px; display: flex; align-items: center; gap: 4px;"><i class="fi fi-rr-bookmark"></i> Bookmark All</button>
+            <button class="btn btn-secondary btn-small grp-blacklist-btn" data-domain="${row.domain}" style="padding: 4px 8px; font-size: 11px; display: flex; align-items: center; gap: 4px; color: var(--color-danger);"><i class="fi fi-rr-ban"></i> Blacklist</button>
+            <button class="btn btn-secondary btn-small grp-delete-btn" data-domain="${row.domain}" style="padding: 4px 8px; font-size: 11px; display: flex; align-items: center; gap: 4px;"><i class="fi fi-rr-trash"></i> Delete</button>
+          </div>
+        </div>
+      `;
+    }
+
+    if (row.type === 'subdomain_header') {
+      const leftPad = '32px';
+      return `
+        <div class="history-header-row subdomain-hdr" style="${style} padding-left: ${leftPad}; background: transparent; border-bottom: none; font-size: 11.5px; font-weight: 500; color: #a855f7; pointer-events: none;">
+          <i class="fi fi-rr-subtitles" style="margin-right: 6px; font-size: 10px;"></i>
+          <span>${row.subdomain}</span>
+        </div>
+      `;
+    }
+
+    if (row.type === 'grid_row') {
+      let cardsHtml = '';
+      row.items.forEach((item, colIdx) => {
+        const idxInList = row.startIndex + colIdx;
+        const cleanDomain = this.getDomainParts(item.url).root;
+        const faviconUrl = `https://www.google.com/s2/favicons?sz=32&domain=${cleanDomain}`;
+        const isSelected = this.historySelectedUrls.has(item.url) ? 'selected' : '';
+        const isBookmarked = this.bookmarkedUrlsSet.has(item.url) ? '💎' : '';
+        
+        cardsHtml += `
+          <div class="grid-card ${isSelected}" data-url="${item.url}" data-index="${idxInList}">
+            <div class="grid-card-header">
+              <div class="history-row-favicon">
+                <img src="${faviconUrl}" onerror="this.src='../icons/icon16.png'">
+              </div>
+              <span class="grid-card-title" title="${item.title || item.url}">${this.highlightSearchText(item.title || item.url, this.historySearchQuery)}</span>
+              <span style="font-size: 11px; margin-left: auto;">${isBookmarked}</span>
+            </div>
+            <div class="grid-card-url">${item.url}</div>
+            <div class="grid-card-footer">
+              <span>Visits: ${item.visitCount || 1}</span>
+              <span>${this.formatRelativeTime(item.lastVisitTime)}</span>
+            </div>
+          </div>
+        `;
+      });
+      return `
+        <div class="history-grid-row" style="${style}">
+          ${cardsHtml}
+        </div>
+      `;
+    }
+
+    if (row.type === 'item') {
+      const item = row.data;
+      const isSelected = this.historySelectedUrls.has(item.url) ? 'selected' : '';
+      const isChecked = this.historySelectedUrls.has(item.url) ? 'checked' : '';
+      const indentClass = row.indent ? 'style="padding-left: 45px;"' : '';
+      const parts = this.getDomainParts(item.url);
+      const faviconUrl = `https://www.google.com/s2/favicons?sz=32&domain=${parts.root}`;
+      const isBookmarked = this.bookmarkedUrlsSet.has(item.url);
+      const compactClass = this.historyViewMode === 'compact' ? 'compact' : '';
+
+      return `
+        <div class="history-row ${isSelected} ${compactClass}" data-url="${item.url}" data-index="${row.index}" ${indentClass} style="${style}">
+          <input type="checkbox" class="history-row-checkbox" ${isChecked} onclick="event.stopPropagation()">
+          <div class="history-row-favicon">
+            <img src="${faviconUrl}" onerror="this.src='../icons/icon16.png'">
+          </div>
+          <div class="history-row-details">
+            <div class="history-row-title-container">
+              <span class="history-row-title" title="${item.title || item.url}">${this.highlightSearchText(item.title || item.url, this.historySearchQuery)}</span>
+              ${isBookmarked ? '<span class="history-row-domain-badge" style="background: rgba(99,102,241,0.15); color: #818cf8; display: flex; align-items: center; gap: 3px;"><i class="fi fi-sr-bookmark" style="font-size: 8px;"></i> Bookmarked</span>' : ''}
+              <span class="history-row-domain-badge">${parts.subdomain}</span>
+            </div>
+            ${this.historyViewMode !== 'compact' ? `<div class="history-row-url">${this.highlightSearchText(item.url, this.historySearchQuery)}</div>` : ''}
+          </div>
+          <div class="history-row-meta">
+            <span>${item.visitCount || 1} visits</span>
+            <span>&bull;</span>
+            <span>${this.formatRelativeTime(item.lastVisitTime)}</span>
+          </div>
+          <div class="history-row-actions" onclick="event.stopPropagation()">
+            <button class="history-row-btn row-open-btn" title="Open page"><i class="fi fi-rr-external-link"></i></button>
+            <button class="history-row-btn row-bookmark-btn" title="${isBookmarked ? 'Already Bookmarked' : 'Add to Bookmarks'}">${isBookmarked ? '★' : '☆'}</button>
+            <button class="history-row-btn danger row-delete-btn" title="Delete from History"><i class="fi fi-rr-trash"></i></button>
+            <button class="history-row-btn row-more-btn" title="More Actions"><i class="fi fi-rr-menu-dots-vertical"></i></button>
+          </div>
+        </div>
+      `;
+    }
+
+    return '';
+  },
+
+  bindRenderedRowListeners() {
+    const contentContainer = this.historyViewportContent;
+    if (!contentContainer) return;
+
+    // 1. Collapsible Group and Timeline Headers
+    contentContainer.querySelectorAll('.timeline-hdr').forEach(hdr => {
+      hdr.addEventListener('click', (e) => {
+        const label = e.currentTarget.dataset.label;
+        if (this.historyExpandedTimelines.has(label)) {
+          this.historyExpandedTimelines.delete(label);
+        } else {
+          this.historyExpandedTimelines.add(label);
+        }
+        this.processHistoryData();
+      });
+    });
+
+    contentContainer.querySelectorAll('.domain-group-card').forEach(hdr => {
+      // Toggle expand on clicking card (but not buttons)
+      hdr.addEventListener('click', (e) => {
+        if (e.target.closest('.btn')) return;
+        const dom = e.currentTarget.dataset.domain;
+        if (this.historyExpandedDomains.has(dom)) {
+          this.historyExpandedDomains.delete(dom);
+        } else {
+          this.historyExpandedDomains.add(dom);
+        }
+        this.processHistoryData();
+      });
+      
+      // Group Actions
+      hdr.querySelector('.grp-bookmark-btn').addEventListener('click', (e) => {
+        const domain = e.currentTarget.dataset.domain;
+        const grp = this.historyFilteredItems.filter(item => this.getDomainParts(item.url).root === domain);
+        this.bookmarkUrlsList(grp.map(i => i.url));
+      });
+      
+      hdr.querySelector('.grp-blacklist-btn').addEventListener('click', (e) => {
+        const domain = e.currentTarget.dataset.domain;
+        const reason = `Blacklisted domain group: ${domain}`;
+        this.addBlacklistRule('domain', domain, reason);
+      });
+      
+      hdr.querySelector('.grp-delete-btn').addEventListener('click', (e) => {
+        const domain = e.currentTarget.dataset.domain;
+        const grp = this.historyFilteredItems.filter(item => this.getDomainParts(item.url).root === domain);
+        const confirmDelete = confirm(`Are you sure you want to delete all ${grp.length} history items under ${domain}?`);
+        if (!confirmDelete) return;
+        
+        let done = 0;
+        grp.forEach(item => {
+          chrome.history.deleteUrl({ url: item.url }, () => {
+            done++;
+            if (done === grp.length) {
+              showToast(`History under ${domain} deleted!`, 'success');
+              this.allRawHistoryItems = null; // invalidate cache
+              this.loadHistory(this.historySearchQuery);
+            }
+          });
+        });
+      });
+    });
+
+    // 2. Selection logic for Row items
+    contentContainer.querySelectorAll('.history-row').forEach(row => {
+      row.addEventListener('click', (e) => {
+        const idx = parseInt(row.dataset.index);
+        const url = row.dataset.url;
+        this.handleHistoryRowClick(e, url, idx);
+      });
+
+      row.addEventListener('contextmenu', (e) => {
+        const idx = parseInt(row.dataset.index);
+        const url = row.dataset.url;
+        this.handleHistoryRowRightClick(e, url, idx);
+      });
+
+      row.querySelector('.history-row-checkbox').addEventListener('change', (e) => {
+        const url = row.dataset.url;
+        this.toggleHistorySelection(url);
+      });
+
+      // Actions buttons
+      row.querySelector('.row-open-btn').addEventListener('click', (e) => {
+        const url = row.dataset.url;
+        window.open(url, '_blank');
+      });
+
+      row.querySelector('.row-bookmark-btn').addEventListener('click', (e) => {
+        const url = row.dataset.url;
+        const item = this.historyFilteredItems.find(i => i.url === url);
+        if (this.bookmarkedUrlsSet.has(url)) {
+          showToast('URL is already bookmarked!', 'error');
+          return;
+        }
+        chrome.bookmarks.create({
+          parentId: '1', // default to bookmark bar
+          title: item ? (item.title || item.url) : url,
+          url: url
+        }, () => {
+          showToast('Added to bookmarks!', 'success');
+          this.bookmarkedUrlsSet.add(url);
+          this.renderVirtualHistory();
+        });
+      });
+
+      row.querySelector('.row-delete-btn').addEventListener('click', (e) => {
+        const url = row.dataset.url;
+        chrome.history.deleteUrl({ url: url }, () => {
+          showToast('History item removed!', 'success');
+          this.allRawHistoryItems = null; // force reload cache
+          this.loadHistory(this.historySearchQuery);
+        });
+      });
+
+      row.querySelector('.row-more-btn').addEventListener('click', (e) => {
+        const url = row.dataset.url;
+        const rect = e.currentTarget.getBoundingClientRect();
+        this.showHistoryContextMenu({ clientX: rect.left, clientY: rect.bottom }, url);
+      });
+    });
+
+    // 3. Grid card selections
+    contentContainer.querySelectorAll('.grid-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+        const idx = parseInt(card.dataset.index);
+        const url = card.dataset.url;
+        this.handleHistoryRowClick(e, url, idx);
+      });
+      card.addEventListener('contextmenu', (e) => {
+        const idx = parseInt(card.dataset.index);
+        const url = card.dataset.url;
+        this.handleHistoryRowRightClick(e, url, idx);
+      });
+    });
+  },
+
+  handleHistoryRowClick(e, itemUrl, idx) {
+    if (e.shiftKey && this.historyLastClickedIndex !== null) {
+      // Range selection
+      const start = Math.min(this.historyLastClickedIndex, idx);
+      const end = Math.max(this.historyLastClickedIndex, idx);
+      
+      const itemsToSelect = this.historyFilteredItems.slice(start, end + 1);
+      itemsToSelect.forEach(i => this.historySelectedUrls.add(i.url));
+    } else if (e.ctrlKey || e.metaKey) {
+      // Multi-select toggle
+      this.toggleHistorySelection(itemUrl);
+    } else {
+      // Single click selects/highlights and opens details sidebar
+      this.historySelectedUrls.clear();
+      this.historySelectedUrls.add(itemUrl);
+      this.showDomainDetails(itemUrl);
+    }
+    
+    this.historyLastClickedIndex = idx;
+    this.updateHistorySelectionBar();
+    this.renderVirtualHistory();
+  },
+
+  handleHistoryRowRightClick(e, itemUrl, idx) {
+    e.preventDefault();
+    this.historySelectedUrls.clear();
+    this.historySelectedUrls.add(itemUrl);
+    this.historyLastClickedIndex = idx;
+    this.updateHistorySelectionBar();
+    this.renderVirtualHistory();
+    this.showHistoryContextMenu(e, itemUrl);
+  },
+
+  showHistoryContextMenu(e, itemUrl) {
+    this.hideHistoryContextMenu();
+    const item = this.historyFilteredItems.find(i => i.url === itemUrl);
+    const parts = this.getDomainParts(itemUrl);
+    
+    this.createContextMenu();
+    this.contextMenu.style.left = `${e.clientX}px`;
+    this.contextMenu.style.top = `${e.clientY}px`;
+    this.contextMenu.classList.remove('hidden');
+
+    this.contextMenu.innerHTML = `
+      <button class="context-menu-item" id="ctx-open"><i class="fi fi-rr-external-link"></i> Open Page</button>
+      <button class="context-menu-item" id="ctx-open-tab"><i class="fi fi-rr-tab"></i> Open in New Tab</button>
+      <button class="context-menu-item" id="ctx-bookmark"><i class="fi fi-rr-bookmark"></i> Bookmark URL</button>
+      <div class="context-menu-separator"></div>
+      <button class="context-menu-item" id="ctx-blacklist-url"><i class="fi fi-rr-ban"></i> Blacklist URL</button>
+      <button class="context-menu-item" id="ctx-blacklist-domain"><i class="fi fi-rr-lock"></i> Blacklist Domain</button>
+      <div class="context-menu-separator"></div>
+      <button class="context-menu-item" id="ctx-copy-url"><i class="fi fi-rr-copy"></i> Copy URL</button>
+      <button class="context-menu-item" id="ctx-copy-title"><i class="fi fi-rr-document"></i> Copy Title</button>
+      <button class="context-menu-item" id="ctx-inspect"><i class="fi fi-rr-stats"></i> Inspect Details</button>
+      <div class="context-menu-separator"></div>
+      <button class="context-menu-item danger" id="ctx-delete"><i class="fi fi-rr-trash"></i> Delete URL</button>
+    `;
+
+    // Context Listeners
+    document.getElementById('ctx-open').addEventListener('click', () => window.open(itemUrl, '_blank'));
+    document.getElementById('ctx-open-tab').addEventListener('click', () => window.open(itemUrl, '_blank'));
+    document.getElementById('ctx-bookmark').addEventListener('click', () => {
+      chrome.bookmarks.create({ parentId: '1', title: item ? (item.title || item.url) : itemUrl, url: itemUrl }, () => {
+        showToast('Page Bookmarked!', 'success');
+        this.bookmarkedUrlsSet.add(itemUrl);
+        this.renderVirtualHistory();
+      });
+    });
+    document.getElementById('ctx-blacklist-url').addEventListener('click', () => {
+      this.addBlacklistRule('url', itemUrl, `User blacklisted URL: ${itemUrl}`);
+    });
+    document.getElementById('ctx-blacklist-domain').addEventListener('click', () => {
+      this.addBlacklistRule('domain', parts.root, `User blacklisted domain: ${parts.root}`);
+    });
+    document.getElementById('ctx-copy-url').addEventListener('click', () => {
+      navigator.clipboard.writeText(itemUrl);
+      showToast('URL copied to clipboard!', 'success');
+    });
+    document.getElementById('ctx-copy-title').addEventListener('click', () => {
+      navigator.clipboard.writeText(item ? (item.title || itemUrl) : itemUrl);
+      showToast('Title copied to clipboard!', 'success');
+    });
+    document.getElementById('ctx-inspect').addEventListener('click', () => {
+      this.showDomainDetails(itemUrl);
+    });
+    document.getElementById('ctx-delete').addEventListener('click', () => {
+      chrome.history.deleteUrl({ url: itemUrl }, () => {
+        showToast('History item deleted!', 'success');
+        this.allRawHistoryItems = null;
+        this.loadHistory(this.historySearchQuery);
+      });
+    });
+  },
+
+  hideHistoryContextMenu() {
+    if (this.contextMenu) this.contextMenu.classList.add('hidden');
+  },
+
+  toggleHistorySelection(url) {
+    if (this.historySelectedUrls.has(url)) {
+      this.historySelectedUrls.delete(url);
+    } else {
+      this.historySelectedUrls.add(url);
+    }
+  },
+
+  updateHistorySelectionBar() {
+    const count = this.historySelectedUrls.size;
+    if (this.historySelectionBar && this.historySelectionCount) {
+      this.historySelectionCount.textContent = `${count} items selected`;
+      this.historySelectionBar.classList.toggle('visible', count > 0);
+    }
+  },
+
+  bookmarkUrlsList(urls) {
+    let created = 0;
+    urls.forEach(url => {
+      const item = this.historyFilteredItems.find(i => i.url === url);
+      chrome.bookmarks.create({
+        parentId: '1',
+        title: item ? (item.title || item.url) : url,
+        url: url
+      }, () => {
+        created++;
+        this.bookmarkedUrlsSet.add(url);
+        if (created === urls.length) {
+          showToast(`Successfully bookmarked ${created} pages!`, 'success');
+          this.renderVirtualHistory();
+        }
+      });
+    });
+  },
+
+  bookmarkSelectedUrls() {
+    const urls = Array.from(this.historySelectedUrls);
+    if (urls.length === 0) return;
+    this.bookmarkUrlsList(urls);
+    this.clearHistorySelection();
+  },
+
+  deleteSelectedUrls() {
+    const urls = Array.from(this.historySelectedUrls);
+    if (urls.length === 0) return;
+    const confirmDelete = confirm(`Are you sure you want to delete the ${urls.length} selected history items?`);
+    if (!confirmDelete) return;
+
+    let deleted = 0;
+    urls.forEach(url => {
+      chrome.history.deleteUrl({ url: url }, () => {
+        deleted++;
+        if (deleted === urls.length) {
+          showToast(`Deleted ${deleted} items from history!`, 'success');
+          this.allRawHistoryItems = null; // force cache reload
+          this.clearHistorySelection();
+          this.loadHistory(this.historySearchQuery);
+        }
+      });
+    });
+  },
+
+  blacklistSelectedUrls() {
+    const urls = Array.from(this.historySelectedUrls);
+    if (urls.length === 0) return;
+    
+    const choice = prompt("Blacklist options:\nType 'domain' to blacklist the root domains.\nType 'url' to blacklist the exact URLs.\nType 'subdomain' to blacklist subdomains.", "domain");
+    if (!choice) return;
+    
+    const rulesToAdd = [];
+    urls.forEach(url => {
+      const parts = this.getDomainParts(url);
+      if (choice === 'domain') {
+        rulesToAdd.push({ type: 'domain', pattern: parts.root, reason: 'Batch blacklisted domains' });
+      } else if (choice === 'subdomain') {
+        rulesToAdd.push({ type: 'subdomain', pattern: parts.subdomain, reason: 'Batch blacklisted subdomains' });
+      } else {
+        rulesToAdd.push({ type: 'url', pattern: url, reason: 'Batch blacklisted URLs' });
       }
     });
+
+    // Add unique rules
+    chrome.storage.local.get(['history_blacklist_rules'], (res) => {
+      const rules = res.history_blacklist_rules || [];
+      let addedCount = 0;
+      
+      rulesToAdd.forEach(r => {
+        if (!rules.some(old => old.type === r.type && old.pattern === r.pattern)) {
+          r.id = 'bl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+          r.addedDate = Date.now();
+          rules.push(r);
+          addedCount++;
+        }
+      });
+
+      if (addedCount > 0) {
+        chrome.storage.local.set({ 'history_blacklist_rules': rules }, () => {
+          showToast(`Added ${addedCount} rules to blacklist!`, 'success');
+          this.syncBlacklistWithSettings(rules);
+          this.clearHistorySelection();
+        });
+      }
+    });
+  },
+
+  exportSelectedUrls() {
+    const urls = Array.from(this.historySelectedUrls);
+    if (urls.length === 0) return;
+    
+    const exportItems = this.historyFilteredItems.filter(i => urls.includes(i.url));
+    const jsonStr = JSON.stringify(exportItems, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bookmarks_history_export_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Export file downloaded!', 'success');
+  },
+
+  copySelectedUrls() {
+    const urls = Array.from(this.historySelectedUrls);
+    if (urls.length === 0) return;
+    navigator.clipboard.writeText(urls.join('\n'));
+    showToast(`${urls.length} URLs copied to clipboard!`, 'success');
+    this.clearHistorySelection();
+  },
+
+  clearHistorySelection() {
+    this.historySelectedUrls.clear();
+    this.historyLastClickedIndex = null;
+    this.updateHistorySelectionBar();
+    this.renderVirtualHistory();
+  },
+
+  loadBlacklistRules() {
+    chrome.storage.local.get(['history_blacklist_rules'], (res) => {
+      this.historyBlacklistRules = res.history_blacklist_rules || [];
+      
+      if (this.blacklistRulesTableBody) {
+        if (this.historyBlacklistRules.length === 0) {
+          this.blacklistRulesTableBody.innerHTML = `
+            <tr>
+              <td colspan="5" style="text-align: center; color: var(--text-muted);">No blacklist rules active.</td>
+            </tr>
+          `;
+          return;
+        }
+
+        let html = '';
+        this.historyBlacklistRules.forEach(rule => {
+          const typeBadge = `<span class="blacklist-badge ${rule.type}">${rule.type.toUpperCase()}</span>`;
+          const dateStr = new Date(rule.addedDate).toLocaleDateString();
+          html += `
+            <tr>
+              <td>${typeBadge}</td>
+              <td style="word-break: break-all; font-family: monospace;">${rule.pattern}</td>
+              <td>${rule.reason || 'None'}</td>
+              <td>${dateStr}</td>
+              <td style="text-align: center;">
+                <button class="btn btn-secondary btn-small remove-rule-btn" data-id="${rule.id}" style="padding: 2px 6px; font-size: 11px;"><i class="fi fi-rr-undo"></i> Restore</button>
+              </td>
+            </tr>
+          `;
+        });
+        this.blacklistRulesTableBody.innerHTML = html;
+
+        // Restore rule click bindings
+        this.blacklistRulesTableBody.querySelectorAll('.remove-rule-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const ruleId = e.currentTarget.dataset.id;
+            this.removeBlacklistRule(ruleId);
+          });
+        });
+      }
+    });
+  },
+
+  addBlacklistRule(type, pattern, reason) {
+    chrome.storage.local.get(['history_blacklist_rules'], (res) => {
+      const rules = res.history_blacklist_rules || [];
+      if (rules.some(r => r.type === type && r.pattern === pattern)) {
+        showToast('Rule already exists!', 'error');
+        return;
+      }
+
+      const newRule = {
+        id: 'bl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        type: type,
+        pattern: pattern,
+        reason: reason || 'Manual blacklist entry',
+        addedDate: Date.now()
+      };
+      
+      rules.push(newRule);
+      chrome.storage.local.set({ 'history_blacklist_rules': rules }, () => {
+        showToast('Blacklist rule created!', 'success');
+        
+        // Clean fields
+        const patternInput = document.getElementById('blacklist-add-pattern');
+        const reasonInput = document.getElementById('blacklist-add-reason');
+        if (patternInput) patternInput.value = '';
+        if (reasonInput) reasonInput.value = '';
+
+        this.syncBlacklistWithSettings(rules);
+        this.loadBlacklistRules();
+      });
+    });
+  },
+
+  removeBlacklistRule(id) {
+    chrome.storage.local.get(['history_blacklist_rules'], (res) => {
+      let rules = res.history_blacklist_rules || [];
+      rules = rules.filter(r => r.id !== id);
+      
+      chrome.storage.local.set({ 'history_blacklist_rules': rules }, () => {
+        showToast('Blacklist rule restored!', 'success');
+        this.syncBlacklistWithSettings(rules);
+        this.loadBlacklistRules();
+      });
+    });
+  },
+
+  syncBlacklistWithSettings(rules) {
+    chrome.storage.local.get(['organizer_user_settings'], (result) => {
+      const settings = result.organizer_user_settings || {};
+      
+      // Legacy settings sync (only stores domain name format strings in comma separation)
+      const domains = rules
+        .map(r => {
+          if (r.type === 'domain' || r.type === 'subdomain') return r.pattern;
+          try {
+            return new URL(r.pattern).hostname.replace(/^www\./, '');
+          } catch(e) {
+            return '';
+          }
+        })
+        .filter(Boolean);
+      
+      settings.historyBlacklist = Array.from(new Set(domains)).join(', ');
+      chrome.storage.local.set({ 'organizer_user_settings': settings }, () => {
+        // Run background deleted calls
+        rules.forEach(rule => this.applyBlacklistRuleDeletion(rule));
+      });
+    });
+  },
+
+  applyBlacklistRuleDeletion(rule) {
+    // Delete matches from Chrome history
+    chrome.history.search({ text: rule.pattern, maxResults: 5000 }, (historyItems) => {
+      historyItems.forEach(item => {
+        let isMatch = false;
+        const parts = this.getDomainParts(item.url);
+        
+        if (rule.type === 'domain') {
+          isMatch = (parts.root === rule.pattern || parts.root.endsWith('.' + rule.pattern));
+        } else if (rule.type === 'subdomain') {
+          isMatch = (parts.subdomain === rule.pattern);
+        } else if (rule.type === 'url') {
+          isMatch = (item.url === rule.pattern);
+        }
+
+        if (isMatch) {
+          chrome.history.deleteUrl({ url: item.url });
+        }
+      });
+    });
+  },
+
+  showDomainDetails(itemUrl) {
+    if (!this.historyDetailsPanel) return;
+    
+    const item = this.historyFilteredItems.find(i => i.url === itemUrl);
+    if (!item) return;
+    
+    const parts = this.getDomainParts(itemUrl);
+    const domainItems = this.allRawHistoryItems.filter(i => this.getDomainParts(i.url).root === parts.root);
+    const subdomainItems = this.allRawHistoryItems.filter(i => this.getDomainParts(i.url).subdomain === parts.subdomain);
+    const subdomainsCount = new Set(domainItems.map(i => this.getDomainParts(i.url).subdomain)).size;
+    const isBookmarked = this.bookmarkedUrlsSet.has(itemUrl);
+
+    // Timeline SVG chart
+    const timelineChartHtml = this.renderTimelineChart(domainItems);
+
+    this.historyDetailsPanel.classList.remove('hidden');
+    this.historyDetailsPanel.innerHTML = `
+      <button class="details-close-btn" id="close-history-details-btn">✕ Close</button>
+      <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
+        <img src="https://www.google.com/s2/favicons?sz=32&domain=${parts.root}" onerror="this.src='../icons/icon16.png'" style="width: 24px; height: 24px; border-radius: 4px;">
+        <span class="details-title">${parts.root}</span>
+      </div>
+
+      <div class="details-section" style="margin-top: 15px;">
+        <span class="details-label">Selected Title</span>
+        <span class="details-value" style="font-weight: 600;">${item.title || 'No Title'}</span>
+      </div>
+
+      <div class="details-section">
+        <span class="details-label">Selected URL</span>
+        <a href="${item.url}" target="_blank" class="details-value" style="color: var(--color-primary); text-decoration: underline;">${item.url}</a>
+      </div>
+
+      <div class="details-section">
+        <span class="details-label">Subdomain</span>
+        <span class="details-value">${parts.subdomain}</span>
+      </div>
+
+      <div class="details-section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: rgba(0,0,0,0.15); padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.03);">
+        <div>
+          <span class="details-label" style="font-size: 9px;">Root Visits</span>
+          <span style="font-size: 14px; font-weight: 700; color: #fff; display: block; margin-top: 2px;">${domainItems.reduce((acc, i) => acc + (i.visitCount || 1), 0)}</span>
+        </div>
+        <div>
+          <span class="details-label" style="font-size: 9px;">Subdomains</span>
+          <span style="font-size: 14px; font-weight: 700; color: #fff; display: block; margin-top: 2px;">${subdomainsCount}</span>
+        </div>
+        <div>
+          <span class="details-label" style="font-size: 9px;">URL Visits</span>
+          <span style="font-size: 14px; font-weight: 700; color: #fff; display: block; margin-top: 2px;">${item.visitCount || 1}</span>
+        </div>
+        <div>
+          <span class="details-label" style="font-size: 9px;">Bookmarked</span>
+          <span style="font-size: 13px; font-weight: 600; color: ${isBookmarked ? '#10b981' : '#f43f5e'}; display: block; margin-top: 2px;">${isBookmarked ? 'Yes' : 'No'}</span>
+        </div>
+      </div>
+
+      <div class="details-section">
+        <span class="details-label">Timeline visits (Last 7 days)</span>
+        <div style="margin-top: 5px;">
+          ${timelineChartHtml}
+        </div>
+      </div>
+
+      <div class="details-section" style="margin-top: 10px;">
+        <span class="details-label">First Visited</span>
+        <span class="details-value" style="font-size: 11.5px; color: var(--text-muted);">${item.firstVisitTime ? new Date(item.firstVisitTime).toLocaleString() : 'N/A'}</span>
+      </div>
+
+      <div class="details-section">
+        <span class="details-label">Last Visited</span>
+        <span class="details-value" style="font-size: 11.5px; color: var(--text-muted);">${new Date(item.lastVisitTime).toLocaleString()}</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding-top: 15px;">
+        <button class="btn btn-secondary btn-small" id="details-action-bookmark" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;"><i class="fi fi-rr-bookmark"></i> Bookmark URL</button>
+        <button class="btn btn-secondary btn-small" id="details-action-blacklist" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--color-danger);"><i class="fi fi-rr-ban"></i> Blacklist Domain</button>
+        <button class="btn btn-danger btn-small" id="details-action-delete" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;"><i class="fi fi-rr-trash"></i> Delete URL</button>
+      </div>
+    `;
+
+    // Details actions events
+    document.getElementById('close-history-details-btn').addEventListener('click', () => {
+      this.historyDetailsPanel.classList.add('hidden');
+    });
+
+    document.getElementById('details-action-bookmark').addEventListener('click', () => {
+      if (this.bookmarkedUrlsSet.has(itemUrl)) {
+        showToast('URL is already bookmarked!', 'error');
+        return;
+      }
+      chrome.bookmarks.create({ parentId: '1', title: item.title || itemUrl, url: itemUrl }, () => {
+        showToast('Bookmarked URL!', 'success');
+        this.bookmarkedUrlsSet.add(itemUrl);
+        this.renderVirtualHistory();
+      });
+    });
+
+    document.getElementById('details-action-blacklist').addEventListener('click', () => {
+      const reason = `Blacklisted domain: ${parts.root}`;
+      this.addBlacklistRule('domain', parts.root, reason);
+      this.historyDetailsPanel.classList.add('hidden');
+    });
+
+    document.getElementById('details-action-delete').addEventListener('click', () => {
+      chrome.history.deleteUrl({ url: itemUrl }, () => {
+        showToast('History item deleted!', 'success');
+        this.historyDetailsPanel.classList.add('hidden');
+        this.allRawHistoryItems = null;
+        this.loadHistory(this.historySearchQuery);
+      });
+    });
+  },
+
+  renderTimelineChart(domainItems) {
+    const days = Array(7).fill(0);
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    
+    // Get start of today (midnight) local time
+    const d = new Date(now);
+    d.setHours(0, 0, 0, 0);
+    const startOfToday = d.getTime();
+    
+    domainItems.forEach(item => {
+      // Calculate how many days ago it was relative to start of today
+      const diff = startOfToday - item.lastVisitTime;
+      let dayIndex = 6;
+      if (item.lastVisitTime >= startOfToday) {
+        dayIndex = 0; // Today
+      } else if (diff >= 0) {
+        dayIndex = 1 + Math.floor(diff / dayMs); // 1 = Yesterday, 2 = 2 days ago etc.
+      }
+      
+      if (dayIndex >= 0 && dayIndex < 7) {
+        days[6 - dayIndex] += (item.visitCount || 1);
+      }
+    });
+
+    const maxVal = Math.max(...days, 1);
+    const points = days.map((val, idx) => {
+      const x = (idx / 6) * 100; // width 100
+      const y = 35 - (val / maxVal) * 30; // height 35
+      return `${x},${y}`;
+    });
+
+    return `
+      <svg viewBox="0 0 100 40" class="timeline-svg" style="width: 100%; height: 50px; overflow: visible;">
+        <defs>
+          <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#6366f1" stop-opacity="0.3"/>
+            <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="M 0,35 L ${points.join(' L ')} L 100,35 Z" fill="url(#chartGrad)" />
+        <polyline points="${points.join(' ')}" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        ${points.map((p, i) => {
+          const [x, y] = p.split(',');
+          return `<circle cx="${x}" cy="${y}" r="3" fill="#a855f7" class="chart-point" data-val="${days[i]} visits" title="${days[i]} visits" />`;
+        }).join('')}
+      </svg>
+      <div style="display: flex; justify-content: space-between; font-size: 9px; color: var(--text-muted); margin-top: 4px;">
+        <span>6d ago</span>
+        <span>4d ago</span>
+        <span>2d ago</span>
+        <span>Today</span>
+      </div>
+    `;
+  },
+
+  updateStatsCounters() {
+    if (!this.historyStatsContainer) return;
+
+    // Calculate global stats over all raw elements
+    const raw = this.allRawHistoryItems || [];
+    const count = raw.length;
+    const visits = raw.reduce((sum, item) => sum + (item.visitCount || 1), 0);
+    
+    const uniqueDomainsSet = new Set();
+    const uniqueSubdomainsSet = new Set();
+    const domainVisitsMap = {};
+    
+    // Get start of today (midnight) local time
+    const todayBoundary = new Date().setHours(0, 0, 0, 0);
+    let todayVisits = 0;
+    let bookmarksCount = 0;
+
+    raw.forEach(item => {
+      const parts = this.getDomainParts(item.url);
+      uniqueDomainsSet.add(parts.root);
+      uniqueSubdomainsSet.add(parts.subdomain);
+      
+      if (item.lastVisitTime >= todayBoundary) {
+        todayVisits += (item.visitCount || 1);
+      }
+      if (this.bookmarkedUrlsSet.has(item.url)) {
+        bookmarksCount++;
+      }
+
+      if (!domainVisitsMap[parts.root]) domainVisitsMap[parts.root] = 0;
+      domainVisitsMap[parts.root] += (item.visitCount || 1);
+    });
+
+    const domains = uniqueDomainsSet.size;
+    const subdomains = uniqueSubdomainsSet.size;
+    const avgVisits = count > 0 ? Math.round(visits / count) : 0;
+    
+    // Find most visited domain
+    let topDomain = 'N/A';
+    let topVisits = 0;
+    Object.keys(domainVisitsMap).forEach(k => {
+      if (domainVisitsMap[k] > topVisits) {
+        topDomain = k;
+        topVisits = domainVisitsMap[k];
+      }
+    });
+
+    this.historyStatsContainer.innerHTML = `
+      <div class="stat-card">
+        <div class="stat-header">
+          <span>Visits History</span>
+          <i class="fi fi-rr-hourglass stat-icon"></i>
+        </div>
+        <div class="stat-value" id="stat-val-history-count">0</div>
+        <div class="stat-value-sub">items total</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-header">
+          <span>Unique Domains</span>
+          <i class="fi fi-rr-globe stat-icon" style="color: #a855f7;"></i>
+        </div>
+        <div class="stat-value" id="stat-val-domains">0</div>
+        <div class="stat-value-sub">${subdomains} subdomains</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-header">
+          <span>Today's Activity</span>
+          <i class="fi fi-rr-bolt stat-icon" style="color: #e11d48;"></i>
+        </div>
+        <div class="stat-value" id="stat-val-today">0</div>
+        <div class="stat-value-sub">visits loaded</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-header">
+          <span>Bookmarked</span>
+          <i class="fi fi-rr-bookmark stat-icon" style="color: #10b981;"></i>
+        </div>
+        <div class="stat-value" id="stat-val-bookmarks">0</div>
+        <div class="stat-value-sub">links in library</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-header">
+          <span>Most Active</span>
+          <i class="fi fi-rr-star stat-icon" style="color: #fbbf24;"></i>
+        </div>
+        <div class="stat-value" style="font-size: 13.5px; word-break: break-all; margin-top: 14px;" title="${topDomain}">${topDomain}</div>
+        <div class="stat-value-sub">${topVisits} visits</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-header">
+          <span>Blacklist rules</span>
+          <i class="fi fi-rr-ban stat-icon" style="color: #6b7280;"></i>
+        </div>
+        <div class="stat-value" id="stat-val-blacklisted">0</div>
+        <div class="stat-value-sub">active blocks</div>
+      </div>
+    `;
+
+    // Trigger counters animations
+    this.animateValue(document.getElementById('stat-val-history-count'), 0, count, 500);
+    this.animateValue(document.getElementById('stat-val-domains'), 0, domains, 500);
+    this.animateValue(document.getElementById('stat-val-today'), 0, todayVisits, 500);
+    this.animateValue(document.getElementById('stat-val-bookmarks'), 0, bookmarksCount, 500);
+    this.animateValue(document.getElementById('stat-val-blacklisted'), 0, this.historyBlacklistRules.length, 500);
+  },
+
+  animateValue(el, start, end, duration) {
+    if (!el) return;
+    let startTimestamp = null;
+    const step = (timestamp) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      el.innerHTML = Math.floor(progress * (end - start) + start).toLocaleString();
+      if (progress < 1) {
+        window.requestAnimationFrame(step);
+      }
+    };
+    window.requestAnimationFrame(step);
+  },
+
+  isUrlBlacklisted(url, rules) {
+    const parts = this.getDomainParts(url);
+    return rules.some(rule => {
+      if (rule.type === 'domain') {
+        return parts.root === rule.pattern || parts.root.endsWith('.' + rule.pattern);
+      } else if (rule.type === 'subdomain') {
+        return parts.subdomain === rule.pattern;
+      } else if (rule.type === 'url') {
+        return url === rule.pattern;
+      }
+      return false;
+    });
+  },
+
+  getDomainParts(urlString) {
+    try {
+      if (!urlString) return { root: "unknown", subdomain: "unknown", hostname: "unknown" };
+      const url = new URL(urlString);
+      let hostname = url.hostname.toLowerCase();
+      if (hostname.startsWith("www.")) {
+        hostname = hostname.substring(4);
+      }
+      
+      const parts = hostname.split('.');
+      let root = hostname;
+      let subdomain = hostname;
+      
+      if (parts.length > 2) {
+        const lastTwo = parts.slice(-2).join('.');
+        const doubleTLDs = ['co.uk', 'gov.uk', 'ac.uk', 'org.uk', 'me.uk', 'com.au', 'net.au', 'org.au', 'com.br', 'co.jp', 'ne.jp', 'or.jp', 'co.in', 'net.in', 'org.in', 'firm.in', 'gen.in', 'ind.in'];
+        const lastThree = parts.slice(-3).join('.');
+        
+        const isDoubleTLD = doubleTLDs.some(tld => lastTwo === tld || lastThree.endsWith('.' + tld));
+        if (isDoubleTLD && parts.length > 3) {
+          root = parts.slice(-3).join('.');
+        } else if (!isDoubleTLD) {
+          root = parts.slice(-2).join('.');
+        }
+      }
+      
+      return { root, subdomain, hostname };
+    } catch (e) {
+      return { root: "unknown", subdomain: "unknown", hostname: "unknown" };
+    }
+  },
+
+  formatRelativeTime(ms) {
+    const diff = Date.now() - ms;
+    const sec = Math.floor(diff / 1000);
+    if (sec < 60) return 'Just now';
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}m ago`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}h ago`;
+    const days = Math.floor(hr / 24);
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return `${days}d ago`;
+    return new Date(ms).toLocaleDateString();
+  },
+
+  highlightSearchText(text, query) {
+    if (!query) return text;
+    const regex = new RegExp(`(${query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
+    return text.replace(regex, '<mark style="background: rgba(99, 102, 241, 0.4); color: #fff; padding: 0 2px; border-radius: 2px;">$1</mark>');
   },
 
   loadCookies(filterQuery = '') {
@@ -3668,27 +5086,169 @@ const BookmarkManager = {
     });
   },
 
-  loadNotesManager() {
+  loadNotesManager(filterQuery = "") {
     if (!this.notesSidebarList) return;
-    this.notesSidebarList.innerHTML = '';
     
     chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
       const notes = result.bookmark_organizer_notes || {};
       const names = Object.keys(notes);
       
+      // Calculate Stats
+      let totalNotes = names.length;
+      let totalWords = 0;
+      let lastEditedTime = 0;
+      
       names.forEach(name => {
-        const btn = document.createElement('div');
-        btn.style.cssText = 'padding: 8px 12px; border-radius: 6px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); color: white; font-size: 13px; cursor: pointer; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; transition: all 0.2s;';
-        if (name === this.activeNoteName) {
-          btn.style.background = 'rgba(16, 185, 129, 0.12)';
-          btn.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+        const note = notes[name];
+        let content = "";
+        let versions = [];
+        if (typeof note === 'string') {
+          content = note;
+        } else if (note) {
+          content = note.content || "";
+          versions = note.versions || [];
         }
-        btn.textContent = `📝 ${name}`;
-        btn.addEventListener('click', () => {
+        
+        // Count words
+        const words = content.trim().split(/\s+/).filter(w => w.length > 0).length;
+        totalWords += words;
+        
+        // Latest modification time
+        let noteMaxTime = 0;
+        if (versions.length > 0) {
+          noteMaxTime = Math.max(...versions.map(v => v.timestamp || 0));
+        }
+        if (noteMaxTime > lastEditedTime) {
+          lastEditedTime = noteMaxTime;
+        }
+      });
+      
+      if (this.notesStatTotal) this.notesStatTotal.textContent = totalNotes;
+      if (this.notesStatWords) this.notesStatWords.textContent = totalWords;
+      if (this.notesStatUpdated) {
+        if (lastEditedTime > 0) {
+          this.notesStatUpdated.textContent = new Date(lastEditedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } else {
+          this.notesStatUpdated.textContent = "-";
+        }
+      }
+      
+      // Filter notes
+      const filteredNames = names.filter(name => {
+        if (!filterQuery) return true;
+        const note = notes[name];
+        const content = typeof note === 'string' ? note : (note ? note.content : "");
+        return name.toLowerCase().includes(filterQuery) || content.toLowerCase().includes(filterQuery);
+      });
+      
+      // Render Left Sidebar List
+      this.notesSidebarList.innerHTML = '';
+      filteredNames.forEach(name => {
+        const item = document.createElement('div');
+        item.className = 'notes-sidebar-item';
+        if (name === this.activeNoteName) {
+          item.classList.add('active');
+        }
+        item.dataset.name = name;
+        
+        item.innerHTML = `
+          <div class="notes-sidebar-item-content">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="opacity: 0.8;"><path d="M19,0H5A5.006,5.006,0,0,0,0,5V19a5.006,5.006,0,0,0,5,5H19a5.006,5.006,0,0,0,5-5V5A5.006,5.006,0,0,0,19,0Zm3,19a3,3,0,0,1-3,3H5a3,3,0,0,1-3-3V5A3,3,0,0,1,5,3H19a3,3,0,0,1,3,3Zm-4-7H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm0-4H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm-5,8H6a1,1,0,0,0,0,2h7a1,1,0,0,0,0-2Z"/></svg>
+            <span>${name}</span>
+          </div>
+          <button class="delete-note-quick" title="Delete Note">
+            <i class="fi fi-rr-trash"></i>
+          </button>
+        `;
+        
+        item.addEventListener('click', () => {
           this.selectNote(name);
         });
-        this.notesSidebarList.appendChild(btn);
+        
+        const delBtn = item.querySelector('.delete-note-quick');
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const confirmDelete = confirm(`Are you sure you want to delete note "${name}"? This cannot be undone.`);
+          if (!confirmDelete) return;
+          
+          chrome.storage.local.get(['bookmark_organizer_notes'], (res) => {
+            const currentNotes = res.bookmark_organizer_notes || {};
+            delete currentNotes[name];
+            chrome.storage.local.set({ 'bookmark_organizer_notes': currentNotes }, () => {
+              showToast(`Note "${name}" deleted!`, 'success');
+              if (this.activeNoteName === name) {
+                this.activeNoteName = null;
+                this.noteEditorPane.classList.add('hidden');
+                this.noteEditorPlaceholder.classList.remove('hidden');
+              }
+              this.loadNotesManager();
+            });
+          });
+        });
+        
+        this.notesSidebarList.appendChild(item);
       });
+      
+      // Render Main Grid Cards
+      if (this.notesGrid) {
+        this.notesGrid.innerHTML = '';
+        filteredNames.forEach((name, idx) => {
+          const note = notes[name];
+          let content = "";
+          let versions = [];
+          if (typeof note === 'string') {
+            content = note;
+          } else if (note) {
+            content = note.content || "";
+            versions = note.versions || [];
+          }
+          
+          const card = document.createElement('div');
+          card.className = `note-card card-accent-${idx % 5}`;
+          
+          const previewText = content ? content : "No content written yet.";
+          const wordCount = content.trim().split(/\s+/).filter(w => w.length > 0).length;
+          
+          card.innerHTML = `
+            <div class="note-card-header">
+              <span class="note-card-title">${name}</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="opacity: 0.6;"><path d="M19,0H5A5.006,5.006,0,0,0,0,5V19a5.006,5.006,0,0,0,5,5H19a5.006,5.006,0,0,0,5-5V5A5.006,5.006,0,0,0,19,0Zm3,19a3,3,0,0,1-3,3H5a3,3,0,0,1-3-3V5A3,3,0,0,1,5,3H19a3,3,0,0,1,3,3Zm-4-7H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm0-4H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm-5,8H6a1,1,0,0,0,0,2h7a1,1,0,0,0,0-2Z"/></svg>
+            </div>
+            <div class="note-card-preview">${previewText}</div>
+            <div class="note-card-footer">
+              <div class="note-card-meta">
+                <span class="note-card-badge">${wordCount} words</span>
+                ${versions.length > 0 ? `<span class="note-card-badge">${versions.length} revs</span>` : ''}
+              </div>
+              <span class="note-card-date">Open Note →</span>
+            </div>
+          `;
+          
+          card.addEventListener('click', () => {
+            this.selectNote(name);
+          });
+          
+          this.notesGrid.appendChild(card);
+        });
+      }
+      
+      // Empty States
+      if (this.notesEmptyState) {
+        if (totalNotes === 0) {
+          this.notesEmptyState.classList.remove('hidden');
+          if (this.notesGrid) this.notesGrid.classList.add('hidden');
+          this.notesEmptyTitle.textContent = "No Notes Saved Yet";
+          this.notesEmptyDesc.textContent = "Create your first note to start organizing your thoughts, code snippets, or tasks!";
+        } else if (filteredNames.length === 0) {
+          this.notesEmptyState.classList.remove('hidden');
+          if (this.notesGrid) this.notesGrid.classList.add('hidden');
+          this.notesEmptyTitle.textContent = "No Search Results";
+          this.notesEmptyDesc.textContent = `No notes found matching "${filterQuery}". Try a different keyword.`;
+        } else {
+          this.notesEmptyState.classList.add('hidden');
+          if (this.notesGrid) this.notesGrid.classList.remove('hidden');
+        }
+      }
     });
   },
 
@@ -3714,15 +5274,14 @@ const BookmarkManager = {
       this.noteEditorBody.value = content;
       this.renderNoteVersions(name, versions);
       
+      // Update sidebar active highlights
       if (this.notesSidebarList) {
-        const children = Array.from(this.notesSidebarList.children);
-        children.forEach(child => {
-          if (child.textContent === `📝 ${name}`) {
-            child.style.background = 'rgba(16, 185, 129, 0.12)';
-            child.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+        const items = this.notesSidebarList.querySelectorAll('.notes-sidebar-item');
+        items.forEach(item => {
+          if (item.dataset.name === name) {
+            item.classList.add('active');
           } else {
-            child.style.background = 'rgba(255,255,255,0.02)';
-            child.style.borderColor = 'rgba(255,255,255,0.05)';
+            item.classList.remove('active');
           }
         });
       }
@@ -3738,19 +5297,20 @@ const BookmarkManager = {
     
     versions.forEach((v, idx) => {
       const row = document.createElement('div');
-      row.style.cssText = 'display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.04);';
+      row.className = 'note-revision-item';
       
       const timeStr = new Date(v.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const dateStr = new Date(v.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
       
       row.innerHTML = `
-        <div style="display: flex; flex-direction: column; overflow: hidden; text-align: left;">
-          <span style="font-size: 11px; font-weight: 600; color: white;">Revision ${versions.length - idx}</span>
-          <span style="font-size: 10px; color: var(--text-muted);">${dateStr} ${timeStr}</span>
+        <div class="note-revision-dot"></div>
+        <div class="note-revision-info">
+          <span class="note-revision-name">Revision ${versions.length - idx}</span>
+          <span class="note-revision-time">${dateStr} ${timeStr}</span>
         </div>
-        <div style="display: flex; gap: 4px;">
-          <button class="revert-ver-btn" style="background: transparent; border: none; color: #a5b4fc; font-size: 12px; cursor: pointer; padding: 2px 4px;" title="Revert to this version">↩️</button>
-          <button class="delete-ver-btn" style="background: transparent; border: none; color: #f87171; font-size: 12px; cursor: pointer; padding: 2px 4px;" title="Delete this revision">🗑️</button>
+        <div class="note-revision-actions">
+          <button class="revert-ver-btn" title="Revert to this version">↩️</button>
+          <button class="delete-ver-btn" title="Delete this revision">🗑️</button>
         </div>
       `;
       
