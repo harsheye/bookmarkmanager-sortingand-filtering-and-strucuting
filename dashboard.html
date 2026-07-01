@@ -7,6 +7,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn-uicons.flaticon.com/2.6.0/uicons-regular-rounded/css/uicons-regular-rounded.css" rel="stylesheet">
+  <link href="https://cdn-uicons.flaticon.com/2.6.0/uicons-solid-rounded/css/uicons-solid-rounded.css" rel="stylesheet">
+  <link href="https://cdn-uicons.flaticon.com/2.6.0/uicons-bold-rounded/css/uicons-bold-rounded.css" rel="stylesheet">
   <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
@@ -29,16 +32,16 @@
           <span>📂</span> Bookmark Explorer
         </button>
         <button id="restructure-btn" class="btn btn-secondary btn-small">
-          <span>🪄</span> Restructure Library
+          <i class="fi fi-rr-books-medical" style="margin-right: 4px; display: inline-block; vertical-align: middle;"></i> Restructure Library
         </button>
         <button id="view-db-btn" class="btn btn-secondary btn-small">
-          <span>📚</span> Domain Database
+          <i class="fi fi-sr-database-cloud-circle" style="margin-right: 4px; display: inline-block; vertical-align: middle;"></i> Domain Database
         </button>
         <button id="view-backups-btn" class="btn btn-secondary btn-small">
-          <span>↩️</span> Restore Points
+          <i class="fi fi-sr-system-restore" style="margin-right: 4px; display: inline-block; vertical-align: middle;"></i> Restore Points
         </button>
         <button id="toggle-wizard-btn" class="btn btn-primary btn-small">
-          <span>🪄</span> Smart Sorter
+          <i class="fi fi-sr-filter-list" style="margin-right: 4px; display: inline-block; vertical-align: middle;"></i> Smart Sorter
         </button>
         <button id="nav-scan-btn" class="btn btn-primary btn-small hidden">
           <span>🔄</span> Scan Again
@@ -68,7 +71,7 @@
             Notes Manager
           </div>
           <div class="sidebar-tab" id="tab-settings" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:var(--text-muted); font-size:14px; transition:background 0.2s;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color:#a855f7;"><path d="M22,10.5h-.645a2.531,2.531,0,0,1-1.921-2.915l.3-.642a1.008,1.008,0,0,0-.246-1.16l-1.776-1.777a1.009,1.009,0,0,0-1.16-.246l-.642.3a2.531,2.531,0,0,1-2.915-1.921V2a1,1,0,0,0-1-1H10.5a1,1,0,0,0-1,1v.645A2.531,2.531,0,0,1,6.585,5.566l-.642-.3a1.008,1.008,0,0,0-1.16.246L3.007,7.289a1.009,1.009,0,0,0-.246,1.16l.3.642a2.531,2.531,0,0,1-1.921,2.915V13.5a1,1,0,0,0,1,1h.645a2.531,2.531,0,0,1,1.921,2.915l-.3.642a1.008,1.008,0,0,0,.246,1.16l1.776,1.777a1.009,1.009,0,0,0,1.16.246l.642-.3a2.531,2.531,0,0,1,2.915,1.921V22a1,1,0,0,0,1,1h3a1,1,0,0,0,1-1v-.645a2.531,2.531,0,0,1,2.915-1.921l.642.3a1.008,1.008,0,0,0,1.16-.246l1.776-1.777a1.009,1.009,0,0,0,.246-1.16l-.3-.642a2.531,2.531,0,0,1,1.921-2.915V10.5ZM12,16a4,4,0,1,1,4-4A4,4,0,0,1,12,16Z"/></svg>
+            <i class="fi fi-br-settings-sliders" style="color:#a855f7; font-size:14px; display:flex; align-items:center;"></i>
             Settings
           </div>
         </div>
@@ -88,7 +91,7 @@
         <!-- Search bar with commands suggestions -->
         <div class="search-section" style="position: relative;">
           <div class="search-bar-wrapper">
-            <span class="search-icon">🔍</span>
+            <span class="search-icon" style="display:flex; align-items:center;"><i class="fi fi-rr-search"></i></span>
             <input type="text" id="manager-search" placeholder="Search bookmarks or type / for commands (e.g. /help, /t movie, /sort date)..." autocomplete="off">
             <button id="clear-search-btn" class="clear-btn hidden">✕</button>
           </div>
