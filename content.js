@@ -54,6 +54,8 @@ function loadBookmarksTreeAndCache() {
 const CC_COMMANDS = [
   { cmd: "/help", desc: "Show command center guide" },
   { cmd: "/manager", desc: "Open Smart Bookmark Manager dashboard" },
+  { cmd: "/no ", desc: "Save/append notes: /no <name> <text>" },
+  { cmd: "/notes", desc: "List and view all saved notes" },
   { cmd: "/t ", desc: "Filter by title: /t <query>" },
   { cmd: "/u ", desc: "Filter by URL: /u <query>" },
   { cmd: "/c ", desc: "Filter by category: /c <category>" },
@@ -669,6 +671,13 @@ function handleCCSearch(val) {
     return;
   }
 
+  const valLower = val.toLowerCase();
+  if (valLower === "/no" || valLower.startsWith("/no ") || valLower === "/notes" || valLower.startsWith("/notes ")) {
+    hideSuggestions();
+    renderNotesSuggestions(val);
+    return;
+  }
+
   if (val.startsWith("/")) {
     renderCCSuggestions(val);
     executeCCCommand(val);
@@ -1067,13 +1076,66 @@ function showCCHelp() {
 // NOTES COMMAND ENGINE & TOASTS
 // -------------------------------------------------------------
 function renderNotesSuggestions(val) {
-  const queryStr = val.substring(3).trim();
+  let queryStr = "";
+  let isNotesCmd = false;
+  
+  if (val.toLowerCase().startsWith("/notes")) {
+    queryStr = val.substring(6).trim();
+    isNotesCmd = true;
+  } else {
+    queryStr = val.substring(3).trim();
+  }
+  
   const parts = queryStr.split(" ");
   const subCommand = parts[0] ? parts[0].toLowerCase() : "";
   
   chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
     const notes = result.bookmark_organizer_notes || {};
     const notesList = Object.keys(notes);
+    
+    if (isNotesCmd) {
+      if (subCommand === "se") {
+        const query = parts.slice(1).join(" ").trim().toLowerCase();
+        ccBreadcrumbs.textContent = `Search notes: "${query}"`;
+        
+        const matches = notesList.filter(name => {
+          return name.toLowerCase().includes(query) || notes[name].toLowerCase().includes(query);
+        }).map(name => ({
+          id: "note_" + name,
+          title: `📝 Note: ${name}`,
+          url: "",
+          contentSnippet: notes[name].substring(0, 40) + (notes[name].length > 40 ? "..." : ""),
+          isNote: true,
+          noteName: name,
+          noteContent: notes[name]
+        }));
+        
+        visibleItems = matches;
+        renderItemsList(visibleItems);
+      } else {
+        ccBreadcrumbs.textContent = "Saved Notes";
+        visibleItems = notesList.map(name => ({
+          id: "note_" + name,
+          title: `📝 Note: ${name}`,
+          url: "",
+          contentSnippet: notes[name].substring(0, 40) + (notes[name].length > 40 ? "..." : ""),
+          isNote: true,
+          noteName: name,
+          noteContent: notes[name]
+        }));
+        
+        if (visibleItems.length === 0) {
+          visibleItems = [{
+            id: "no_notes",
+            title: "No notes saved yet",
+            contentSnippet: "Type /no <note_name> <text> to create one!",
+            isStaticHelp: true
+          }];
+        }
+        renderItemsList(visibleItems);
+      }
+      return;
+    }
     
     if (subCommand === "se") {
       const query = parts.slice(1).join(" ").trim().toLowerCase();
@@ -1160,8 +1222,36 @@ function renderNotesSuggestions(val) {
 }
 
 function executeNotesCommand(query) {
-  const parts = query.substring(3).trim().split(" ");
+  let queryStr = "";
+  let isNotesCmd = false;
+  
+  if (query.toLowerCase().startsWith("/notes")) {
+    queryStr = query.substring(6).trim();
+    isNotesCmd = true;
+  } else {
+    queryStr = query.substring(3).trim();
+  }
+  
+  const parts = queryStr.split(" ");
   const subCommand = parts[0] ? parts[0].toLowerCase() : "";
+
+  if (isNotesCmd) {
+    if (subCommand === "se") return;
+    
+    const noteName = parts[0] || "";
+    if (noteName) {
+      chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
+        const notes = result.bookmark_organizer_notes || {};
+        if (notes[noteName] !== undefined) {
+          showToast(`Note "${noteName}":\n${notes[noteName]}`, "success");
+          closeCommandCenter();
+        } else {
+          showToast(`Note "${noteName}" does not exist.`, "error");
+        }
+      });
+    }
+    return;
+  }
 
   if (subCommand === "se") return;
 
