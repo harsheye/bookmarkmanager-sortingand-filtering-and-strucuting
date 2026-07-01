@@ -1962,89 +1962,29 @@ input:checked + .slider-switch:before {
   color: white !important;
 }
 
-/* Folder Tiles Grid System */
-.folders-grid-section {
-  margin-top: 10px;
-  margin-bottom: 25px;
+/* Custom styles for range input in settings */
+.settings-view-panel input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
 }
 
-.folders-grid-section h3 {
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  margin-bottom: 12px;
-  padding-left: 2px;
-}
-
-.folders-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-  gap: 12px;
-}
-
-.folder-tile {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.settings-view-panel input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-primary);
   cursor: pointer;
-  position: relative;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  user-select: none;
+  transition: transform 0.15s ease;
 }
 
-.folder-tile:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(99, 102, 241, 0.35);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-}
-
-.folder-tile.drag-over {
-  background: rgba(99, 102, 241, 0.15) !important;
-  border-color: var(--color-primary) !important;
-  transform: scale(1.03);
-}
-
-.folder-tile-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.folder-tile-icon {
-  font-size: 24px;
-}
-
-.folder-tile-actions {
-  display: flex;
-  gap: 4px;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-
-.folder-tile:hover .folder-tile-actions {
-  opacity: 1;
-}
-
-.folder-tile-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: white;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-top: 4px;
-}
-
-.folder-tile-count {
-  font-size: 11px;
-  color: var(--text-muted);
+.settings-view-panel input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
 }
 
 /* Cookie Detail inspect table rows */

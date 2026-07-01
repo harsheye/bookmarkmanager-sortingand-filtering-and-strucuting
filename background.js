@@ -123,5 +123,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === "search_history") {
+    chrome.history.search({ text: message.query, maxResults: 15 }, (results) => {
+      const mapped = (results || []).map(item => ({
+        id: "history_" + item.id,
+        title: item.title || item.url,
+        url: item.url,
+        isHistory: true
+      }));
+      sendResponse(mapped);
+    });
+    return true;
+  }
+
   return true;
 });

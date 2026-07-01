@@ -279,31 +279,39 @@ function createCommandCenter() {
       background: rgba(0, 0, 0, 0.1);
     }
     .cc-results-list {
-      display: flex;
-      flex-direction: column;
-      padding: 8px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 10px;
+      padding: 12px;
     }
     .cc-item {
       display: flex;
-      align-items: center;
+      flex-direction: column;
+      align-items: flex-start;
       justify-content: space-between;
-      padding: 10px 14px;
-      border-radius: 10px;
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
       cursor: pointer;
-      margin-bottom: 2px;
-      transition: all 0.15s;
-      border-left: 3px solid transparent;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      height: 90px;
+      box-sizing: border-box;
+      margin-bottom: 0px;
     }
     .cc-item:hover, .cc-item.selected {
-      background: rgba(99, 102, 241, 0.2);
-      border-left-color: #8b5cf6;
+      background: rgba(99, 102, 241, 0.15) !important;
+      border-color: #8b5cf6 !important;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
     .cc-item-left {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       overflow: hidden;
-      max-width: 75%;
+      max-width: 100%;
+      width: 100%;
     }
     .cc-item-icon {
       font-size: 16px;
@@ -316,21 +324,24 @@ function createCommandCenter() {
       flex-shrink: 0;
     }
     .cc-item-title {
-      font-size: 14.5px;
-      font-weight: 500;
+      font-size: 13px;
+      font-weight: 600;
       color: #e2e8f0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
     .cc-item-right {
-      font-size: 11.5px;
+      font-size: 11px;
       color: #9ca3af;
       flex-shrink: 0;
       text-overflow: ellipsis;
       overflow: hidden;
       white-space: nowrap;
-      max-width: 25%;
+      max-width: 100%;
+      width: 100%;
+      margin-top: auto;
+      text-align: left;
     }
     .cc-suggestions {
       background: rgba(13, 10, 27, 0.6);
@@ -577,21 +588,25 @@ function renderItemsList(items) {
     let rightHtml = "";
 
     if (item.url) {
-      // Bookmark Link
+      // Bookmark or History Link
       const domain = BookmarkRules.getDomain(item.url);
       const faviconUrl = `https://www.google.com/s2/favicons?sz=32&domain=${domain}`;
       leftHtml = `
-        <img class="cc-favicon" src="${faviconUrl}" onerror="this.style.display='none'">
+        <img class="cc-favicon" src="${faviconUrl}" onerror="this.src='../icons/icon16.png'">
         <span class="cc-item-title">${item.title || item.url}</span>
       `;
-      rightHtml = `<span class="cc-item-right" title="${item.url}">${domain}</span>`;
+      if (item.isHistory) {
+        rightHtml = `<span class="cc-item-right" title="${item.url}" style="color:#f43f5e; font-weight:600;">🕒 History &bull; ${domain}</span>`;
+      } else {
+        rightHtml = `<span class="cc-item-right" title="${item.url}">${domain}</span>`;
+      }
     } else {
       // Folder Directory
       leftHtml = `
         <span class="cc-item-icon">📁</span>
         <span class="cc-item-title" style="font-weight:600; color:white;">${item.title}</span>
       `;
-      rightHtml = `<span class="cc-item-right" style="color:#a855f7; font-style:italic;">Folder</span>`;
+      rightHtml = `<span class="cc-item-right" style="color:#a855f7; font-weight:600; font-style:italic;">Folder</span>`;
     }
 
     div.innerHTML = `
@@ -643,8 +658,19 @@ function handleCCSearch(val) {
         }
         return false;
       });
-      renderItemsList(visibleItems);
-      ccBreadcrumbs.textContent = `Scoped search [${scopeDomain}]: "${scopeQuery}"`;
+      
+      if (visibleItems.length === 0) {
+        // Fallback: query history
+        chrome.runtime.sendMessage({ action: "search_history", query: val }, (historyResults) => {
+          if (activeQuery !== val) return;
+          visibleItems = historyResults || [];
+          renderItemsList(visibleItems);
+          ccBreadcrumbs.textContent = `Search results (History): "${val}"`;
+        });
+      } else {
+        renderItemsList(visibleItems);
+        ccBreadcrumbs.textContent = `Scoped search [${scopeDomain}]: "${scopeQuery}"`;
+      }
     } else {
       // Normal global filter search
       const query = val.toLowerCase();
@@ -652,8 +678,19 @@ function handleCCSearch(val) {
         (bm.title && bm.title.toLowerCase().includes(query)) ||
         (bm.url && bm.url.toLowerCase().includes(query))
       );
-      renderItemsList(visibleItems);
-      ccBreadcrumbs.textContent = `Search results: "${val}"`;
+      
+      if (visibleItems.length === 0) {
+        // Fallback: query history
+        chrome.runtime.sendMessage({ action: "search_history", query: val }, (historyResults) => {
+          if (activeQuery !== val) return;
+          visibleItems = historyResults || [];
+          renderItemsList(visibleItems);
+          ccBreadcrumbs.textContent = `Search results (History): "${val}"`;
+        });
+      } else {
+        renderItemsList(visibleItems);
+        ccBreadcrumbs.textContent = `Search results: "${val}"`;
+      }
     }
   }
 }

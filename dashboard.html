@@ -55,17 +55,27 @@
       <aside class="manager-sidebar glass-panel">
         <div class="sidebar-tabs" style="display:flex; flex-direction:column; gap:8px; margin-bottom:20px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:15px;">
           <div class="sidebar-tab active" id="tab-bookmarks" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:white; font-weight:600; font-size:14px; transition:background 0.2s;">
-            <span>📂</span> Bookmark Explorer
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="color:var(--color-primary);"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+            Bookmark Explorer
           </div>
           <div class="sidebar-tab" id="tab-history" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:var(--text-muted); font-size:14px; transition:background 0.2s;">
-            <span>📜</span> Browsing History
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-history" style="color:#f43f5e;"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+            Browsing History
           </div>
           <div class="sidebar-tab" id="tab-cookies" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:var(--text-muted); font-size:14px; transition:background 0.2s;">
-            <span>🍪</span> Cookie Manager
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-cookie" style="color:#fbbf24;"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5Z"/><path d="M8.5 8.5v.01"/><path d="M16 15.5v.01"/><path d="M12 12v.01"/><path d="M11 17v.01"/><path d="M7 14v.01"/></svg>
+            Cookie Manager
+          </div>
+          <div class="sidebar-tab" id="tab-settings" style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:8px; cursor:pointer; color:var(--text-muted); font-size:14px; transition:background 0.2s;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" style="color:#a855f7;"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+            Settings
           </div>
         </div>
         <div class="navigation-box">
-          <h3>📁 Folder Directory</h3>
+          <h3 style="display:flex; align-items:center; gap:8px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-tree" style="color:var(--text-muted);"><path d="M20 10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2.5a1 1 0 0 1-.8-.4l-.9-1.2A1 1 0 0 0 15 3h-2a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1Z"/><path d="M20 21a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1h-2.5a1 1 0 0 1-.8-.4l-.9-1.2A1 1 0 0 0 15 14h-2a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1Z"/><path d="M3 3v18h3"/><path d="M3 12h5"/></svg>
+            Folder Directory
+          </h3>
           <div id="folder-tree-list">
              <!-- Dynamically populated tree of folders -->
           </div>
@@ -102,12 +112,6 @@
 
         <!-- Table Explorer list -->
         <div class="explorer-list-container">
-          <!-- Folders Grid Section -->
-          <div class="folders-grid-section hidden" id="folders-grid-section">
-            <h3>Folders</h3>
-            <div class="folders-grid" id="folders-grid"></div>
-          </div>
-
           <table class="bookmarks-table" id="bookmarks-table">
             <thead>
               <tr>
@@ -123,6 +127,56 @@
           <div id="manager-empty-state" class="tree-empty hidden">
             <span class="tree-empty-icon">🔍</span>
             <span id="empty-state-text">No bookmarks found.</span>
+          </div>
+
+          <!-- Settings View Container -->
+          <div id="settings-view-container" class="settings-view-panel hidden" style="padding: 20px; display: flex; flex-direction: column; gap: 20px; color: white;">
+            <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 5px; color: white;">⚙️ Organizer Settings</h2>
+            <p style="color: var(--text-muted); font-size: 13.5px; margin-bottom: 15px;">Configure the default parent routing, threshold clustering limits, and active matching categories.</p>
+            
+            <div class="form-group glass-panel" style="padding: 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02);">
+              <label for="settings-parent-name" style="display:block; font-weight:600; margin-bottom:8px; font-size:13.5px; color: white;">Parent Folder Target</label>
+              <input type="text" id="settings-parent-name" value="Bookmarks Bar" class="text-input" style="width: 100%; box-sizing: border-box;">
+              <span style="font-size:12px; color:var(--text-muted); display:block; margin-top:6px;">
+                Type <strong>Bookmarks Bar</strong> to sort directly on the root bar, or enter a custom folder name to nest organized categories.
+              </span>
+            </div>
+
+            <div class="form-group glass-panel" style="padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02);">
+              <label style="font-weight:600; font-size:13.5px; color: white;">Clustering Threshold limit</label>
+              <div style="display:flex; align-items:center; gap:12px;">
+                <input type="range" id="settings-threshold-slider" min="2" max="10" value="5" style="flex-grow:1;">
+                <span id="settings-threshold-val" style="font-weight:700; color:var(--color-primary); min-width:20px; text-align:center;">5</span>
+              </div>
+              <span style="font-size:12px; color:var(--text-muted);">
+                Number of similar bookmarks required within a group before the sorter creates a dedicated category folder.
+              </span>
+            </div>
+
+            <div class="form-group glass-panel" style="padding: 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02);">
+              <label style="display:block; font-weight:600; margin-bottom:12px; font-size:13.5px; color: white;">Enabled Smart Categories</label>
+              <div id="settings-categories-list" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:10px;">
+                <!-- Populated dynamically with checkboxes -->
+              </div>
+            </div>
+
+            <div class="form-group glass-panel" style="padding: 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02);">
+              <label style="display:block; font-weight:600; margin-bottom:8px; font-size:13.5px; color:#10b981;">🛡️ Cookie & History Permissions</label>
+              <p style="font-size:12.5px; color:var(--text-muted); line-height:1.5;">
+                To view history items or login cookies, the extension requires standard Chrome permissions. 
+                These have been declared in the manifest. If you loaded this extension as an unpacked folder:
+                <br><br>
+                1. Navigate to <a href="chrome://extensions/" target="_blank" style="color:var(--color-primary); text-decoration:underline;">chrome://extensions/</a> in a new tab.
+                <br>
+                2. Locate <strong>Smart Bookmark Organizer</strong>.
+                <br>
+                3. Click the <strong>Reload (🔄)</strong> icon. Chrome will automatically reload the manifest and grant the declared History and Cookie database access.
+              </p>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
+              <button id="settings-save-btn" class="btn btn-success" style="padding: 10px 24px;">Save & Apply Settings</button>
+            </div>
           </div>
         </div>
       </section>

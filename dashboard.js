@@ -1163,6 +1163,28 @@ const BookmarkManager = {
     this.bindDOM();
     this.setupListeners();
     this.setupColumnResizing();
+    
+    // Load persisted settings
+    chrome.storage.local.get(['organizer_user_settings'], (result) => {
+      if (result.organizer_user_settings) {
+        const settings = result.organizer_user_settings;
+        const parentNameInput = document.getElementById('parent-folder-name');
+        const thresholdSlider = document.getElementById('threshold-slider');
+        const thresholdVal = document.getElementById('threshold-val');
+        
+        if (parentNameInput && settings.parentFolderName) {
+          parentNameInput.value = settings.parentFolderName;
+        }
+        if (thresholdSlider && settings.threshold) {
+          thresholdSlider.value = settings.threshold;
+          if (thresholdVal) {
+            thresholdVal.textContent = settings.threshold;
+          }
+          thresholdSlider.dispatchEvent(new Event('input'));
+        }
+      }
+    });
+
     await this.refreshLibrary();
   },
 
@@ -1217,6 +1239,15 @@ const BookmarkManager = {
     this.tabBookmarks = document.getElementById('tab-bookmarks');
     this.tabHistory = document.getElementById('tab-history');
     this.tabCookies = document.getElementById('tab-cookies');
+    this.tabSettings = document.getElementById('tab-settings');
+
+    // Settings Panel
+    this.settingsViewContainer = document.getElementById('settings-view-container');
+    this.settingsParentName = document.getElementById('settings-parent-name');
+    this.settingsThresholdSlider = document.getElementById('settings-threshold-slider');
+    this.settingsThresholdVal = document.getElementById('settings-threshold-val');
+    this.settingsCategoriesList = document.getElementById('settings-categories-list');
+    this.settingsSaveBtn = document.getElementById('settings-save-btn');
   },
 
   setupListeners() {
@@ -1233,6 +1264,19 @@ const BookmarkManager = {
     }
     if (this.tabCookies) {
       this.tabCookies.addEventListener('click', () => this.switchView('cookies'));
+    }
+    if (this.tabSettings) {
+      this.tabSettings.addEventListener('click', () => this.switchView('settings'));
+    }
+
+    if (this.settingsThresholdSlider) {
+      this.settingsThresholdSlider.addEventListener('input', (e) => {
+        if (this.settingsThresholdVal) this.settingsThresholdVal.textContent = e.target.value;
+      });
+    }
+
+    if (this.settingsSaveBtn) {
+      this.settingsSaveBtn.addEventListener('click', () => this.saveSettingsFromManager());
     }
 
     // Search and Command Logic
@@ -1821,7 +1865,7 @@ const BookmarkManager = {
         const allLabel = document.createElement('div');
         allLabel.className = `folder-tree-label ${this.activeFolderId === 'all' ? 'active' : ''}`;
         allLabel.dataset.folderId = 'all';
-        allLabel.innerHTML = `<span class="tree-toggle-arrow spacer"></span><span>⭐</span> <span>All Bookmarks</span>`;
+        allLabel.innerHTML = `<span class="tree-toggle-arrow spacer"></span><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-star" style="color:var(--color-primary); fill:var(--color-primary);"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> <span>All Bookmarks</span>`;
         allLabel.addEventListener('click', () => this.switchFolder('all'));
         allLi.appendChild(allLabel);
         rootUl.appendChild(allLi);
@@ -1901,14 +1945,14 @@ const BookmarkManager = {
             
             let toggleHtml = '';
             if (hasSubfolders) {
-              toggleHtml = `<span class="tree-toggle-arrow expanded">▼</span>`;
+              toggleHtml = `<span class="tree-toggle-arrow">▶</span>`;
             } else {
               toggleHtml = `<span class="tree-toggle-arrow spacer"></span>`;
             }
 
             labelDiv.innerHTML = `
               ${toggleHtml}
-              <span>📁</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="color:var(--color-secondary); fill:rgba(168,85,247,0.08); margin-right:4px;"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
               <span class="folder-name-text" title="${node.title}">${displayTitle}</span>
             `;
             
@@ -1917,6 +1961,7 @@ const BookmarkManager = {
             if (hasSubfolders) {
               const childrenUl = document.createElement('ul');
               childrenUl.className = 'manager-tree-children';
+              childrenUl.style.display = 'none';
               subfolders.forEach(sub => {
                 const subDOM = buildTreeDOM(sub);
                 if (subDOM) childrenUl.appendChild(subDOM);
@@ -2023,123 +2068,14 @@ const BookmarkManager = {
     this.lastClickedId = null;
     this.dragStartRow = null;
 
-    const foldersGridSection = document.getElementById('folders-grid-section');
-    const foldersGrid = document.getElementById('folders-grid');
-
     if (items.length === 0) {
-      if (foldersGridSection) foldersGridSection.classList.add('hidden');
       this.emptyState.classList.remove('hidden');
       return;
     }
     
     this.emptyState.classList.add('hidden');
 
-    let displayItems = items;
-
-    if (this.activeView === 'bookmarks') {
-      const folders = items.filter(item => !item.url);
-      displayItems = items.filter(item => item.url);
-
-      if (folders.length > 0 && foldersGridSection && foldersGrid) {
-        foldersGridSection.classList.remove('hidden');
-        foldersGrid.innerHTML = '';
-        
-        folders.forEach(folder => {
-          const tile = document.createElement('div');
-          tile.className = 'folder-tile glass-panel';
-          tile.dataset.itemId = folder.id;
-          tile.setAttribute('draggable', 'true');
-          
-          const countText = folder.children ? `${folder.children.length} items` : '0 items';
-          
-          tile.innerHTML = `
-            <div class="folder-tile-header">
-              <span class="folder-tile-icon" style="cursor: grab;">📁</span>
-              <div class="folder-tile-actions">
-                <button class="action-icon-btn edit-btn" title="Edit">✏️</button>
-                <button class="action-icon-btn delete-btn" title="Delete">🗑️</button>
-              </div>
-            </div>
-            <div class="folder-tile-title" title="${folder.title}"><strong>${folder.title}</strong></div>
-            <div class="folder-tile-count">${countText}</div>
-          `;
-
-          // Drag Start
-          tile.addEventListener('dragstart', (e) => {
-            this.selectedItemIds.clear();
-            this.selectedItemIds.add(folder.id);
-            e.dataTransfer.setData('text/plain', JSON.stringify([folder.id]));
-            e.dataTransfer.effectAllowed = 'move';
-            
-            const dragIcon = document.createElement('div');
-            dragIcon.className = 'drag-feedback-badge';
-            dragIcon.id = 'drag-ghost-bubble';
-            dragIcon.style.position = 'absolute';
-            dragIcon.style.top = '-1000px';
-            dragIcon.style.left = '-1000px';
-            dragIcon.style.background = '#6366f1';
-            dragIcon.style.color = 'white';
-            dragIcon.style.padding = '8px 16px';
-            dragIcon.style.borderRadius = '24px';
-            dragIcon.style.fontSize = '13px';
-            dragIcon.style.fontWeight = '700';
-            dragIcon.style.boxShadow = '0 10px 30px rgba(0,0,0,0.6)';
-            dragIcon.style.border = '1px solid rgba(255,255,255,0.15)';
-            dragIcon.textContent = `📁 Moving "${folder.title}"`;
-            document.body.appendChild(dragIcon);
-            e.dataTransfer.setDragImage(dragIcon, 15, 15);
-            setTimeout(() => dragIcon.remove(), 0);
-          });
-          
-          tile.addEventListener('click', (e) => {
-            if (e.target.closest('button')) return;
-            this.switchFolder(folder.id);
-          });
-          
-          tile.querySelector('.edit-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.openEditModal(folder);
-          });
-          
-          tile.querySelector('.delete-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.deleteItem(folder);
-          });
-          
-          tile.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            tile.classList.add('drag-over');
-          });
-          
-          tile.addEventListener('dragleave', () => {
-            tile.classList.remove('drag-over');
-          });
-          
-          tile.addEventListener('drop', (e) => {
-            e.preventDefault();
-            tile.classList.remove('drag-over');
-            this.handleDropOnFolder(folder.id, e);
-          });
-          
-          foldersGrid.appendChild(tile);
-        });
-      } else if (foldersGridSection) {
-        foldersGridSection.classList.add('hidden');
-      }
-    } else if (foldersGridSection) {
-      foldersGridSection.classList.add('hidden');
-    }
-
-    if (displayItems.length === 0) {
-      if (this.activeView === 'bookmarks' && folders.length > 0) {
-        // We have folder tiles but no bookmark links, which is fine!
-        return;
-      }
-      this.emptyState.classList.remove('hidden');
-      return;
-    }
-
-    displayItems.forEach(item => {
+    items.forEach(item => {
       const tr = document.createElement('tr');
       tr.dataset.itemId = item.id;
       tr.draggable = false; // Start as false to allow drag-selection on row click
@@ -2160,11 +2096,11 @@ const BookmarkManager = {
         `;
         urlCellContent = `<a href="${item.url}" target="_blank" style="color:var(--text-muted); text-decoration:none;">${item.url}</a>`;
       } else {
-        // Fallback for non-split folder rows (such as in search result tables)
+        // It is a folder directory inside the table list (reverted from grid folder tile)
         nameCellContent = `
           <div class="table-cell-name" style="cursor: pointer;">
-            <span class="drag-handle">📁</span>
-            <strong style="color:white;">${item.title}</strong>
+            <span class="drag-handle"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="color:var(--color-secondary); fill:rgba(168,85,247,0.08); margin-right:4px;"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg></span>
+            <strong class="folder-name-text" style="color:white;">${item.title}</strong>
           </div>
         `;
         urlCellContent = `<span style="color:var(--color-secondary); font-style:italic;">Folder Directory (${item.children ? item.children.length : 0} items)</span>`;
@@ -3009,15 +2945,22 @@ const BookmarkManager = {
     if (viewName === 'bookmarks' && this.tabBookmarks) this.tabBookmarks.classList.add('active');
     if (viewName === 'history' && this.tabHistory) this.tabHistory.classList.add('active');
     if (viewName === 'cookies' && this.tabCookies) this.tabCookies.classList.add('active');
+    if (viewName === 'settings' && this.tabSettings) this.tabSettings.classList.add('active');
     
     // Update Search Bar Placeholder
     if (this.searchInput) {
       if (viewName === 'bookmarks') {
         this.searchInput.placeholder = "Search bookmarks or type / for commands...";
+        this.searchInput.disabled = false;
       } else if (viewName === 'history') {
         this.searchInput.placeholder = "Search browsing history...";
+        this.searchInput.disabled = false;
       } else if (viewName === 'cookies') {
         this.searchInput.placeholder = "Search website cookies...";
+        this.searchInput.disabled = false;
+      } else if (viewName === 'settings') {
+        this.searchInput.placeholder = "Settings Panel - search disabled";
+        this.searchInput.disabled = true;
       }
       this.searchInput.value = '';
     }
@@ -3030,6 +2973,17 @@ const BookmarkManager = {
       } else {
         navigationBox.style.display = 'none';
       }
+    }
+
+    // Toggle visibility of bookmarks table vs settings view
+    const tableEl = document.getElementById('bookmarks-table');
+    const settingsEl = document.getElementById('settings-view-container');
+    if (viewName === 'settings') {
+      if (tableEl) tableEl.classList.add('hidden');
+      if (settingsEl) settingsEl.classList.remove('hidden');
+    } else {
+      if (tableEl) tableEl.classList.remove('hidden');
+      if (settingsEl) settingsEl.classList.add('hidden');
     }
     
     // Refresh content
@@ -3068,7 +3022,95 @@ const BookmarkManager = {
       document.getElementById('th-url').innerHTML = `Cookie Details`;
       
       this.loadCookies();
+    } else if (this.activeView === 'settings') {
+      // Settings view: hide breadcrumbs, hide add button
+      document.getElementById('explorer-breadcrumbs').style.display = 'none';
+      document.getElementById('add-bookmark-btn').style.display = 'none';
+      this.emptyState.classList.add('hidden');
+      
+      this.loadSettingsView();
     }
+  },
+
+  loadSettingsView() {
+    const parentNameInput = document.getElementById('parent-folder-name');
+    const thresholdSlider = document.getElementById('threshold-slider');
+    
+    if (this.settingsParentName && parentNameInput) {
+      this.settingsParentName.value = parentNameInput.value;
+    }
+    
+    if (this.settingsThresholdSlider && thresholdSlider) {
+      this.settingsThresholdSlider.value = thresholdSlider.value;
+      if (this.settingsThresholdVal) {
+        this.settingsThresholdVal.textContent = thresholdSlider.value;
+      }
+    }
+    
+    if (this.settingsCategoriesList) {
+      this.settingsCategoriesList.innerHTML = '';
+      BookmarkRules.categories.forEach(cat => {
+        const label = document.createElement('label');
+        label.style.cssText = 'display:flex; align-items:center; gap:8px; font-size:13px; color:white; cursor:pointer; padding:6px; border-radius:6px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.04);';
+        label.innerHTML = `
+          <input type="checkbox" class="settings-cat-cb" data-cat-id="${cat.id}" ${cat.enabled !== false ? 'checked' : ''}>
+          <span>${cat.name}</span>
+        `;
+        this.settingsCategoriesList.appendChild(label);
+      });
+    }
+  },
+
+  saveSettingsFromManager() {
+    const parentNameInput = document.getElementById('parent-folder-name');
+    const thresholdSlider = document.getElementById('threshold-slider');
+    const thresholdVal = document.getElementById('threshold-val');
+    
+    // 1. Save Parent Name
+    if (this.settingsParentName && parentNameInput) {
+      parentNameInput.value = this.settingsParentName.value;
+    }
+    
+    // 2. Save Threshold
+    if (this.settingsThresholdSlider && thresholdSlider) {
+      thresholdSlider.value = this.settingsThresholdSlider.value;
+      if (thresholdVal) {
+        thresholdVal.textContent = this.settingsThresholdSlider.value;
+      }
+      thresholdSlider.dispatchEvent(new Event('input'));
+    }
+    
+    // 3. Save Active Categories
+    if (this.settingsCategoriesList) {
+      const checkboxes = this.settingsCategoriesList.querySelectorAll('.settings-cat-cb');
+      checkboxes.forEach(cb => {
+        const catId = cb.dataset.catId;
+        const cat = BookmarkRules.categories.find(c => c.id === catId);
+        if (cat) {
+          cat.enabled = cb.checked;
+          const wizardCb = document.querySelector(`.category-checkbox[data-category="${catId}"]`);
+          if (wizardCb) {
+            wizardCb.checked = cb.checked;
+          }
+        }
+      });
+      saveCategoriesConfig();
+    }
+    
+    // 4. Save to local storage settings snapshot
+    const settingsObj = {
+      parentFolderName: this.settingsParentName ? this.settingsParentName.value : 'Bookmarks Bar',
+      threshold: this.settingsThresholdSlider ? this.settingsThresholdSlider.value : '5'
+    };
+    chrome.storage.local.set({ 'organizer_user_settings': settingsObj });
+
+    // Sync categories list in Wizard step 1 UI (refresh checkmarks)
+    if (typeof initCategoriesUI === 'function') {
+      initCategoriesUI();
+    }
+
+    alert('Settings successfully updated and saved!');
+    this.switchView('bookmarks');
   },
 
   loadHistory(query = '') {
