@@ -1388,69 +1388,94 @@
   box-sizing: border-box;
 }
 
-/* Animated Expandable Search Bar */
+/* Hide global bookmark tools on history page */
+.history-view-active #restructure-btn,
+.history-view-active #view-db-btn,
+.history-view-active #view-backups-btn,
+.history-view-active #toggle-wizard-btn {
+  display: none !important;
+}
+
+/* Premium Search Bar Redesign */
 .search-bar-wrapper {
-  width: 36px !important;
-  min-width: 36px !important;
-  height: 36px !important;
-  padding: 0 !important;
-  justify-content: center !important;
-  overflow: hidden;
-  cursor: pointer;
-  border-radius: 18px !important;
+  display: flex !important;
+  align-items: center !important;
   background: rgba(255, 255, 255, 0.02) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s ease, border-color 0.3s ease !important;
-}
-
-.search-bar-wrapper:hover {
-  background: rgba(255, 255, 255, 0.05) !important;
-  border-color: rgba(255, 255, 255, 0.15) !important;
-}
-
-.search-bar-wrapper.expanded {
-  width: 280px !important;
-  padding: 0 12px !important;
-  justify-content: flex-start !important;
-  cursor: default;
-  border-radius: 8px !important;
-  background: rgba(0, 0, 0, 0.3) !important;
-  border-color: rgba(99, 102, 241, 0.4) !important;
-}
-
-.search-bar-wrapper #manager-search {
-  width: 0 !important;
-  opacity: 0 !important;
-  padding: 0 !important;
-  pointer-events: none !important;
-  background: transparent !important;
-  border: none !important;
-  margin: 0 !important;
-  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease !important;
-}
-
-.search-bar-wrapper.expanded #manager-search {
+  border-radius: 24px !important; /* Rounded pill design */
+  padding: 8px 16px !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
   width: 100% !important;
-  opacity: 1 !important;
-  padding: 8px 6px !important;
-  pointer-events: auto !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  height: 40px !important;
+  box-sizing: border-box;
+}
+
+.search-bar-wrapper:focus-within {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 1px var(--color-primary), 0 4px 20px rgba(99, 102, 241, 0.15) !important;
 }
 
 .search-bar-wrapper .search-icon {
-  margin: 0 !important;
-  padding: 0 !important;
+  font-size: 15px !important;
+  color: var(--text-muted) !important;
+  margin-right: 12px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  width: 34px !important;
-  height: 34px !important;
+  width: auto !important;
+  height: auto !important;
+  flex-shrink: 0 !important;
+}
+
+.search-bar-wrapper #manager-search {
+  font-size: 13.5px !important;
+  color: #fff !important;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  width: 100% !important;
+  height: 100% !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.search-bar-wrapper #manager-search::placeholder {
+  color: rgba(255, 255, 255, 0.35) !important;
+  font-weight: 400 !important;
+}
+
+.search-shortcut-hint {
+  font-size: 9.5px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  border-radius: 4px;
+  padding: 1.5px 5px;
+  font-family: monospace;
+  margin-right: 8px;
+  user-select: none;
+  pointer-events: none;
+  display: inline-block;
   flex-shrink: 0;
 }
 
-.search-bar-wrapper.expanded .search-icon {
-  width: auto !important;
-  height: auto !important;
-  margin-right: 4px !important;
+/* Overflow 3-dot Button */
+.overflow-btn {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-muted) !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.overflow-btn:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: #fff !important;
 }
 
 /* Blacklist Rule Manager Badges */

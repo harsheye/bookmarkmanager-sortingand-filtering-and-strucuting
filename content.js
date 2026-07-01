@@ -1022,6 +1022,11 @@ function executeCCCommand(val) {
       closeCommandCenter();
       return;
 
+    case "/notes":
+      chrome.runtime.sendMessage({ action: "open_dashboard", view: "notes" });
+      closeCommandCenter();
+      return;
+
     case "/undo":
       alert("Undo requested. Opening dashboard to recover bookmarks tree.");
       chrome.runtime.sendMessage({ action: "open_dashboard" });
@@ -1029,7 +1034,7 @@ function executeCCCommand(val) {
       return;
   }
 
-  if (cmd !== "/help" && cmd !== "/wizard" && cmd !== "/undo") {
+  if (cmd !== "/help" && cmd !== "/wizard" && cmd !== "/undo" && cmd !== "/notes") {
     visibleItems = results;
     renderItemsList(results);
     ccBreadcrumbs.textContent = title;
@@ -1041,21 +1046,20 @@ function showCCHelp() {
   ccEmptyState.classList.add("hidden");
 
   const helpItems = [
-    { title: "/t <text>", desc: "Search globally in bookmark titles only" },
-    { cmd: true },
-    { title: "/u <text>", desc: "Search globally in bookmark URLs only" },
-    { cmd: true },
-    { title: "/c <cat>", desc: "Filter by category (e.g. movies, study, software, adult, sports)" },
-    { cmd: true },
-    { title: "/d <domain>", desc: "Filter by domain name (e.g. github.com)" },
-    { cmd: true },
-    { title: "/sort <type>", desc: "Sort list items by name, date, or url" },
-    { cmd: true },
+    { title: "/help", desc: "Show command center guide" },
     { title: "/manager", desc: "Open the bookmark manager dashboard" },
-    { cmd: true },
-    { title: "/wizard", desc: "Open the smart organizer wizard tab" },
-    { cmd: true },
-    { title: "/undo", desc: "Restore your original bookmarks backup" }
+    { title: "/notes", desc: "Open the notes manager page" },
+    { title: "/no <note> <text>", desc: "Save / append content to a specific note" },
+    { title: "/no -g <text>", desc: "Directly append content to the General note" },
+    { title: "/no -se <query>", desc: "Search through all your saved notes" },
+    { title: "/no -se -<note> <query>", desc: "Search only inside a specific note" },
+    { title: "/t <query>", desc: "Filter bookmarks by title matches" },
+    { title: "/u <query>", desc: "Filter bookmarks by URL matches" },
+    { title: "/c <cat>", desc: "Filter bookmarks by category (movies, study, software, etc.)" },
+    { title: "/d <domain>", desc: "Filter bookmarks by domain" },
+    { title: "/sort <type>", desc: "Sort items by name, date, or url" },
+    { title: "/wizard", desc: "Open the smart sorter wizard page" },
+    { title: "/undo", desc: "Restore original backup of bookmarks" }
   ];
 
   helpItems.forEach(item => {
@@ -1419,7 +1423,8 @@ function executeNotesCommand(query) {
   const textToAppend = parts.slice(1).join(" ").trim();
 
   if (!noteName) {
-    showToast("Please specify a note name (e.g. /no mynote content)", "error");
+    chrome.runtime.sendMessage({ action: "open_dashboard", view: "notes" });
+    closeCommandCenter();
     return;
   }
 

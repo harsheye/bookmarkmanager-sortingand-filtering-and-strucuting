@@ -1159,7 +1159,14 @@ const BookmarkManager = {
   activeView: 'bookmarks',
 
   async init() {
-    this.activeView = 'bookmarks';
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewParam = urlParams.get('view');
+    if (viewParam && ['bookmarks', 'history', 'cookies', 'notes', 'settings'].includes(viewParam)) {
+      this.activeView = viewParam;
+    } else {
+      this.activeView = 'bookmarks';
+    }
+    
     this.bindDOM();
     this.setupListeners();
     this.setupColumnResizing();
@@ -1185,6 +1192,7 @@ const BookmarkManager = {
       }
     });
 
+    this.switchView(this.activeView);
     await this.refreshLibrary();
   },
 
@@ -1469,7 +1477,9 @@ const BookmarkManager = {
     }
     if (this.noteCloseBtn) {
       this.noteCloseBtn.addEventListener('click', () => {
+        this.cacheActiveNoteState();
         this.activeNoteName = null;
+        this.exitFocusMode();
         this.noteEditorPane.classList.add('hidden');
         this.noteEditorPlaceholder.classList.remove('hidden');
         this.loadNotesManager();
@@ -3169,6 +3179,8 @@ const BookmarkManager = {
         explorerList.classList.add('notes-active');
       } else {
         explorerList.classList.remove('notes-active');
+        this.cacheActiveNoteState();
+        this.exitFocusMode();
       }
     }
     
@@ -3998,6 +4010,17 @@ const BookmarkManager = {
       this.blacklistFilterType = val;
       this.loadBlacklistRules();
     });
+
+    // Keyboard shortcut for focusing search
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'k' || e.key.toLowerCase() === 'f')) {
+        e.preventDefault();
+        if (this.searchInput) {
+          this.searchInput.focus();
+          this.searchInput.select();
+        }
+      }
+    });
   },
 
   loadHistory(query = '') {
@@ -4005,9 +4028,14 @@ const BookmarkManager = {
     if (this.historyDetailsPanel) this.historyDetailsPanel.classList.add('hidden');
     
     // Auto sync blacklist rules on boot
-    chrome.storage.local.get(['history_blacklist_rules', 'history_view_mode'], (res) => {
+    chrome.storage.local.get(['history_blacklist_rules', 'history_view_mode', 'history_expanded_timelines'], (res) => {
       this.historyBlacklistRules = res.history_blacklist_rules || [];
       if (res.history_view_mode) this.historyViewMode = res.history_view_mode;
+      if (res.history_expanded_timelines) {
+        this.historyExpandedTimelines = new Set(res.history_expanded_timelines);
+      } else {
+        this.historyExpandedTimelines = new Set(['Today', 'Yesterday', 'This Week']);
+      }
 
       if (this.bookmarkedUrlsSet.size === 0) {
         this.cacheBookmarksTree().then(() => {
@@ -4514,6 +4542,7 @@ const BookmarkManager = {
         } else {
           this.historyExpandedTimelines.add(label);
         }
+        chrome.storage.local.set({ 'history_expanded_timelines': Array.from(this.historyExpandedTimelines) });
         this.processHistoryData();
       });
     });
@@ -4862,6 +4891,16 @@ const BookmarkManager = {
     a.click();
     URL.revokeObjectURL(url);
     showToast(`Exported ${items.length} items successfully!`, 'success');
+  },
+
+  clearAllHistory() {
+    if (confirm('Are you sure you want to clear all history? This will delete all history items from your browser.')) {
+      chrome.history.deleteAll(() => {
+        showToast('All browser history cleared!', 'success');
+        this.allRawHistoryItems = null;
+        this.loadHistory(this.historySearchQuery);
+      });
+    }
   },
 
   copySelectedUrls() {
@@ -5655,6 +5694,34 @@ const BookmarkManager = {
     });
   },
 
+  cacheActiveNoteState() {
+    if (this.activeNoteName && this.noteEditorBody) {
+      this.unsavedNotesCache = this.unsavedNotesCache || {};
+      this.noteCursorPositions = this.noteCursorPositions || {};
+      this.noteScrollPositions = this.noteScrollPositions || {};
+      
+      this.unsavedNotesCache[this.activeNoteName] = this.noteEditorBody.value;
+      this.noteCursorPositions[this.activeNoteName] = {
+        start: this.noteEditorBody.selectionStart,
+        end: this.noteEditorBody.selectionEnd
+      };
+      
+      const scrollContainer = document.querySelector('.note-editor-scroll-container');
+      if (scrollContainer) {
+        this.noteScrollPositions[this.activeNoteName] = scrollContainer.scrollTop;
+      }
+    }
+  },
+
+  exitFocusMode() {
+    if (this.notesViewContainer) {
+      this.notesViewContainer.classList.remove('focus-mode-active');
+    }
+    if (this.noteFocusBtn) {
+      this.noteFocusBtn.innerHTML = '<i class="fi fi-rr-expand"></i> Focus';
+    }
+  },
+
   loadNotesManager() {
     if (!this.notesSidebarList) return;
     this.notesSidebarList.innerHTML = '';
@@ -5698,6 +5765,7 @@ const BookmarkManager = {
               showToast(`Note "${name}" deleted!`, 'success');
               if (this.activeNoteName === name) {
                 this.activeNoteName = null;
+                this.exitFocusMode();
                 this.noteEditorPane.classList.add('hidden');
                 this.noteEditorPlaceholder.classList.remove('hidden');
               }
@@ -5712,22 +5780,8 @@ const BookmarkManager = {
   },
 
   selectNote(name) {
-    // Cache current unsaved state, cursor and scroll of the note we are leaving
-    if (this.activeNoteName && this.activeNoteName !== name && this.noteEditorBody) {
-      this.unsavedNotesCache = this.unsavedNotesCache || {};
-      this.noteCursorPositions = this.noteCursorPositions || {};
-      this.noteScrollPositions = this.noteScrollPositions || {};
-      
-      this.unsavedNotesCache[this.activeNoteName] = this.noteEditorBody.value;
-      this.noteCursorPositions[this.activeNoteName] = {
-        start: this.noteEditorBody.selectionStart,
-        end: this.noteEditorBody.selectionEnd
-      };
-      
-      const scrollContainer = document.querySelector('.note-editor-scroll-container');
-      if (scrollContainer) {
-        this.noteScrollPositions[this.activeNoteName] = scrollContainer.scrollTop;
-      }
+    if (this.activeNoteName !== name) {
+      this.cacheActiveNoteState();
     }
 
     this.activeNoteName = name;
@@ -5919,6 +5973,7 @@ const BookmarkManager = {
         if (this.noteScrollPositions) delete this.noteScrollPositions[name];
         
         this.activeNoteName = null;
+        this.exitFocusMode();
         this.noteEditorPane.classList.add('hidden');
         this.noteEditorPlaceholder.classList.remove('hidden');
         this.loadNotesManager();

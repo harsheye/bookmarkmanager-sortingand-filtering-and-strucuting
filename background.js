@@ -53,7 +53,8 @@ function toggleCenterInTab(tabId) {
 // Listener for messages from popup or content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "open_dashboard") {
-    chrome.tabs.create({ url: "dashboard.html" });
+    const targetUrl = "dashboard.html" + (message.view ? "?view=" + message.view : "");
+    chrome.tabs.create({ url: targetUrl });
     sendResponse({ success: true });
     return;
   }
