@@ -8,6 +8,7 @@ let ccSuggestions = null;
 let ccResultsList = null;
 let ccEmptyState = null;
 let ccBreadcrumbs = null;
+let historySearchEnabled = true;
 
 // State Variables
 let currentFolderId = "0"; // Start at Bookmark System Root
@@ -188,328 +189,347 @@ function createCommandCenter() {
   ccRoot.id = "smart-bookmark-command-center-root";
   ccRoot.style.cssText = "position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:2147483647; pointer-events:none;";
   document.body.appendChild(ccRoot);
-
+ 
   ccShadow = ccRoot.attachShadow({ mode: "open" });
+ 
+  chrome.storage.local.get(['organizer_user_settings'], (result) => {
+    const settings = result.organizer_user_settings || {};
+    const theme = settings.ccTheme || 'black'; // 'black' or 'white'
+    const blur = settings.ccBlur !== undefined ? settings.ccBlur : 15;
+    historySearchEnabled = settings.ccHistory !== false;
 
-  // Add styles
-  const style = document.createElement("style");
-  style.textContent = `
-    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
-    
-    :host {
-      all: initial;
-    }
-    .cc-backdrop {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(4, 2, 10, 0.22);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      z-index: 2147483647;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.25s ease;
-      font-family: 'Outfit', -apple-system, sans-serif;
-      color: #f3f4f6;
-    }
-    .cc-backdrop.active {
-      opacity: 1;
-      pointer-events: auto;
-    }
-    .cc-modal {
-      width: 100%;
-      max-width: 820px;
-      background: rgba(10, 8, 22, 0.52);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 16px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      max-height: 600px;
-      transform: scale(0.96);
-      transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-    .cc-backdrop.active .cc-modal {
-      transform: scale(1);
-    }
-    .cc-search-wrapper {
-      display: flex;
-      align-items: center;
-      padding: 16px 20px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-      background: rgba(0, 0, 0, 0.2);
-    }
-    .cc-search-icon {
-      font-size: 20px;
-      margin-right: 12px;
-      color: #9ca3af;
-    }
-    .cc-search-input {
-      background: transparent;
-      border: none;
-      color: white;
-      font-size: 16px;
-      width: 100%;
-      outline: none;
-      font-family: inherit;
-    }
-    .cc-search-hint {
-      font-size: 11px;
-      color: rgba(255, 255, 255, 0.25);
-      white-space: nowrap;
-      margin-left: 10px;
-      background: rgba(255, 255, 255, 0.04);
-      padding: 3px 8px;
-      border-radius: 4px;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-    }
-    .cc-results-container {
-      flex-grow: 1;
-      overflow-y: auto;
-      max-height: 440px;
-      background: rgba(0, 0, 0, 0.1);
-    }
-    .cc-results-list {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 10px;
-      padding: 12px;
-    }
-    .cc-item {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      justify-content: space-between;
-      padding: 12px;
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      height: 90px;
-      box-sizing: border-box;
-      margin-bottom: 0px;
-    }
-    .cc-item:hover, .cc-item.selected {
-      background: rgba(99, 102, 241, 0.15) !important;
-      border-color: #8b5cf6 !important;
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    }
-    .cc-item-left {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      overflow: hidden;
-      max-width: 100%;
-      width: 100%;
-    }
-    .cc-item-icon {
-      font-size: 16px;
-      flex-shrink: 0;
-    }
-    .cc-favicon {
-      width: 16px;
-      height: 16px;
-      border-radius: 3px;
-      flex-shrink: 0;
-    }
-    .cc-item-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: #e2e8f0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .cc-item-right {
-      font-size: 11px;
-      color: #9ca3af;
-      flex-shrink: 0;
-      text-overflow: ellipsis;
-      overflow: hidden;
-      white-space: nowrap;
-      max-width: 100%;
-      width: 100%;
-      margin-top: auto;
-      text-align: left;
-    }
-    .cc-suggestions {
-      background: rgba(13, 10, 27, 0.6);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      display: flex;
-      flex-direction: column;
-      padding: 6px;
-      max-height: 150px;
-      overflow-y: auto;
-    }
-    .cc-suggestion-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 12px;
-      border-radius: 6px;
-      font-size: 13px;
-      cursor: pointer;
-      color: #cbd5e1;
-    }
-    .cc-suggestion-item:hover, .cc-suggestion-item.selected {
-      background: rgba(99, 102, 241, 0.15);
-      color: white;
-    }
-    .cc-sug-cmd {
-      font-family: monospace;
-      font-weight: 700;
-      color: #a5b4fc;
-    }
-    .cc-sug-desc {
-      color: #9ca3af;
-      font-size: 11.5px;
-    }
-    .cc-footer {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 20px;
-      border-top: 1px solid rgba(255, 255, 255, 0.05);
-      background: rgba(0, 0, 0, 0.25);
-      font-size: 12px;
-      color: #9ca3af;
-    }
-    .cc-breadcrumbs {
-      font-weight: 500;
-      color: #a5b4fc;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      max-width: 50%;
-    }
-    .cc-shortcuts {
-      display: flex;
-      gap: 12px;
-      color: rgba(255, 255, 255, 0.3);
-    }
-    .cc-shortcuts span {
-      display: inline-flex;
-      align-items: center;
-    }
-    .cc-empty-state {
-      text-align: center;
-      padding: 40px;
-      color: #9ca3af;
-      font-style: italic;
-      font-size: 14px;
-    }
-    ::-webkit-scrollbar {
-      width: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.12);
-      border-radius: 3px;
-    }
-  `;
-  ccShadow.appendChild(style);
+    const style = document.createElement("style");
+    style.textContent = `
+      @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
+      
+      :host {
+        all: initial;
+      }
+      .cc-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.45);
+        backdrop-filter: blur(${blur}px);
+        -webkit-backdrop-filter: blur(${blur}px);
+        z-index: 2147483647;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+        font-family: 'Outfit', -apple-system, sans-serif;
+        color: ${theme === 'white' ? '#1f2937' : '#f3f4f6'};
+      }
+      .cc-backdrop.active {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .cc-modal {
+        width: 620px;
+        background: ${theme === 'white' ? 'rgba(255, 255, 255, 0.88)' : 'rgba(10, 10, 12, 0.72)'};
+        border: 1px solid ${theme === 'white' ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)'};
+        border-radius: 16px;
+        box-shadow: 0 25px 60px rgba(0, 0, 0, 0.65);
+        backdrop-filter: blur(25px);
+        -webkit-backdrop-filter: blur(25px);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        max-height: 600px;
+        transform: translateY(-20px) scale(0.97);
+        transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+      .cc-backdrop.active .cc-modal {
+        transform: translateY(0) scale(1);
+      }
+      .cc-search-wrapper {
+        display: flex;
+        align-items: center;
+        padding: 14px 18px;
+        border-bottom: 1px solid ${theme === 'white' ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.06)'};
+        gap: 12px;
+      }
+      .cc-search-icon {
+        font-size: 16px;
+        color: ${theme === 'white' ? 'rgba(0,0,0,0.4)' : 'rgba(255, 255, 255, 0.4)'};
+        display: flex;
+        align-items: center;
+      }
+      .cc-search-input {
+        flex-grow: 1;
+        background: transparent;
+        border: none;
+        outline: none;
+        color: ${theme === 'white' ? '#1f2937' : 'white'};
+        font-size: 15px;
+        font-family: inherit;
+        resize: none;
+        height: 22px;
+        line-height: 22px;
+        overflow-y: hidden;
+        box-sizing: border-box;
+      }
+      .cc-search-hint {
+        font-size: 11px;
+        background: ${theme === 'white' ? 'rgba(0,0,0,0.06)' : 'rgba(255, 255, 255, 0.08)'};
+        padding: 3px 8px;
+        border-radius: 4px;
+        border: 1px solid ${theme === 'white' ? 'rgba(0,0,0,0.02)' : 'rgba(255, 255, 255, 0.05)'};
+        color: ${theme === 'white' ? '#4b5563' : '#9ca3af'};
+      }
+      .cc-suggestions {
+        background: ${theme === 'white' ? 'rgba(0,0,0,0.02)' : 'rgba(0, 0, 0, 0.2)'};
+        max-height: 180px;
+        overflow-y: auto;
+        border-bottom: 1px solid ${theme === 'white' ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.06)'};
+      }
+      .cc-suggestion-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 18px;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      .cc-suggestion-item:hover, .cc-suggestion-item.selected {
+        background: rgba(99, 102, 241, 0.15);
+      }
+      .cc-sug-cmd {
+        color: #8b5cf6;
+        font-weight: 600;
+        font-size: 13.5px;
+      }
+      .cc-sug-desc {
+        color: ${theme === 'white' ? '#6b7280' : '#9ca3af'};
+        font-size: 13px;
+      }
+      .cc-results-container {
+        flex-grow: 1;
+        overflow-y: auto;
+        max-height: 400px;
+        background: ${theme === 'white' ? 'rgba(0,0,0,0.01)' : 'rgba(0, 0, 0, 0.1)'};
+      }
+      .cc-results-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 10px;
+        padding: 12px;
+      }
+      .cc-item {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: space-between;
+        padding: 12px;
+        border-radius: 12px;
+        background: ${theme === 'white' ? 'rgba(0, 0, 0, 0.02)' : 'rgba(255, 255, 255, 0.02)'};
+        border: 1px solid ${theme === 'white' ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.05)'};
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        height: 90px;
+        box-sizing: border-box;
+        margin-bottom: 0px;
+      }
+      .cc-item:hover, .cc-item.selected {
+        background: rgba(99, 102, 241, 0.15) !important;
+        border-color: #8b5cf6 !important;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      }
+      .cc-item-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        overflow: hidden;
+        max-width: 100%;
+        width: 100%;
+      }
+      .cc-item-icon {
+        font-size: 16px;
+        flex-shrink: 0;
+      }
+      .cc-favicon {
+        width: 16px;
+        height: 16px;
+        border-radius: 3px;
+        flex-shrink: 0;
+      }
+      .cc-item-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: ${theme === 'white' ? '#1f2937' : '#e2e8f0'};
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .cc-item-right {
+        font-size: 11px;
+        color: #9ca3af;
+        flex-shrink: 0;
+        text-overflow: ellipsis;
+        overflow: hidden;
+        white-space: nowrap;
+        max-width: 100%;
+        width: 100%;
+        margin-top: auto;
+        text-align: left;
+      }
+      .cc-empty-state {
+        padding: 30px;
+        text-align: center;
+        color: #9ca3af;
+        font-size: 14.5px;
+      }
+      .cc-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 18px;
+        background: ${theme === 'white' ? 'rgba(0, 0, 0, 0.03)' : 'rgba(0, 0, 0, 0.3)'};
+        border-top: 1px solid ${theme === 'white' ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.05)'};
+        font-size: 12px;
+        color: #9ca3af;
+      }
+      .cc-breadcrumbs {
+        font-weight: 600;
+        color: var(--color-primary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 50%;
+      }
+      .cc-shortcuts {
+        display: flex;
+        gap: 12px;
+      }
+      .cc-shortcuts span {
+        background: ${theme === 'white' ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.06)'};
+        padding: 2px 6px;
+        border-radius: 4px;
+        border: 1px solid ${theme === 'white' ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.04)'};
+      }
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 3px;
+      }
+    `;
+    ccShadow.appendChild(style);
 
-  // Add layout HTML
-  ccBackdrop = document.createElement("div");
-  ccBackdrop.className = "cc-backdrop";
+    // Add layout HTML
+    ccBackdrop = document.createElement("div");
+    ccBackdrop.className = "cc-backdrop";
 
-  ccBackdrop.innerHTML = `
-    <div class="cc-modal">
-      <div class="cc-search-wrapper">
-        <span class="cc-search-icon">🔍</span>
-        <input type="text" class="cc-search-input" placeholder="Search title/url or type / for commands..." autofocus autocomplete="off">
-        <span class="cc-search-hint">Alt+Shift+A</span>
-      </div>
-      <div class="cc-suggestions hidden"></div>
-      <div class="cc-results-container">
-        <div class="cc-results-list"></div>
-        <div class="cc-empty-state hidden">No items found.</div>
-      </div>
-      <div class="cc-footer">
-        <div class="cc-breadcrumbs">Library</div>
-        <div class="cc-shortcuts">
-          <span>↑↓ Navigate</span>
-          <span>↵ Open/Enter</span>
-          <span>⌫ Back</span>
-          <span>Esc Close</span>
+    ccBackdrop.innerHTML = `
+      <div class="cc-modal">
+        <div class="cc-search-wrapper">
+          <span class="cc-search-icon" style="display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,0.4);"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M23.707,22.293l-5.969-5.969a10.016,10.016,0,1,0-1.414,1.414l5.969,5.969a10.025,10.025,0,0,0,1.414-1.414ZM10,18a8,8,0,1,1,8-8A8.009,8.009,0,0,1,10,18Z"/></svg></span>
+          <textarea class="cc-search-input" placeholder="Search title/url or type / for commands..." autofocus autocomplete="off" rows="1"></textarea>
+          <span class="cc-search-hint">Alt+A</span>
+        </div>
+        <div class="cc-suggestions hidden"></div>
+        <div class="cc-results-container">
+          <div class="cc-results-list"></div>
+          <div class="cc-empty-state hidden">No items found.</div>
+        </div>
+        <div class="cc-footer">
+          <div class="cc-breadcrumbs">Library</div>
+          <div class="cc-shortcuts">
+            <span>↑↓ Navigate</span>
+            <span>↵ Open/Enter</span>
+            <span>⌫ Back</span>
+            <span>Esc Close</span>
+          </div>
         </div>
       </div>
-    </div>
-  `;
+    `;
 
-  ccShadow.appendChild(ccBackdrop);
+    ccShadow.appendChild(ccBackdrop);
 
-  // Bind references
-  ccSearchInput = ccBackdrop.querySelector(".cc-search-input");
-  ccSuggestions = ccBackdrop.querySelector(".cc-suggestions");
-  ccResultsList = ccBackdrop.querySelector(".cc-results-list");
-  ccEmptyState = ccBackdrop.querySelector(".cc-empty-state");
-  ccBreadcrumbs = ccBackdrop.querySelector(".cc-breadcrumbs");
+    // Bind references
+    ccSearchInput = ccBackdrop.querySelector(".cc-search-input");
+    ccSuggestions = ccBackdrop.querySelector(".cc-suggestions");
+    ccResultsList = ccBackdrop.querySelector(".cc-results-list");
+    ccEmptyState = ccBackdrop.querySelector(".cc-empty-state");
+    ccBreadcrumbs = ccBackdrop.querySelector(".cc-breadcrumbs");
 
-  // Setup Event Listeners inside Shadow DOM
-  ccBackdrop.addEventListener("click", (e) => {
-    if (e.target === ccBackdrop) {
-      closeCommandCenter();
+    // Setup Event Listeners inside Shadow DOM
+    ccBackdrop.addEventListener("click", (e) => {
+      if (e.target === ccBackdrop) {
+        closeCommandCenter();
+      }
+    });
+
+    // Refocus search input when clicking anywhere inside the modal (except input itself)
+    const modalContainer = ccBackdrop.querySelector(".cc-modal");
+    if (modalContainer) {
+      modalContainer.addEventListener("click", (e) => {
+        if (e.target !== ccSearchInput) {
+          ccSearchInput.focus();
+        }
+      });
     }
-  });
 
-  // Refocus search input when clicking anywhere inside the modal (except input itself)
-  const modalContainer = ccBackdrop.querySelector(".cc-modal");
-  if (modalContainer) {
-    modalContainer.addEventListener("click", (e) => {
-      if (e.target !== ccSearchInput) {
+    // Ensure input is focused when transition completes
+    ccBackdrop.addEventListener("transitionend", (e) => {
+      if (ccBackdrop.classList.contains("active") && e.propertyName === "opacity") {
         ccSearchInput.focus();
       }
     });
-  }
 
-  // Ensure input is focused when transition completes
-  ccBackdrop.addEventListener("transitionend", (e) => {
-    if (ccBackdrop.classList.contains("active") && e.propertyName === "opacity") {
-      ccSearchInput.focus();
-    }
-  });
+    ccSearchInput.addEventListener("input", (e) => {
+      ccSearchInput.style.height = "auto";
+      ccSearchInput.style.height = Math.min(100, ccSearchInput.scrollHeight) + "px";
+      handleCCSearch(e.target.value);
+    });
 
-  ccSearchInput.addEventListener("input", (e) => {
-    handleCCSearch(e.target.value);
-  });
+    ccSearchInput.addEventListener("keydown", (e) => {
+      const key = e.key ? e.key.toLowerCase() : "";
+      const isA = key === "a" || key === "å" || e.code === "KeyA" || e.keyCode === 65;
+      const hasAltOnly = e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey;
+      
+      if (isA && hasAltOnly) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        closeCommandCenter();
+        return;
+      }
+      
+      if (e.key === "Enter") {
+        if (!e.shiftKey) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          handleCCKeydown(e); // executes Enter selection
+        } else {
+          // Shift+Enter inserts newline: allow it, and it will resize textarea via input listener!
+          e.stopPropagation();
+        }
+        return;
+      }
 
-  ccSearchInput.addEventListener("keydown", (e) => {
-    const key = e.key ? e.key.toLowerCase() : "";
-    const isA = key === "a" || key === "å" || e.code === "KeyA" || e.keyCode === 65;
-    const hasAltOnly = e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey;
-    
-    if (isA && hasAltOnly) {
-      e.preventDefault();
       e.stopPropagation();
-      e.stopImmediatePropagation();
-      closeCommandCenter();
-      return;
-    }
-    
-    e.stopPropagation();
-    handleCCKeydown(e);
-  });
+      handleCCKeydown(e);
+    });
 
-  ccSearchInput.addEventListener("keypress", (e) => {
-    e.stopPropagation();
-  });
+    ccSearchInput.addEventListener("keypress", (e) => {
+      e.stopPropagation();
+    });
 
-  ccSearchInput.addEventListener("keyup", (e) => {
-    e.stopPropagation();
+    ccSearchInput.addEventListener("keyup", (e) => {
+      e.stopPropagation();
+    });
   });
 }
 
@@ -596,15 +616,27 @@ function renderItemsList(items) {
         <span class="cc-item-title">${item.title || item.url}</span>
       `;
       if (item.isHistory) {
-        rightHtml = `<span class="cc-item-right" title="${item.url}" style="color:#f43f5e; font-weight:600;">🕒 History &bull; ${domain}</span>`;
+        rightHtml = `
+          <span class="cc-item-right" title="${item.url}" style="color:#f43f5e; font-weight:600; display:flex; align-items:center; gap:4px;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="flex-shrink:0;"><path d="M12,0A12,12,0,1,0,24,12,12.013,12.013,0,0,0,12,0Zm0,22A10,10,0,1,1,22,12,10.011,10.011,0,0,1,12,22Zm1-10V7a1,1,0,0,0-2,0v6a1,1,0,0,0,.553.894l3.5,1.75a1,1,0,1,0,.894-1.788Z"/></svg>
+            History &bull; ${domain}
+          </span>
+        `;
       } else {
         rightHtml = `<span class="cc-item-right" title="${item.url}">${domain}</span>`;
       }
+    } else if (item.isNote || item.isCreateNoteAction || item.isStaticHelp) {
+      // Note Card
+      leftHtml = `
+        <span class="cc-item-icon" style="color:#10b981; display:flex; align-items:center;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19,0H5A5.006,5.006,0,0,0,0,5V19a5.006,5.006,0,0,0,5,5H19a5.006,5.006,0,0,0,5-5V5A5.006,5.006,0,0,0,19,0Zm3,19a3,3,0,0,1-3,3H5a3,3,0,0,1-3-3V5A3,3,0,0,1,5,3H19a3,3,0,0,1,3,3Zm-4-7H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm0-4H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm-5,8H6a1,1,0,0,0,0,2h7a1,1,0,0,0,0-2Z"/></svg></span>
+        <span class="cc-item-title" style="font-weight:600; color:inherit;">${item.title}</span>
+      `;
+      rightHtml = `<span class="cc-item-right" style="color:#10b981; font-family:monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${item.contentSnippet || ''}">${item.contentSnippet || ''}</span>`;
     } else {
       // Folder Directory
       leftHtml = `
-        <span class="cc-item-icon">📁</span>
-        <span class="cc-item-title" style="font-weight:600; color:white;">${item.title}</span>
+        <span class="cc-item-icon" style="color:#a855f7; display:flex; align-items:center;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19.5,5H13.243a3,3,0,0,1-2.122-.879l-1.414-1.414A3,3,0,0,0,7.586,1.828H4.5A2.5,2.5,0,0,0,2,4.328V19.5A2.5,2.5,0,0,0,4.5,22h15A2.5,2.5,0,0,0,22,19.5V7.5A2.5,2.5,0,0,0,19.5,5ZM20,19.5a.5.5,0,0,1-.5.5H4.5a.5.5,0,0,1-.5-.5V7.5A.5.5,0,0,1,4.5,7h15a.5.5,0,0,1,.5.5Z"/></svg></span>
+        <span class="cc-item-title" style="font-weight:600; color:inherit;">${item.title}</span>
       `;
       rightHtml = `<span class="cc-item-right" style="color:#a855f7; font-weight:600; font-style:italic;">Folder</span>`;
     }
@@ -679,7 +711,7 @@ function handleCCSearch(val) {
         (bm.url && bm.url.toLowerCase().includes(query))
       );
       
-      if (visibleItems.length === 0) {
+      if (visibleItems.length === 0 && historySearchEnabled) {
         // Fallback: query history
         chrome.runtime.sendMessage({ action: "search_history", query: val }, (historyResults) => {
           if (activeQuery !== val) return;
@@ -807,22 +839,29 @@ function highlightSuggestion(sugItems) {
 
 function executeSelection() {
   if (selectedIndex < 0 || selectedIndex >= visibleItems.length) {
-    // No matching bookmark item is selected: treat the search input text as a direct URL or spaced web query
+    // If user has typed a command starting with /no and presses enter directly:
     const query = ccSearchInput.value.trim();
-    if (query) {
-      const hasSpace = /\s/.test(query);
+    if (query.startsWith("/no")) {
+      executeNotesCommand(query);
+      return;
+    }
+
+    // No matching bookmark item is selected: treat the search input text as a direct URL or spaced web query
+    const queryTerm = ccSearchInput.value.trim();
+    if (queryTerm) {
+      const hasSpace = /\s/.test(queryTerm);
       const isDirectUrl = !hasSpace && (
-        /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/i.test(query)
+        /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/i.test(queryTerm)
       );
       
-      let targetUrl = query;
+      let targetUrl = queryTerm;
       if (isDirectUrl) {
-        if (!/^https?:\/\//i.test(query)) {
-          targetUrl = "https://" + query;
+        if (!/^https?:\/\//i.test(queryTerm)) {
+          targetUrl = "https://" + queryTerm;
         }
       } else {
         // Spaced search query or general term: open Google Search
-        targetUrl = "https://www.google.com/search?q=" + encodeURIComponent(query);
+        targetUrl = "https://www.google.com/search?q=" + encodeURIComponent(queryTerm);
       }
       
       window.open(targetUrl, "_blank");
@@ -832,6 +871,23 @@ function executeSelection() {
   }
   
   const item = visibleItems[selectedIndex];
+
+  if (item.isNote) {
+    if (item.textToAppend) {
+      appendNoteContent(item.noteName, item.textToAppend);
+    } else {
+      showToast(`Note "${item.noteName}":\n${item.noteContent}`, "success");
+      ccSearchInput.value = `/no ${item.noteName} `;
+      ccSearchInput.focus();
+      handleCCSearch(ccSearchInput.value);
+    }
+    return;
+  }
+
+  if (item.isCreateNoteAction) {
+    createOrUpdateNote(item.noteName, item.noteContent || "");
+    return;
+  }
 
   if (item.url) {
     // Open Bookmark
@@ -1005,4 +1061,203 @@ function showCCHelp() {
   });
 
   ccBreadcrumbs.textContent = "Commands Guide";
+}
+
+// -------------------------------------------------------------
+// NOTES COMMAND ENGINE & TOASTS
+// -------------------------------------------------------------
+function renderNotesSuggestions(val) {
+  const queryStr = val.substring(3).trim();
+  const parts = queryStr.split(" ");
+  const subCommand = parts[0] ? parts[0].toLowerCase() : "";
+  
+  chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
+    const notes = result.bookmark_organizer_notes || {};
+    const notesList = Object.keys(notes);
+    
+    if (subCommand === "se") {
+      const query = parts.slice(1).join(" ").trim().toLowerCase();
+      ccBreadcrumbs.textContent = `Search notes: "${query}"`;
+      
+      const matches = notesList.filter(name => {
+        return name.toLowerCase().includes(query) || notes[name].toLowerCase().includes(query);
+      }).map(name => ({
+        id: "note_" + name,
+        title: `📝 Note: ${name}`,
+        url: "",
+        contentSnippet: notes[name].substring(0, 40) + (notes[name].length > 40 ? "..." : ""),
+        isNote: true,
+        noteName: name,
+        noteContent: notes[name]
+      }));
+      
+      visibleItems = matches;
+      renderItemsList(visibleItems);
+    } else if (subCommand === "new") {
+      const noteName = parts[1] || "";
+      const noteContent = parts.slice(2).join(" ").trim();
+      ccBreadcrumbs.textContent = `Create new note: "${noteName || 'untitled'}"`;
+      
+      visibleItems = [{
+        id: "create_new_note",
+        title: `🆕 Create Note: "${noteName || 'untitled'}"`,
+        contentSnippet: noteContent || "Type content...",
+        isCreateNoteAction: true,
+        noteName: noteName,
+        noteContent: noteContent
+      }];
+      renderItemsList(visibleItems);
+    } else {
+      const noteName = parts[0] || "";
+      const textToAppend = parts.slice(1).join(" ").trim();
+      
+      if (!noteName) {
+        visibleItems = notesList.map(name => ({
+          id: "note_" + name,
+          title: `📝 Note: ${name}`,
+          contentSnippet: notes[name].substring(0, 40) + (notes[name].length > 40 ? "..." : ""),
+          isNote: true,
+          noteName: name,
+          noteContent: notes[name]
+        }));
+        
+        if (visibleItems.length === 0) {
+          visibleItems = [{
+            id: "no_notes",
+            title: "No notes saved yet",
+            contentSnippet: "Type /no <note_name> <text> to create one!",
+            isStaticHelp: true
+          }];
+        }
+      } else {
+        const noteExists = notes[noteName] !== undefined;
+        if (noteExists) {
+          ccBreadcrumbs.textContent = `Note: ${noteName}`;
+          visibleItems = [{
+            id: "note_" + noteName,
+            title: `📝 Note: ${noteName}`,
+            contentSnippet: textToAppend ? `Append: "${textToAppend}"` : notes[noteName],
+            isNote: true,
+            noteName: noteName,
+            noteContent: notes[noteName],
+            textToAppend: textToAppend
+          }];
+        } else {
+          ccBreadcrumbs.textContent = `New note: ${noteName}`;
+          visibleItems = [{
+            id: "create_note_" + noteName,
+            title: `🆕 Create Note: "${noteName}"`,
+            contentSnippet: textToAppend || "Save empty note",
+            isCreateNoteAction: true,
+            noteName: noteName,
+            noteContent: textToAppend
+          }];
+        }
+      }
+      renderItemsList(visibleItems);
+    }
+  });
+}
+
+function executeNotesCommand(query) {
+  const parts = query.substring(3).trim().split(" ");
+  const subCommand = parts[0] ? parts[0].toLowerCase() : "";
+
+  if (subCommand === "se") return;
+
+  if (subCommand === "new") {
+    const noteName = parts[1] || "";
+    const noteContent = parts.slice(2).join(" ").trim();
+    if (!noteName) {
+      showToast("Note name cannot be empty!", "error");
+      return;
+    }
+    createOrUpdateNote(noteName, noteContent);
+    return;
+  }
+
+  const noteName = parts[0] || "";
+  const textToAppend = parts.slice(1).join(" ").trim();
+
+  if (!noteName) {
+    showToast("Please specify a note name (e.g. /no mynote content)", "error");
+    return;
+  }
+
+  chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
+    const notes = result.bookmark_organizer_notes || {};
+    if (notes[noteName] !== undefined) {
+      if (textToAppend) {
+        appendNoteContent(noteName, textToAppend);
+      } else {
+        showToast(`Note "${noteName}":\n${notes[noteName]}`, "success");
+        closeCommandCenter();
+      }
+    } else {
+      createOrUpdateNote(noteName, textToAppend || "");
+    }
+  });
+}
+
+function createOrUpdateNote(name, content) {
+  chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
+    const notes = result.bookmark_organizer_notes || {};
+    notes[name] = content;
+    chrome.storage.local.set({ 'bookmark_organizer_notes': notes }, () => {
+      showToast(`Note "${name}" saved!`, "success");
+      closeCommandCenter();
+    });
+  });
+}
+
+function appendNoteContent(name, text) {
+  chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
+    const notes = result.bookmark_organizer_notes || {};
+    const oldContent = notes[name] || "";
+    const newContent = oldContent ? oldContent + "\n" + text : text;
+    notes[name] = newContent;
+    chrome.storage.local.set({ 'bookmark_organizer_notes': notes }, () => {
+      showToast(`Appended to note "${name}"!`, "success");
+      closeCommandCenter();
+    });
+  });
+}
+
+function showToast(message, type = 'success') {
+  const container = document.body;
+  const toast = document.createElement('div');
+  toast.className = `custom-toast toast-${type}`;
+  toast.style.cssText = `
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: ${type === 'success' ? 'rgba(16, 185, 129, 0.88)' : 'rgba(239, 68, 68, 0.88)'};
+    border: 1px solid ${type === 'success' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'};
+    color: white;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 13.5px;
+    font-weight: 600;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    z-index: 2147483647;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  `;
+  toast.textContent = message;
+  container.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.transform = 'translateY(0)';
+    toast.style.opacity = '1';
+  }, 50);
+  
+  setTimeout(() => {
+    toast.style.transform = 'translateY(100px)';
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 300);
+  }, 3500);
 }

@@ -564,7 +564,7 @@ function renderPreview() {
             <span class="checkmark"></span>
           </label>
           <span class="folder-toggle-icon">▶</span>
-          <span>📁</span>
+          <span style="display:flex; align-items:center; color:var(--color-primary);"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19.5,5H13.243a3,3,0,0,1-2.122-.879l-1.414-1.414A3,3,0,0,0,7.586,1.828H4.5A2.5,2.5,0,0,0,2,4.328V19.5A2.5,2.5,0,0,0,4.5,22h15A2.5,2.5,0,0,0,22,19.5V7.5A2.5,2.5,0,0,0,19.5,5ZM20,19.5a.5.5,0,0,1-.5.5H4.5a.5.5,0,0,1-.5-.5V7.5A.5.5,0,0,1,4.5,7h15a.5.5,0,0,1,.5.5Z"/></svg></span>
           <input type="text" class="cat-name-input" data-cat-id="${catId}" value="${cat.name}" onclick="event.stopPropagation()">
         </div>
         <span class="badge badge-purple">${totalLinks} links</span>
@@ -621,7 +621,7 @@ function renderPreview() {
                 <span class="checkmark"></span>
               </label>
               <span class="subfolder-toggle-icon">▶</span>
-              <span>📁</span>
+              <span style="display:flex; align-items:center; color:var(--color-primary);"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19.5,5H13.243a3,3,0,0,1-2.122-.879l-1.414-1.414A3,3,0,0,0,7.586,1.828H4.5A2.5,2.5,0,0,0,2,4.328V19.5A2.5,2.5,0,0,0,4.5,22h15A2.5,2.5,0,0,0,22,19.5V7.5A2.5,2.5,0,0,0,19.5,5ZM20,19.5a.5.5,0,0,1-.5.5H4.5a.5.5,0,0,1-.5-.5V7.5A.5.5,0,0,1,4.5,7h15a.5.5,0,0,1,.5.5Z"/></svg></span>
               <input type="text" class="subfolder-name-input" data-cat-id="${catId}" data-sub-id="${subId}" value="${sub.name}" onclick="event.stopPropagation()">
             </div>
             <span class="badge badge-purple" style="font-size: 11px;">${sub.bookmarks.length} links</span>
@@ -681,7 +681,7 @@ function renderPreview() {
             <span class="checkmark"></span>
           </label>
           <span class="folder-toggle-icon">▶</span>
-          <span>📁</span>
+          <span style="display:flex; align-items:center; color:var(--color-primary);"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19.5,5H13.243a3,3,0,0,1-2.122-.879l-1.414-1.414A3,3,0,0,0,7.586,1.828H4.5A2.5,2.5,0,0,0,2,4.328V19.5A2.5,2.5,0,0,0,4.5,22h15A2.5,2.5,0,0,0,22,19.5V7.5A2.5,2.5,0,0,0,19.5,5ZM20,19.5a.5.5,0,0,1-.5.5H4.5a.5.5,0,0,1-.5-.5V7.5A.5.5,0,0,1,4.5,7h15a.5.5,0,0,1,.5.5Z"/></svg></span>
           <input type="text" class="domain-name-input" data-domain-key="${domainKey}" value="${group.name}" onclick="event.stopPropagation()">
         </div>
         <span class="badge badge-purple">${group.bookmarks.length} links</span>
@@ -1069,7 +1069,7 @@ async function restoreOriginalBookmarks() {
   chrome.storage.local.get('bookmarks_backups', async (result) => {
     const backups = result.bookmarks_backups || [];
     if (backups.length === 0) {
-      alert('No backup history found to restore.');
+      showToast('No backup history found to restore.', 'error');
       return;
     }
     const latest = backups[0];
@@ -1081,11 +1081,11 @@ async function restoreOriginalBookmarks() {
 
     try {
       await BookmarkManager.restoreSpecificBackup(latest);
-      alert('Your bookmarks have been successfully restored to their original structure!');
+      showToast('Your bookmarks have been successfully restored!', 'success');
       goToStep(1);
     } catch (err) {
       console.error(err);
-      alert('Error during restoration: ' + err.message);
+      showToast('Error during restoration: ' + err.message, 'error');
     } finally {
       restoreBtn.disabled = false;
       restoreBtn.textContent = originalRestoreBtnText;
@@ -1247,6 +1247,13 @@ const BookmarkManager = {
     this.settingsThresholdSlider = document.getElementById('settings-threshold-slider');
     this.settingsThresholdVal = document.getElementById('settings-threshold-val');
     this.settingsCategoriesList = document.getElementById('settings-categories-list');
+
+    // Command Center Options
+    this.settingsCcTheme = document.getElementById('settings-cc-theme');
+    this.settingsCcBlur = document.getElementById('settings-cc-blur');
+    this.settingsCcBlurVal = document.getElementById('settings-cc-blur-val');
+    this.settingsCcHistory = document.getElementById('settings-cc-history');
+
     this.settingsSaveBtn = document.getElementById('settings-save-btn');
   },
 
@@ -1272,6 +1279,12 @@ const BookmarkManager = {
     if (this.settingsThresholdSlider) {
       this.settingsThresholdSlider.addEventListener('input', (e) => {
         if (this.settingsThresholdVal) this.settingsThresholdVal.textContent = e.target.value;
+      });
+    }
+
+    if (this.settingsCcBlur) {
+      this.settingsCcBlur.addEventListener('input', (e) => {
+        if (this.settingsCcBlurVal) this.settingsCcBlurVal.textContent = e.target.value + 'px';
       });
     }
 
@@ -1816,11 +1829,11 @@ const BookmarkManager = {
       
       checkExistingBackup();
 
-      alert(`Restructure Complete!\n\nChecked ${allBM.length} bookmarks.\nSuccessfully restructured ${movedCount} misplaced bookmarks into their correct smart directories.`);
+      showToast(`Restructured ${movedCount} misplaced bookmarks into smart directories!`, 'success');
       this.refreshLibrary();
     } catch (err) {
       console.error(err);
-      alert('Error during background restructuring: ' + err.message);
+      showToast('Error during background restructuring: ' + err.message, 'error');
     } finally {
       restructureBtn.disabled = false;
       restructureBtn.innerHTML = originalText;
@@ -1865,7 +1878,7 @@ const BookmarkManager = {
         const allLabel = document.createElement('div');
         allLabel.className = `folder-tree-label ${this.activeFolderId === 'all' ? 'active' : ''}`;
         allLabel.dataset.folderId = 'all';
-        allLabel.innerHTML = `<span class="tree-toggle-arrow spacer"></span><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-star" style="color:var(--color-primary); fill:var(--color-primary);"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> <span>All Bookmarks</span>`;
+        allLabel.innerHTML = `<span class="tree-toggle-arrow spacer"></span><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color:var(--color-primary); margin-right:4px;"><path d="M23.633,9.585a1.006,1.006,0,0,0-.783-.681l-6.852-1, -3.069-6.208a1.018,1.018,0,0,0-1.815,0L8.045,7.9l-6.852,1A1.006,1.006,0,0,0,.633,10.58l4.958,4.832L4.42,22.253a1,1,0,0,0,1.453,1.056L12,19.682l6.127,3.627a1,1,0,0,0,1.453-1.056l-1.171-6.841,4.958-4.832A1.006,1.006,0,0,0,23.633,9.585Z"/></svg> <span>All Bookmarks</span>`;
         allLabel.addEventListener('click', () => this.switchFolder('all'));
         allLi.appendChild(allLabel);
         rootUl.appendChild(allLi);
@@ -1952,7 +1965,7 @@ const BookmarkManager = {
 
             labelDiv.innerHTML = `
               ${toggleHtml}
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="color:var(--color-secondary); fill:rgba(168,85,247,0.08); margin-right:4px;"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color:var(--color-secondary); margin-right:4px;"><path d="M19.5,5H13.243a3,3,0,0,1-2.122-.879l-1.414-1.414A3,3,0,0,0,7.586,1.828H4.5A2.5,2.5,0,0,0,2,4.328V19.5A2.5,2.5,0,0,0,4.5,22h15A2.5,2.5,0,0,0,22,19.5V7.5A2.5,2.5,0,0,0,19.5,5ZM20,19.5a.5.5,0,0,1-.5.5H4.5a.5.5,0,0,1-.5-.5V7.5A.5.5,0,0,1,4.5,7h15a.5.5,0,0,1,.5.5Z"/></svg>
               <span class="folder-name-text" title="${node.title}">${displayTitle}</span>
             `;
             
@@ -3059,6 +3072,23 @@ const BookmarkManager = {
         this.settingsCategoriesList.appendChild(label);
       });
     }
+
+    // Load Command Center settings
+    chrome.storage.local.get(['organizer_user_settings'], (result) => {
+      const settings = result.organizer_user_settings || {};
+      if (this.settingsCcTheme) {
+        this.settingsCcTheme.value = settings.ccTheme || 'black';
+      }
+      if (this.settingsCcBlur) {
+        this.settingsCcBlur.value = settings.ccBlur !== undefined ? settings.ccBlur : 15;
+        if (this.settingsCcBlurVal) {
+          this.settingsCcBlurVal.textContent = (settings.ccBlur !== undefined ? settings.ccBlur : 15) + 'px';
+        }
+      }
+      if (this.settingsCcHistory) {
+        this.settingsCcHistory.checked = settings.ccHistory !== false;
+      }
+    });
   },
 
   saveSettingsFromManager() {
@@ -3098,19 +3128,26 @@ const BookmarkManager = {
     }
     
     // 4. Save to local storage settings snapshot
+    const ccThemeVal = this.settingsCcTheme ? this.settingsCcTheme.value : 'black';
+    const ccBlurVal = this.settingsCcBlur ? parseInt(this.settingsCcBlur.value, 10) : 15;
+    const ccHistoryVal = this.settingsCcHistory ? this.settingsCcHistory.checked : true;
+
     const settingsObj = {
       parentFolderName: this.settingsParentName ? this.settingsParentName.value : 'Bookmarks Bar',
-      threshold: this.settingsThresholdSlider ? this.settingsThresholdSlider.value : '5'
+      threshold: this.settingsThresholdSlider ? this.settingsThresholdSlider.value : '5',
+      ccTheme: ccThemeVal,
+      ccBlur: ccBlurVal,
+      ccHistory: ccHistoryVal
     };
-    chrome.storage.local.set({ 'organizer_user_settings': settingsObj });
+    chrome.storage.local.set({ 'organizer_user_settings': settingsObj }, () => {
+      // Sync categories list in Wizard step 1 UI (refresh checkmarks)
+      if (typeof initCategoriesUI === 'function') {
+        initCategoriesUI();
+      }
 
-    // Sync categories list in Wizard step 1 UI (refresh checkmarks)
-    if (typeof initCategoriesUI === 'function') {
-      initCategoriesUI();
-    }
-
-    alert('Settings successfully updated and saved!');
-    this.switchView('bookmarks');
+      showToast('Settings successfully updated and saved!', 'success');
+      this.switchView('bookmarks');
+    });
   },
 
   loadHistory(query = '') {
@@ -3368,4 +3405,42 @@ const COMMANDS = [
   { cmd: "/wizard", desc: "Launch Smart Sorter wizard" },
   { cmd: "/undo", desc: "Undo last bookmark organization" }
 ];
+
+function showToast(message, type = 'success') {
+  const toast = document.createElement('div');
+  toast.className = `custom-toast toast-${type}`;
+  toast.style.cssText = `
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: ${type === 'success' ? 'rgba(16, 185, 129, 0.9)' : 'rgba(239, 68, 68, 0.9)'};
+    border: 1px solid ${type === 'success' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'};
+    color: white;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 13.5px;
+    font-weight: 600;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    z-index: 99999;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  `;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.transform = 'translateY(0)';
+    toast.style.opacity = '1';
+  }, 50);
+  
+  setTimeout(() => {
+    toast.style.transform = 'translateY(100px)';
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 300);
+  }, 3500);
+}
 

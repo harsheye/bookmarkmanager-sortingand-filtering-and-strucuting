@@ -2007,3 +2007,13 @@ input:checked + .slider-switch:before {
 .cookie-detail-item:hover {
   background: rgba(255, 255, 255, 0.02);
 }
+
+/* Custom Toast notification styling overrides */
+.custom-toast {
+  animation: toast-glow 2s infinite alternate;
+}
+
+@keyframes toast-glow {
+  0% { box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
+  100% { box-shadow: 0 10px 35px rgba(99, 102, 241, 0.25); }
+}
