@@ -141,13 +141,13 @@ function checkExistingBackup() {
   chrome.storage.local.get(['bookmarks_backup'], (result) => {
     if (result.bookmarks_backup) {
       lastBackup = result.bookmarks_backup;
-      navRestoreBtn.classList.remove('hidden');
+      if (navRestoreBtn) navRestoreBtn.classList.remove('hidden');
       if (backupTimestampText) {
         const dateStr = new Date(lastBackup.timestamp).toLocaleString();
         backupTimestampText.textContent = `Backup created: ${dateStr}`;
       }
     } else {
-      navRestoreBtn.classList.add('hidden');
+      if (navRestoreBtn) navRestoreBtn.classList.add('hidden');
     }
   });
 }
@@ -166,7 +166,7 @@ function setupEventListeners() {
 
   // Restore bookmark backup
   restoreBtn.addEventListener('click', restoreOriginalBookmarks);
-  navRestoreBtn.addEventListener('click', restoreOriginalBookmarks);
+  if (navRestoreBtn) navRestoreBtn.addEventListener('click', restoreOriginalBookmarks);
 
   // Scan Again header button
   const navScanBtn = document.getElementById('nav-scan-btn');
@@ -1077,7 +1077,7 @@ async function restoreOriginalBookmarks() {
     const originalRestoreBtnText = restoreBtn.textContent;
     restoreBtn.disabled = true;
     restoreBtn.textContent = 'Restoring...';
-    navRestoreBtn.disabled = true;
+    if (navRestoreBtn) navRestoreBtn.disabled = true;
 
     try {
       await BookmarkManager.restoreSpecificBackup(latest);
@@ -1089,7 +1089,7 @@ async function restoreOriginalBookmarks() {
     } finally {
       restoreBtn.disabled = false;
       restoreBtn.textContent = originalRestoreBtnText;
-      navRestoreBtn.disabled = false;
+      if (navRestoreBtn) navRestoreBtn.disabled = false;
     }
   });
 }
@@ -1239,6 +1239,7 @@ const BookmarkManager = {
     this.tabBookmarks = document.getElementById('tab-bookmarks');
     this.tabHistory = document.getElementById('tab-history');
     this.tabCookies = document.getElementById('tab-cookies');
+    this.tabNotes = document.getElementById('tab-notes');
     this.tabSettings = document.getElementById('tab-settings');
 
     // Settings Panel
@@ -1253,8 +1254,22 @@ const BookmarkManager = {
     this.settingsCcBlur = document.getElementById('settings-cc-blur');
     this.settingsCcBlurVal = document.getElementById('settings-cc-blur-val');
     this.settingsCcHistory = document.getElementById('settings-cc-history');
+    this.settingsHistoryBlacklist = document.getElementById('settings-history-blacklist');
+    this.settingsHistoryWhitelist = document.getElementById('settings-history-whitelist');
 
     this.settingsSaveBtn = document.getElementById('settings-save-btn');
+
+    // Notes Manager Panel
+    this.notesViewContainer = document.getElementById('notes-view-container');
+    this.notesSidebarList = document.getElementById('notes-sidebar-list');
+    this.notesNewBtn = document.getElementById('notes-new-btn');
+    this.noteEditorPane = document.getElementById('note-editor-pane');
+    this.noteEditorPlaceholder = document.getElementById('note-editor-placeholder');
+    this.noteEditorTitle = document.getElementById('note-editor-title');
+    this.noteEditorBody = document.getElementById('note-editor-body');
+    this.noteSaveBtn = document.getElementById('note-save-btn');
+    this.noteDeleteBtn = document.getElementById('note-delete-btn');
+    this.noteVersionsList = document.getElementById('note-versions-list');
   },
 
   setupListeners() {
@@ -1413,6 +1428,93 @@ const BookmarkManager = {
         if (e.target === this.backupsModal) this.closeBackupsModal();
       });
     }
+
+    // Notes Manager listeners
+    if (this.tabNotes) {
+      this.tabNotes.addEventListener('click', () => this.switchView('notes'));
+    }
+    if (this.notesNewBtn) {
+      this.notesNewBtn.addEventListener('click', () => this.initiateNewNote());
+    }
+    if (this.noteSaveBtn) {
+      this.noteSaveBtn.addEventListener('click', () => this.saveActiveNote());
+    }
+    if (this.noteDeleteBtn) {
+      this.noteDeleteBtn.addEventListener('click', () => this.deleteActiveNote());
+    }
+
+    // History Toolbar listeners
+    const selectAllCb = document.getElementById('history-select-all');
+    if (selectAllCb) {
+      selectAllCb.addEventListener('change', (e) => {
+        const checked = e.target.checked;
+        document.querySelectorAll('.history-row-cb').forEach(cb => {
+          cb.checked = checked;
+        });
+      });
+    }
+
+    const deleteSelectedBtn = document.getElementById('history-delete-selected');
+    if (deleteSelectedBtn) {
+      deleteSelectedBtn.addEventListener('click', () => {
+        const checkedCbs = document.querySelectorAll('.history-row-cb:checked');
+        if (checkedCbs.length === 0) {
+          showToast('No history items selected!', 'error');
+          return;
+        }
+        const confirmDelete = confirm(`Are you sure you want to delete the ${checkedCbs.length} selected history items?`);
+        if (!confirmDelete) return;
+
+        let deletedCount = 0;
+        checkedCbs.forEach(cb => {
+          const url = cb.dataset.url;
+          chrome.history.deleteUrl({ url: url }, () => {
+            const tr = cb.closest('tr');
+            if (tr) tr.remove();
+            deletedCount++;
+            if (deletedCount === checkedCbs.length) {
+              showToast(`Deleted ${deletedCount} history items!`, 'success');
+              if (selectAllCb) selectAllCb.checked = false;
+              if (this.bookmarksBody.children.length === 0) {
+                this.emptyState.classList.remove('hidden');
+                document.getElementById('empty-state-text').textContent = "No history items found.";
+              }
+            }
+          });
+        });
+      });
+    }
+
+    const clearAllBtn = document.getElementById('history-clear-all');
+    if (clearAllBtn) {
+      clearAllBtn.addEventListener('click', () => {
+        const confirmClear = confirm("Are you sure you want to clear ALL browsing history? This will delete all search results visible here from Chrome's database.");
+        if (!confirmClear) return;
+        chrome.history.deleteAll(() => {
+          this.loadHistory();
+          showToast('History cleared completely!', 'success');
+        });
+      });
+    }
+
+    const sortSelect = document.getElementById('history-sort-select');
+    if (sortSelect) {
+      sortSelect.addEventListener('change', () => {
+        this.loadHistory();
+      });
+    }
+
+    const manageListsBtn = document.getElementById('history-manage-lists-btn');
+    if (manageListsBtn) {
+      manageListsBtn.addEventListener('click', () => {
+        this.switchView('settings');
+      });
+    }
+
+    // Close any history row dropdown menus when clicking outside
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.history-row-menu').forEach(el => el.classList.add('hidden'));
+    });
   },
 
   showWizard() {
@@ -2831,10 +2933,11 @@ const BookmarkManager = {
     if (!this.backupsListContainer) return;
     this.backupsListContainer.innerHTML = '';
     
-    chrome.storage.local.get('bookmarks_backups', (result) => {
+    chrome.storage.local.get(['bookmarks_backups', 'bookmarks_backup'], (result) => {
       const backups = result.bookmarks_backups || [];
+      const originalBackup = result.bookmarks_backup;
       
-      if (backups.length === 0) {
+      if (backups.length === 0 && !originalBackup) {
         this.backupsListContainer.innerHTML = `
           <div style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
             <span style="font-size: 28px; display: block; margin-bottom: 10px;">↩️</span>
@@ -2870,6 +2973,34 @@ const BookmarkManager = {
         
         this.backupsListContainer.appendChild(card);
       });
+
+      // Render Original onboarding backup at the end of the list
+      if (originalBackup) {
+        const card = document.createElement('div');
+        card.className = 'backup-point-card';
+        card.style.cssText = 'border: 1px dashed rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.03); margin-top: 15px;';
+        
+        const dateStr = originalBackup.timestamp ? new Date(originalBackup.timestamp).toLocaleString() : 'Before First Sorter Run';
+        
+        card.innerHTML = `
+          <div class="backup-point-info">
+            <span class="backup-point-title" style="color: #f87171; font-weight: 700;">Original Onboarding Backup</span>
+            <span class="backup-point-meta">Created: ${dateStr}</span>
+            <div class="backup-point-stats">
+              <span style="color: #f87171;">Resets bookmarks structure completely</span>
+            </div>
+          </div>
+          <button class="btn btn-danger btn-small restore-point-btn" id="restore-original-btn" style="padding: 6px 12px; font-size: 12.5px;">
+            Undo Initial Sort
+          </button>
+        `;
+        
+        card.querySelector('#restore-original-btn').addEventListener('click', () => {
+          restoreOriginalBookmarks();
+        });
+        
+        this.backupsListContainer.appendChild(card);
+      }
     });
   },
 
@@ -2958,6 +3089,7 @@ const BookmarkManager = {
     if (viewName === 'bookmarks' && this.tabBookmarks) this.tabBookmarks.classList.add('active');
     if (viewName === 'history' && this.tabHistory) this.tabHistory.classList.add('active');
     if (viewName === 'cookies' && this.tabCookies) this.tabCookies.classList.add('active');
+    if (viewName === 'notes' && this.tabNotes) this.tabNotes.classList.add('active');
     if (viewName === 'settings' && this.tabSettings) this.tabSettings.classList.add('active');
     
     // Update Search Bar Placeholder
@@ -2971,6 +3103,9 @@ const BookmarkManager = {
       } else if (viewName === 'cookies') {
         this.searchInput.placeholder = "Search website cookies...";
         this.searchInput.disabled = false;
+      } else if (viewName === 'notes') {
+        this.searchInput.placeholder = "Notes Workspace - search disabled";
+        this.searchInput.disabled = true;
       } else if (viewName === 'settings') {
         this.searchInput.placeholder = "Settings Panel - search disabled";
         this.searchInput.disabled = true;
@@ -2988,15 +3123,23 @@ const BookmarkManager = {
       }
     }
 
-    // Toggle visibility of bookmarks table vs settings view
+    // Toggle visibility of bookmarks table vs settings view vs notes view
     const tableEl = document.getElementById('bookmarks-table');
     const settingsEl = document.getElementById('settings-view-container');
+    const notesEl = document.getElementById('notes-view-container');
+    
     if (viewName === 'settings') {
       if (tableEl) tableEl.classList.add('hidden');
       if (settingsEl) settingsEl.classList.remove('hidden');
+      if (notesEl) notesEl.classList.add('hidden');
+    } else if (viewName === 'notes') {
+      if (tableEl) tableEl.classList.add('hidden');
+      if (settingsEl) settingsEl.classList.add('hidden');
+      if (notesEl) notesEl.classList.remove('hidden');
     } else {
       if (tableEl) tableEl.classList.remove('hidden');
       if (settingsEl) settingsEl.classList.add('hidden');
+      if (notesEl) notesEl.classList.add('hidden');
     }
     
     // Refresh content
@@ -3004,6 +3147,15 @@ const BookmarkManager = {
   },
 
   async refreshViewContent() {
+    const historyToolbar = document.getElementById('history-toolbar');
+    if (historyToolbar) {
+      if (this.activeView === 'history') {
+        historyToolbar.classList.remove('hidden');
+      } else {
+        historyToolbar.classList.add('hidden');
+      }
+    }
+
     if (this.activeView === 'bookmarks') {
       // Restore bookmarks view: show the breadcrumbs, add button, and load bookmarks
       document.getElementById('explorer-breadcrumbs').style.display = 'flex';
@@ -3035,6 +3187,13 @@ const BookmarkManager = {
       document.getElementById('th-url').innerHTML = `Cookie Details`;
       
       this.loadCookies();
+    } else if (this.activeView === 'notes') {
+      // Notes view: hide breadcrumbs, hide add button
+      document.getElementById('explorer-breadcrumbs').style.display = 'none';
+      document.getElementById('add-bookmark-btn').style.display = 'none';
+      this.emptyState.classList.add('hidden');
+      
+      this.loadNotesManager();
     } else if (this.activeView === 'settings') {
       // Settings view: hide breadcrumbs, hide add button
       document.getElementById('explorer-breadcrumbs').style.display = 'none';
@@ -3088,6 +3247,12 @@ const BookmarkManager = {
       if (this.settingsCcHistory) {
         this.settingsCcHistory.checked = settings.ccHistory !== false;
       }
+      if (this.settingsHistoryBlacklist) {
+        this.settingsHistoryBlacklist.value = settings.historyBlacklist || '';
+      }
+      if (this.settingsHistoryWhitelist) {
+        this.settingsHistoryWhitelist.value = settings.historyWhitelist || '';
+      }
     });
   },
 
@@ -3131,13 +3296,17 @@ const BookmarkManager = {
     const ccThemeVal = this.settingsCcTheme ? this.settingsCcTheme.value : 'black';
     const ccBlurVal = this.settingsCcBlur ? parseInt(this.settingsCcBlur.value, 10) : 15;
     const ccHistoryVal = this.settingsCcHistory ? this.settingsCcHistory.checked : true;
+    const blacklistVal = this.settingsHistoryBlacklist ? this.settingsHistoryBlacklist.value : '';
+    const whitelistVal = this.settingsHistoryWhitelist ? this.settingsHistoryWhitelist.value : '';
 
     const settingsObj = {
       parentFolderName: this.settingsParentName ? this.settingsParentName.value : 'Bookmarks Bar',
       threshold: this.settingsThresholdSlider ? this.settingsThresholdSlider.value : '5',
       ccTheme: ccThemeVal,
       ccBlur: ccBlurVal,
-      ccHistory: ccHistoryVal
+      ccHistory: ccHistoryVal,
+      historyBlacklist: blacklistVal,
+      historyWhitelist: whitelistVal
     };
     chrome.storage.local.set({ 'organizer_user_settings': settingsObj }, () => {
       // Sync categories list in Wizard step 1 UI (refresh checkmarks)
@@ -3153,56 +3322,163 @@ const BookmarkManager = {
   loadHistory(query = '') {
     this.bookmarksBody.innerHTML = '';
     
-    chrome.history.search({ text: query, maxResults: 150 }, (historyItems) => {
-      if (chrome.runtime.lastError || !historyItems || historyItems.length === 0) {
-        document.getElementById('folders-grid-section').classList.add('hidden');
-        this.emptyState.classList.remove('hidden');
-        document.getElementById('empty-state-text').textContent = "No history items found.";
-        return;
-      }
+    // Show history toolbar actions
+    const historyToolbar = document.getElementById('history-toolbar');
+    if (historyToolbar) historyToolbar.classList.remove('hidden');
+    
+    chrome.storage.local.get(['organizer_user_settings'], (settingsResult) => {
+      const settings = settingsResult.organizer_user_settings || {};
+      const blacklistStr = settings.historyBlacklist || '';
+      const whitelistStr = settings.historyWhitelist || '';
       
-      this.emptyState.classList.add('hidden');
-      document.getElementById('folders-grid-section').classList.add('hidden');
+      const blacklist = blacklistStr.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+      const whitelist = whitelistStr.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
       
-      historyItems.forEach(item => {
-        const tr = document.createElement('tr');
-        tr.dataset.itemId = item.id;
+      chrome.history.search({ text: query, maxResults: 200 }, (historyItems) => {
+        if (chrome.runtime.lastError || !historyItems || historyItems.length === 0) {
+          this.emptyState.classList.remove('hidden');
+          document.getElementById('empty-state-text').textContent = "No history items found.";
+          return;
+        }
         
-        const visitTime = new Date(item.lastVisitTime).toLocaleString();
-        const cleanDomain = BookmarkRules.getDomain(item.url);
-        const faviconUrl = `https://www.google.com/s2/favicons?sz=32&domain=${cleanDomain}`;
-        
-        tr.innerHTML = `
-          <td>
-            <div class="table-cell-name">
-              <span><img class="table-favicon" src="${faviconUrl}" onerror="this.src='../icons/icon16.png'"></span>
-              <a href="${item.url}" target="_blank" class="table-link" title="${item.title || item.url}">${item.title || item.url}</a>
-            </div>
-          </td>
-          <td title="${item.url}">
-            <div style="display:flex; flex-direction:column; gap:2px;">
-              <a href="${item.url}" target="_blank" style="color:var(--text-muted); text-decoration:none; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; max-width:400px;">${item.url}</a>
-              <span style="font-size:11px; color:rgba(255,255,255,0.4);">Visited: ${visitTime} &bull; Visits: ${item.visitCount}</span>
-            </div>
-          </td>
-          <td class="table-actions-cell" style="text-align:center;">
-            <button class="action-icon-btn delete-history-btn" title="Delete from History">🗑️</button>
-          </td>
-        `;
-        
-        tr.querySelector('.delete-history-btn').addEventListener('click', (e) => {
-          e.stopPropagation();
-          chrome.history.deleteUrl({ url: item.url }, () => {
-            tr.remove();
-            if (this.bookmarksBody.children.length === 0) {
-              this.emptyState.classList.remove('hidden');
-              document.getElementById('empty-state-text').textContent = "No history items found.";
-            }
-          });
+        // Filter history items by blacklist & whitelist
+        let filteredItems = historyItems.filter(item => {
+          const domain = BookmarkRules.getDomain(item.url);
+          // 1. Blacklist check
+          if (blacklist.some(d => domain === d || domain.endsWith('.' + d))) {
+            return false;
+          }
+          // 2. Whitelist check
+          if (whitelist.length > 0 && !whitelist.some(d => domain === d || domain.endsWith('.' + d))) {
+            return false;
+          }
+          return true;
         });
+
+        if (filteredItems.length === 0) {
+          this.emptyState.classList.remove('hidden');
+          document.getElementById('empty-state-text').textContent = "No history items match your filters.";
+          return;
+        }
         
-        this.bookmarksBody.appendChild(tr);
+        this.emptyState.classList.add('hidden');
+
+        // Sort filteredItems based on the selected option
+        const sortSelect = document.getElementById('history-sort-select');
+        const sortVal = sortSelect ? sortSelect.value : 'date-desc';
+        if (sortVal === 'date-desc') {
+          filteredItems.sort((a, b) => b.lastVisitTime - a.lastVisitTime);
+        } else if (sortVal === 'date-asc') {
+          filteredItems.sort((a, b) => a.lastVisitTime - b.lastVisitTime);
+        } else if (sortVal === 'visits-desc') {
+          filteredItems.sort((a, b) => b.visitCount - a.visitCount);
+        } else if (sortVal === 'title-asc') {
+          filteredItems.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+        }
+
+        filteredItems.forEach(item => {
+          const tr = document.createElement('tr');
+          tr.dataset.itemId = item.id;
+          tr.dataset.itemUrl = item.url;
+          
+          const visitTime = new Date(item.lastVisitTime).toLocaleString();
+          const cleanDomain = BookmarkRules.getDomain(item.url);
+          const faviconUrl = `https://www.google.com/s2/favicons?sz=32&domain=${cleanDomain}`;
+          
+          tr.innerHTML = `
+            <td>
+              <div class="table-cell-name">
+                <input type="checkbox" class="history-row-cb" data-url="${item.url}" style="margin-right: 8px; cursor: pointer;" onclick="event.stopPropagation()">
+                <span><img class="table-favicon" src="${faviconUrl}" onerror="this.src='../icons/icon16.png'"></span>
+                <a href="${item.url}" target="_blank" class="table-link" title="${item.title || item.url}">${item.title || item.url}</a>
+              </div>
+            </td>
+            <td title="${item.url}">
+              <div style="display:flex; flex-direction:column; gap:2px;">
+                <a href="${item.url}" target="_blank" style="color:var(--text-muted); text-decoration:none; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; max-width:400px;">${item.url}</a>
+                <span style="font-size:11px; color:rgba(255,255,255,0.4);">Visited: ${visitTime} &bull; Visits: ${item.visitCount}</span>
+              </div>
+            </td>
+            <td class="table-actions-cell" style="text-align:center; position: relative;">
+              <div class="history-actions-menu" style="display: flex; gap: 8px; justify-content: center; align-items: center;">
+                <button class="action-icon-btn delete-history-btn" title="Delete from History">🗑️</button>
+                <button class="action-icon-btn history-more-btn" title="More options" style="font-size: 14px; padding: 2px 6px;">⋮</button>
+                <!-- Row Dropdown Context Menu -->
+                <div class="history-row-menu hidden" style="position: absolute; right: 20px; top: 30px; background: #1e1e24; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 100; min-width: 140px; display: flex; flex-direction: column; padding: 4px 0;">
+                  <button class="menu-item blacklist-domain-btn" style="background: transparent; border: none; color: white; padding: 8px 12px; text-align: left; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; width: 100%;">🚫 Blacklist Domain</button>
+                  <button class="menu-item whitelist-domain-btn" style="background: transparent; border: none; color: white; padding: 8px 12px; text-align: left; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; width: 100%;">✔️ Whitelist Domain</button>
+                </div>
+              </div>
+            </td>
+          `;
+          
+          tr.querySelector('.delete-history-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            chrome.history.deleteUrl({ url: item.url }, () => {
+              tr.remove();
+              showToast('History item removed!', 'success');
+              if (this.bookmarksBody.children.length === 0) {
+                this.emptyState.classList.remove('hidden');
+                document.getElementById('empty-state-text').textContent = "No history items found.";
+              }
+            });
+          });
+
+          const moreBtn = tr.querySelector('.history-more-btn');
+          const rowMenu = tr.querySelector('.history-row-menu');
+          moreBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.querySelectorAll('.history-row-menu').forEach(el => {
+              if (el !== rowMenu) el.classList.add('hidden');
+            });
+            rowMenu.classList.toggle('hidden');
+          });
+
+          tr.querySelector('.blacklist-domain-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            rowMenu.classList.add('hidden');
+            this.addDomainToFilter(cleanDomain, 'blacklist');
+          });
+
+          tr.querySelector('.whitelist-domain-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            rowMenu.classList.add('hidden');
+            this.addDomainToFilter(cleanDomain, 'whitelist');
+          });
+          
+          this.bookmarksBody.appendChild(tr);
+        });
       });
+    });
+  },
+
+  addDomainToFilter(domain, type) {
+    chrome.storage.local.get(['organizer_user_settings'], (result) => {
+      const settings = result.organizer_user_settings || {};
+      const key = type === 'blacklist' ? 'historyBlacklist' : 'historyWhitelist';
+      const oldStr = settings[key] || '';
+      const list = oldStr.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+      
+      if (!list.includes(domain)) {
+        list.push(domain);
+        settings[key] = list.join(', ');
+        chrome.storage.local.set({ 'organizer_user_settings': settings }, () => {
+          showToast(`Added ${domain} to history ${type}!`, 'success');
+          if (type === 'blacklist') {
+            chrome.history.search({ text: domain, maxResults: 1000 }, (historyItems) => {
+              historyItems.forEach(item => {
+                const itemDomain = BookmarkRules.getDomain(item.url);
+                if (itemDomain === domain || itemDomain.endsWith('.' + domain)) {
+                  chrome.history.deleteUrl({ url: item.url });
+                }
+              });
+            });
+          }
+          this.loadHistory();
+        });
+      } else {
+        showToast(`${domain} is already in the ${type} list.`, 'error');
+      }
     });
   },
 
@@ -3211,14 +3487,12 @@ const BookmarkManager = {
     
     chrome.cookies.getAll({}, (allCookies) => {
       if (chrome.runtime.lastError || !allCookies || allCookies.length === 0) {
-        document.getElementById('folders-grid-section').classList.add('hidden');
         this.emptyState.classList.remove('hidden');
         document.getElementById('empty-state-text').textContent = "No cookies found. Make sure the extension has the 'cookies' permission.";
         return;
       }
       
       this.emptyState.classList.add('hidden');
-      document.getElementById('folders-grid-section').classList.add('hidden');
       
       // Group cookies by domain
       const domainMap = {};
@@ -3390,6 +3664,207 @@ const BookmarkManager = {
         
         this.bookmarksBody.appendChild(tr);
         this.bookmarksBody.appendChild(detailTr);
+      });
+    });
+  },
+
+  loadNotesManager() {
+    if (!this.notesSidebarList) return;
+    this.notesSidebarList.innerHTML = '';
+    
+    chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
+      const notes = result.bookmark_organizer_notes || {};
+      const names = Object.keys(notes);
+      
+      names.forEach(name => {
+        const btn = document.createElement('div');
+        btn.style.cssText = 'padding: 8px 12px; border-radius: 6px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); color: white; font-size: 13px; cursor: pointer; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; transition: all 0.2s;';
+        if (name === this.activeNoteName) {
+          btn.style.background = 'rgba(16, 185, 129, 0.12)';
+          btn.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+        }
+        btn.textContent = `📝 ${name}`;
+        btn.addEventListener('click', () => {
+          this.selectNote(name);
+        });
+        this.notesSidebarList.appendChild(btn);
+      });
+    });
+  },
+
+  selectNote(name) {
+    this.activeNoteName = name;
+    this.noteEditorPlaceholder.classList.add('hidden');
+    this.noteEditorPane.classList.remove('hidden');
+    this.noteEditorTitle.value = name;
+    
+    chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
+      const notes = result.bookmark_organizer_notes || {};
+      const note = notes[name];
+      
+      let content = "";
+      let versions = [];
+      if (typeof note === 'string') {
+        content = note;
+      } else if (note) {
+        content = note.content;
+        versions = note.versions || [];
+      }
+      
+      this.noteEditorBody.value = content;
+      this.renderNoteVersions(name, versions);
+      
+      if (this.notesSidebarList) {
+        const children = Array.from(this.notesSidebarList.children);
+        children.forEach(child => {
+          if (child.textContent === `📝 ${name}`) {
+            child.style.background = 'rgba(16, 185, 129, 0.12)';
+            child.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+          } else {
+            child.style.background = 'rgba(255,255,255,0.02)';
+            child.style.borderColor = 'rgba(255,255,255,0.05)';
+          }
+        });
+      }
+    });
+  },
+
+  renderNoteVersions(noteName, versions) {
+    this.noteVersionsList.innerHTML = '';
+    if (versions.length === 0) {
+      this.noteVersionsList.innerHTML = '<span style="font-size: 11.5px; color: var(--text-muted); text-align: center; padding: 10px 0; display: block; width: 100%;">No revisions saved.</span>';
+      return;
+    }
+    
+    versions.forEach((v, idx) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.04);';
+      
+      const timeStr = new Date(v.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const dateStr = new Date(v.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
+      
+      row.innerHTML = `
+        <div style="display: flex; flex-direction: column; overflow: hidden; text-align: left;">
+          <span style="font-size: 11px; font-weight: 600; color: white;">Revision ${versions.length - idx}</span>
+          <span style="font-size: 10px; color: var(--text-muted);">${dateStr} ${timeStr}</span>
+        </div>
+        <div style="display: flex; gap: 4px;">
+          <button class="revert-ver-btn" style="background: transparent; border: none; color: #a5b4fc; font-size: 12px; cursor: pointer; padding: 2px 4px;" title="Revert to this version">↩️</button>
+          <button class="delete-ver-btn" style="background: transparent; border: none; color: #f87171; font-size: 12px; cursor: pointer; padding: 2px 4px;" title="Delete this revision">🗑️</button>
+        </div>
+      `;
+      
+      row.querySelector('.revert-ver-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        const confirmRevert = confirm("Are you sure you want to revert active note content to this revision?");
+        if (!confirmRevert) return;
+        this.noteEditorBody.value = v.content;
+        this.saveActiveNote();
+      });
+      
+      row.querySelector('.delete-ver-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        const confirmDel = confirm("Delete this revision from version history?");
+        if (!confirmDel) return;
+        this.deleteNoteVersion(noteName, v.timestamp);
+      });
+      
+      this.noteVersionsList.appendChild(row);
+    });
+  },
+
+  deleteNoteVersion(noteName, timestamp) {
+    chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
+      const notes = result.bookmark_organizer_notes || {};
+      const note = notes[noteName];
+      if (note && typeof note !== 'string') {
+        note.versions = (note.versions || []).filter(v => v.timestamp !== timestamp);
+        notes[noteName] = note;
+        chrome.storage.local.set({ 'bookmark_organizer_notes': notes }, () => {
+          showToast('Revision deleted!', 'success');
+          this.selectNote(noteName);
+        });
+      }
+    });
+  },
+
+  saveActiveNote() {
+    const name = this.noteEditorTitle.value.trim();
+    const content = this.noteEditorBody.value;
+    
+    if (!name) {
+      showToast('Note name cannot be empty!', 'error');
+      return;
+    }
+    
+    chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
+      const notes = result.bookmark_organizer_notes || {};
+      const oldNote = notes[name];
+      
+      let noteObj = { content: "", versions: [] };
+      if (typeof oldNote === 'string') {
+        noteObj = { content: oldNote, versions: [] };
+      } else if (oldNote) {
+        noteObj = oldNote;
+      }
+      
+      if (noteObj.content && noteObj.content !== content) {
+        noteObj.versions.unshift({
+          content: noteObj.content,
+          timestamp: Date.now()
+        });
+        if (noteObj.versions.length > 15) {
+          noteObj.versions.pop();
+        }
+      }
+      noteObj.content = content;
+      notes[name] = noteObj;
+      
+      chrome.storage.local.set({ 'bookmark_organizer_notes': notes }, () => {
+        showToast(`Note "${name}" saved!`, 'success');
+        this.activeNoteName = name;
+        this.selectNote(name);
+      });
+    });
+  },
+
+  deleteActiveNote() {
+    const name = this.activeNoteName;
+    if (!name) return;
+    
+    const confirmDelete = confirm(`Are you sure you want to delete note "${name}"? This cannot be undone.`);
+    if (!confirmDelete) return;
+    
+    chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
+      const notes = result.bookmark_organizer_notes || {};
+      delete notes[name];
+      chrome.storage.local.set({ 'bookmark_organizer_notes': notes }, () => {
+        showToast(`Note "${name}" deleted!`, 'success');
+        this.activeNoteName = null;
+        this.noteEditorPane.classList.add('hidden');
+        this.noteEditorPlaceholder.classList.remove('hidden');
+        this.loadNotesManager();
+      });
+    });
+  },
+
+  initiateNewNote() {
+    const name = prompt("Enter note name:");
+    if (!name) return;
+    const cleanName = name.trim();
+    if (!cleanName) return;
+    
+    chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
+      const notes = result.bookmark_organizer_notes || {};
+      if (notes[cleanName] !== undefined) {
+        showToast(`Note "${cleanName}" already exists!`, 'error');
+        return;
+      }
+      
+      notes[cleanName] = { content: "", versions: [] };
+      chrome.storage.local.set({ 'bookmark_organizer_notes': notes }, () => {
+        showToast(`Note "${cleanName}" created!`, 'success');
+        this.selectNote(cleanName);
       });
     });
   }

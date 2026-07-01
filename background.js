@@ -138,3 +138,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   return true;
 });
+
+// Auto-delete history blacklist monitor
+chrome.history.onVisited.addListener((historyItem) => {
+  chrome.storage.local.get(['organizer_user_settings'], (result) => {
+    const settings = result.organizer_user_settings || {};
+    const blacklistStr = settings.historyBlacklist || '';
+    if (blacklistStr) {
+      const blacklist = blacklistStr.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+      const domain = getDomain(historyItem.url);
+      if (blacklist.some(d => domain === d || domain.endsWith('.' + d))) {
+        chrome.history.deleteUrl({ url: historyItem.url });
+      }
+    }
+  });
+});
+
+function getDomain(urlString) {
+  try {
+    if (!urlString) return "";
+    const url = new URL(urlString);
+    let hostname = url.hostname.toLowerCase();
+    if (hostname.startsWith("www.")) {
+      hostname = hostname.substring(4);
+    }
+    return hostname;
+  } catch (e) {
+    return "";
+  }
+}

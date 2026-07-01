@@ -2017,3 +2017,64 @@ input:checked + .slider-switch:before {
   0% { box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
   100% { box-shadow: 0 10px 35px rgba(99, 102, 241, 0.25); }
 }
+
+/* Glowing primary restructure button style */
+#restructure-btn {
+  background: linear-gradient(135deg, #3730a3 0%, #581c87 100%) !important;
+  color: #f3f4f6 !important;
+  border: 1px solid rgba(139, 92, 246, 0.3) !important;
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.25) !important;
+  font-weight: 600;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#restructure-btn:hover {
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.6) !important;
+  border-color: rgba(139, 92, 246, 0.6) !important;
+  transform: translateY(-1px);
+}
+
+/* Context dropdown menu inside history actions */
+.history-row-menu {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+  animation: menu-slide-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.history-row-menu .menu-item {
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.history-row-menu .menu-item:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.history-row-menu .blacklist-domain-btn:hover {
+  color: #f87171 !important;
+}
+
+.history-row-menu .whitelist-domain-btn:hover {
+  color: #34d399 !important;
+}
+
+@keyframes menu-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Active notes sidebar highlights */
+.sidebar-tab.active {
+  background: rgba(255, 255, 255, 0.06);
+  color: white !important;
+}
+
+#tab-notes:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
