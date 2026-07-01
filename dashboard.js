@@ -1272,15 +1272,6 @@ const BookmarkManager = {
     this.noteVersionsList = document.getElementById('note-versions-list');
     
     // Redesigned elements
-    this.notesSearchInput = document.getElementById('notes-search-input');
-    this.notesSearchClear = document.getElementById('notes-search-clear');
-    this.notesStatTotal = document.getElementById('notes-stat-total');
-    this.notesStatWords = document.getElementById('notes-stat-words');
-    this.notesStatUpdated = document.getElementById('notes-stat-updated');
-    this.notesGrid = document.getElementById('notes-grid');
-    this.notesEmptyState = document.getElementById('notes-empty-state');
-    this.notesEmptyTitle = document.getElementById('notes-empty-title');
-    this.notesEmptyDesc = document.getElementById('notes-empty-desc');
     this.noteCloseBtn = document.getElementById('note-close-btn');
 
     // Premium Redesigned History View elements
@@ -1475,28 +1466,6 @@ const BookmarkManager = {
         this.activeNoteName = null;
         this.noteEditorPane.classList.add('hidden');
         this.noteEditorPlaceholder.classList.remove('hidden');
-        this.loadNotesManager();
-      });
-    }
-    if (this.notesSearchInput) {
-      this.notesSearchInput.addEventListener('input', (e) => {
-        const val = e.target.value.trim().toLowerCase();
-        if (this.notesSearchClear) {
-          if (val) {
-            this.notesSearchClear.classList.remove('hidden');
-          } else {
-            this.notesSearchClear.classList.add('hidden');
-          }
-        }
-        this.loadNotesManager(val);
-      });
-    }
-    if (this.notesSearchClear) {
-      this.notesSearchClear.addEventListener('click', () => {
-        if (this.notesSearchInput) {
-          this.notesSearchInput.value = '';
-        }
-        this.notesSearchClear.classList.add('hidden');
         this.loadNotesManager();
       });
     }
@@ -4788,14 +4757,6 @@ const BookmarkManager = {
       </div>
       <div class="stat-card">
         <div class="stat-header">
-          <span>Bookmarked</span>
-          <i class="fi fi-rr-bookmark stat-icon" style="color: #10b981;"></i>
-        </div>
-        <div class="stat-value" id="stat-val-bookmarks">0</div>
-        <div class="stat-value-sub">links in library</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-header">
           <span>Most Active</span>
           <i class="fi fi-rr-star stat-icon" style="color: #fbbf24;"></i>
         </div>
@@ -4816,7 +4777,6 @@ const BookmarkManager = {
     this.animateValue(document.getElementById('stat-val-history-count'), 0, count, 500);
     this.animateValue(document.getElementById('stat-val-domains'), 0, domains, 500);
     this.animateValue(document.getElementById('stat-val-today'), 0, todayVisits, 500);
-    this.animateValue(document.getElementById('stat-val-bookmarks'), 0, bookmarksCount, 500);
     this.animateValue(document.getElementById('stat-val-blacklisted'), 0, this.historyBlacklistRules.length, 500);
   },
 
@@ -5086,64 +5046,15 @@ const BookmarkManager = {
     });
   },
 
-  loadNotesManager(filterQuery = "") {
+  loadNotesManager() {
     if (!this.notesSidebarList) return;
+    this.notesSidebarList.innerHTML = '';
     
     chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
       const notes = result.bookmark_organizer_notes || {};
       const names = Object.keys(notes);
       
-      // Calculate Stats
-      let totalNotes = names.length;
-      let totalWords = 0;
-      let lastEditedTime = 0;
-      
       names.forEach(name => {
-        const note = notes[name];
-        let content = "";
-        let versions = [];
-        if (typeof note === 'string') {
-          content = note;
-        } else if (note) {
-          content = note.content || "";
-          versions = note.versions || [];
-        }
-        
-        // Count words
-        const words = content.trim().split(/\s+/).filter(w => w.length > 0).length;
-        totalWords += words;
-        
-        // Latest modification time
-        let noteMaxTime = 0;
-        if (versions.length > 0) {
-          noteMaxTime = Math.max(...versions.map(v => v.timestamp || 0));
-        }
-        if (noteMaxTime > lastEditedTime) {
-          lastEditedTime = noteMaxTime;
-        }
-      });
-      
-      if (this.notesStatTotal) this.notesStatTotal.textContent = totalNotes;
-      if (this.notesStatWords) this.notesStatWords.textContent = totalWords;
-      if (this.notesStatUpdated) {
-        if (lastEditedTime > 0) {
-          this.notesStatUpdated.textContent = new Date(lastEditedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        } else {
-          this.notesStatUpdated.textContent = "-";
-        }
-      }
-      
-      // Filter notes
-      const filteredNames = names.filter(name => {
-        if (!filterQuery) return true;
-        const note = notes[name];
-        const content = typeof note === 'string' ? note : (note ? note.content : "");
-        return name.toLowerCase().includes(filterQuery) || content.toLowerCase().includes(filterQuery);
-      });
-      
-      // Render Left Sidebar List
-      this.notesSidebarList.innerHTML = '';
-      filteredNames.forEach(name => {
         const item = document.createElement('div');
         item.className = 'notes-sidebar-item';
         if (name === this.activeNoteName) {
@@ -5188,67 +5099,6 @@ const BookmarkManager = {
         
         this.notesSidebarList.appendChild(item);
       });
-      
-      // Render Main Grid Cards
-      if (this.notesGrid) {
-        this.notesGrid.innerHTML = '';
-        filteredNames.forEach((name, idx) => {
-          const note = notes[name];
-          let content = "";
-          let versions = [];
-          if (typeof note === 'string') {
-            content = note;
-          } else if (note) {
-            content = note.content || "";
-            versions = note.versions || [];
-          }
-          
-          const card = document.createElement('div');
-          card.className = `note-card card-accent-${idx % 5}`;
-          
-          const previewText = content ? content : "No content written yet.";
-          const wordCount = content.trim().split(/\s+/).filter(w => w.length > 0).length;
-          
-          card.innerHTML = `
-            <div class="note-card-header">
-              <span class="note-card-title">${name}</span>
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="opacity: 0.6;"><path d="M19,0H5A5.006,5.006,0,0,0,0,5V19a5.006,5.006,0,0,0,5,5H19a5.006,5.006,0,0,0,5-5V5A5.006,5.006,0,0,0,19,0Zm3,19a3,3,0,0,1-3,3H5a3,3,0,0,1-3-3V5A3,3,0,0,1,5,3H19a3,3,0,0,1,3,3Zm-4-7H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm0-4H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm-5,8H6a1,1,0,0,0,0,2h7a1,1,0,0,0,0-2Z"/></svg>
-            </div>
-            <div class="note-card-preview">${previewText}</div>
-            <div class="note-card-footer">
-              <div class="note-card-meta">
-                <span class="note-card-badge">${wordCount} words</span>
-                ${versions.length > 0 ? `<span class="note-card-badge">${versions.length} revs</span>` : ''}
-              </div>
-              <span class="note-card-date">Open Note →</span>
-            </div>
-          `;
-          
-          card.addEventListener('click', () => {
-            this.selectNote(name);
-          });
-          
-          this.notesGrid.appendChild(card);
-        });
-      }
-      
-      // Empty States
-      if (this.notesEmptyState) {
-        if (totalNotes === 0) {
-          this.notesEmptyState.classList.remove('hidden');
-          if (this.notesGrid) this.notesGrid.classList.add('hidden');
-          this.notesEmptyTitle.textContent = "No Notes Saved Yet";
-          this.notesEmptyDesc.textContent = "Create your first note to start organizing your thoughts, code snippets, or tasks!";
-        } else if (filteredNames.length === 0) {
-          this.notesEmptyState.classList.remove('hidden');
-          if (this.notesGrid) this.notesGrid.classList.add('hidden');
-          this.notesEmptyTitle.textContent = "No Search Results";
-          this.notesEmptyDesc.textContent = `No notes found matching "${filterQuery}". Try a different keyword.`;
-        } else {
-          this.notesEmptyState.classList.add('hidden');
-          if (this.notesGrid) this.notesGrid.classList.remove('hidden');
-        }
-      }
     });
   },
 
