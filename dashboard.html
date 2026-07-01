@@ -21,7 +21,19 @@
   </div>
 
   <div class="app-container">
-    <!-- Header -->
+    <!-- Premium Workspace Floating Actions Overlay Menu -->
+    <div class="workspace-floating-menu-container">
+      <button id="workspace-floating-btn" class="workspace-floating-btn" type="button" title="Workspace Actions">
+        <i class="fi fi-br-settings-sliders"></i>
+        <span>Workspace</span>
+        <i class="fi fi-rr-angle-small-down"></i>
+      </button>
+      <div class="workspace-dropdown-menu hidden" id="workspace-floating-menu">
+        <!-- Rendered dynamically via dashboard.js based on activeView -->
+      </div>
+    </div>
+
+    <!-- Header (Hidden in CSS to reclaim vertical space, kept in DOM to preserve legacy JS bindings) -->
     <header class="app-header">
       <div class="header-actions" style="display: flex; gap: 10px; align-items: center;">
         <!-- Toggle views -->
@@ -288,9 +300,6 @@
                 <div id="note-editor-pane" class="note-editor-wrapper hidden">
                   <div class="note-editor-toolbar">
                     <div class="note-editor-toolbar-left">
-                      <button id="notes-sidebar-expand" class="notes-sidebar-expand-btn hidden" title="Expand Sidebar" type="button">
-                        <i class="fi fi-rr-angle-double-right"></i>
-                      </button>
                       <button id="note-close-btn" class="note-editor-back-btn" title="Back to Dashboard">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
                       </button>
@@ -339,10 +348,10 @@
             <!-- Main History Workspace -->
             <div class="history-workspace">
               <!-- Left Sidebar: Filters & Blacklist -->
+            <!-- Main History Workspace -->
+            <div class="history-workspace">
+              <!-- Left Sidebar: Filters & Blacklist -->
               <div class="history-sidebar-filters">
-                <button id="filter-sidebar-collapse-toggle" class="filter-collapse-btn" title="Collapse Sidebar" type="button">
-                  <i class="fi fi-rr-angle-small-left"></i>
-                </button>
                 <div class="filter-section">
                   <span class="filter-section-title"><i class="fi fi-rr-clock"></i> <span>Timeframe</span></span>
                   <button class="filter-btn active" data-filter="time-all" title="All History"><i class="fi fi-rr-calendar"></i> <span class="filter-label">All History</span></button>
@@ -376,8 +385,12 @@
                 </div>
               </div>
 
-              <!-- Subtle 1px Resize Divider -->
-              <div class="history-resize-divider" id="history-sidebar-resizer"></div>
+              <!-- Subtle 1px Resize Divider with integrated centered collapse button -->
+              <div class="history-resize-divider" id="history-sidebar-resizer">
+                <button id="filter-sidebar-collapse-toggle" class="filter-collapse-btn" title="Toggle Sidebar" type="button">
+                  <i class="fi fi-rr-angle-small-left"></i>
+                </button>
+              </div>
 
               <!-- Center Area: Controls, List Viewport -->
               <div class="history-content-area">

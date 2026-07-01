@@ -101,12 +101,12 @@
   flex-grow: 1;
   min-height: 0;
   height: 100% !important;
-  background: rgba(18, 14, 38, 0.25) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-radius: 12px !important;
-  overflow: hidden !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
-  backdrop-filter: blur(20px) !important;
+  background: #0d0a21 !important; /* Unified dark continuous background */
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  border-radius: 20px !important; /* 20px border radius as requested */
+  overflow: hidden !important; /* Perfect clipping */
+  position: relative;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
   box-sizing: border-box;
 }
 
@@ -114,7 +114,7 @@
 .history-sidebar-filters {
   width: 220px;
   flex-shrink: 0;
-  background: rgba(0, 0, 0, 0.18) !important;
+  background: rgba(0, 0, 0, 0.12) !important; /* Shared background tint */
   padding: 16px !important;
   display: flex;
   flex-direction: column;
@@ -125,6 +125,8 @@
   transition: width 0.25s cubic-bezier(0.25, 1, 0.5, 1), padding 0.25s cubic-bezier(0.25, 1, 0.5, 1) !important;
   box-sizing: border-box;
   height: 100%;
+  border: none !important;
+  border-radius: 0 !important;
 }
 
 .filter-section {
@@ -206,9 +208,9 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  margin-bottom: 12px;
+  padding-bottom: 16px;
+  border-bottom: none !important;
+  margin-bottom: 8px;
   gap: 12px;
 }
 
@@ -274,8 +276,9 @@
   position: relative;
   overflow-y: auto;
   min-height: 0;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.005);
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
   outline: none;
 }
 
@@ -764,13 +767,18 @@
 .history-details-sidebar {
   width: 260px;
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.015);
-  border-left: 1px solid rgba(255, 255, 255, 0.05);
-  padding-left: 16px;
+  background: rgba(0, 0, 0, 0.12) !important; /* Tinted to match left sidebar */
+  border-left: 1px solid rgba(255, 255, 255, 0.06) !important;
+  border-top: none !important;
+  border-right: none !important;
+  border-bottom: none !important;
+  border-radius: 0 !important; /* Clipped automatically by workspace parent */
+  padding: 16px !important;
   display: flex;
   flex-direction: column;
   gap: 16px;
   overflow-y: auto;
+  box-sizing: border-box;
   animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -1051,33 +1059,72 @@
 
 
 
-/* Sidebar Collapse Button (Chevron inside border) */
+/* Sidebar Divider and Collapse button integration */
+.history-resize-divider {
+  width: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  position: relative;
+  cursor: col-resize;
+  transition: background 0.2s cubic-bezier(0.25, 1, 0.5, 1), width 0.2s ease;
+  z-index: 50;
+  flex-shrink: 0;
+  height: 100%;
+}
+
+/* Expanded hit area (32px width) on the divider for easier hovering */
+.history-resize-divider::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -15px;
+  width: 31px;
+  cursor: col-resize;
+  z-index: 45;
+  background: transparent;
+}
+
+.history-resize-divider:hover,
+.history-resize-divider.resizing {
+  background: var(--color-primary) !important;
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
+}
+
+/* Collapse Button (Chevron vertically centered inside divider) */
 .filter-collapse-btn {
   position: absolute;
-  right: -10px;
-  top: 32px;
-  width: 20px;
-  height: 20px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%); /* Centered vertically & horizontally on the line */
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: #100b26;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: #14112e;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   color: var(--text-muted);
   display: flex !important;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 100;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  z-index: 60;
+  opacity: 0; /* Hidden by default - only visible on hover */
+  pointer-events: auto; /* Clickable */
+  transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
   padding: 0 !important;
-  pointer-events: auto !important; /* Allow clicks even if parent is collapsed/disabled */
+}
+
+.history-resize-divider:hover .filter-collapse-btn,
+.history-resize-divider.resizing .filter-collapse-btn {
+  opacity: 1; /* Revealed on hover of the resizer */
 }
 
 .filter-collapse-btn:hover {
   color: #fff;
   border-color: var(--color-primary);
   background: #1e1b4b;
-  transform: scale(1.1);
+  transform: translate(-50%, -50%) scale(1.1); /* Center alignment preserved */
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
 }
 
 .filter-collapse-btn i {
@@ -1086,7 +1133,7 @@
   pointer-events: none;
 }
 
-/* Collapsed Sidebar State */
+/* Collapsed Sidebar State overrides */
 .history-sidebar-filters.collapsed {
   width: 0 !important;
   padding: 0 !important;
@@ -1094,12 +1141,22 @@
   pointer-events: none;
 }
 
-.history-sidebar-filters.collapsed .filter-collapse-btn {
-  right: -20px !important;
+/* Rotate chevron when sidebar is collapsed */
+.history-sidebar-filters.collapsed + .history-resize-divider .filter-collapse-btn i {
+  transform: rotate(180deg);
 }
 
-.history-sidebar-filters.collapsed .filter-collapse-btn i {
-  transform: rotate(180deg);
+/* When sidebar collapsed: hide divider line visually, but keep collapse button clickable */
+.history-sidebar-filters.collapsed + .history-resize-divider {
+  width: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  cursor: default;
+}
+
+.history-sidebar-filters.collapsed + .history-resize-divider .filter-collapse-btn {
+  opacity: 1 !important; /* Always visible when collapsed */
+  left: 12px; /* Float exactly next to the left workspace border */
 }
 
 /* Smooth fade for sidebar text labels when collapsing */
@@ -1118,32 +1175,6 @@
 .history-sidebar-filters.collapsed #custom-date-range-container {
   opacity: 0 !important;
   pointer-events: none;
-}
-
-/* Subtle 1px Resize Divider */
-.history-resize-divider {
-  width: 1px;
-  background: rgba(255, 255, 255, 0.08);
-  position: relative;
-  cursor: col-resize;
-  transition: all 0.2s ease;
-  z-index: 50;
-  flex-shrink: 0;
-  height: 100%;
-}
-
-.history-resize-divider:hover,
-.history-resize-divider.resizing {
-  background: var(--color-primary) !important;
-  box-shadow: 0 0 8px var(--color-primary);
-  width: 2px !important;
-}
-
-/* Hide resizer when sidebar is collapsed */
-.history-sidebar-filters.collapsed + .history-resize-divider {
-  opacity: 0 !important;
-  pointer-events: none !important;
-  width: 0 !important;
 }
 
 /* Custom Dropdown Styling */
@@ -1304,17 +1335,48 @@
   margin: 0;
 }
 
-/* Custom Scrollbars */
+/* Custom Scrollbars: Hidden by default, thin and visible on hover */
+.history-viewport,
+.history-sidebar-filters,
+#blacklist-manager-panel,
+.history-details-sidebar,
+.manager-sidebar {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
 .history-viewport::-webkit-scrollbar,
 .history-sidebar-filters::-webkit-scrollbar,
+#blacklist-manager-panel::-webkit-scrollbar,
 .history-details-sidebar::-webkit-scrollbar,
 .manager-sidebar::-webkit-scrollbar {
-  width: 6px !important;
-  height: 6px !important;
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+
+/* Thin Scrollbars on Hover */
+.history-viewport:hover,
+.history-sidebar-filters:hover,
+#blacklist-manager-panel:hover,
+.history-details-sidebar:hover,
+.manager-sidebar:hover {
+  scrollbar-width: thin !important;
+}
+
+.history-viewport:hover::-webkit-scrollbar,
+.history-sidebar-filters:hover::-webkit-scrollbar,
+#blacklist-manager-panel:hover::-webkit-scrollbar,
+.history-details-sidebar:hover::-webkit-scrollbar,
+.manager-sidebar:hover::-webkit-scrollbar {
+  width: 4px !important;
+  height: 4px !important;
+  display: block !important;
 }
 
 .history-viewport::-webkit-scrollbar-track,
 .history-sidebar-filters::-webkit-scrollbar-track,
+#blacklist-manager-panel::-webkit-scrollbar-track,
 .history-details-sidebar::-webkit-scrollbar-track,
 .manager-sidebar::-webkit-scrollbar-track {
   background: transparent !important;
@@ -1322,18 +1384,20 @@
 
 .history-viewport::-webkit-scrollbar-thumb,
 .history-sidebar-filters::-webkit-scrollbar-thumb,
+#blacklist-manager-panel::-webkit-scrollbar-thumb,
 .history-details-sidebar::-webkit-scrollbar-thumb,
 .manager-sidebar::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.08) !important;
-  border-radius: 3px !important;
-  transition: background 0.2s !important;
+  border-radius: 2px !important;
+  transition: background 0.15s ease !important;
 }
 
-.history-viewport::-webkit-scrollbar-thumb:hover,
-.history-sidebar-filters::-webkit-scrollbar-thumb:hover,
-.history-details-sidebar::-webkit-scrollbar-thumb:hover,
-.manager-sidebar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.15) !important;
+.history-viewport:hover::-webkit-scrollbar-thumb,
+.history-sidebar-filters:hover::-webkit-scrollbar-thumb,
+#blacklist-manager-panel:hover::-webkit-scrollbar-thumb,
+.history-details-sidebar:hover::-webkit-scrollbar-thumb,
+.manager-sidebar:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16) !important;
 }
 
 /* Overriding floating selection bar styling */

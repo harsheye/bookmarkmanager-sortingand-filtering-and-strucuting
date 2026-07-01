@@ -1351,6 +1351,8 @@ const BookmarkManager = {
         this.loadHistory(val);
       } else if (this.activeView === 'cookies') {
         this.loadCookies(val);
+      } else if (this.activeView === 'notes') {
+        this.loadNotesManager(val);
       }
     });
     this.searchInput.addEventListener('keydown', (e) => this.handleSearchKeydown(e));
@@ -1362,6 +1364,8 @@ const BookmarkManager = {
         this.loadHistory('');
       } else if (this.activeView === 'cookies') {
         this.loadCookies('');
+      } else if (this.activeView === 'notes') {
+        this.loadNotesManager('');
       }
       this.searchInput.focus();
     });
@@ -1488,21 +1492,7 @@ const BookmarkManager = {
       });
     }
 
-    // Sidebar collapse & expand
-    if (this.notesSidebarCollapse && this.notesSidebarPanel) {
-      this.notesSidebarCollapse.addEventListener('click', () => {
-        this.notesSidebarPanel.classList.add('collapsed');
-        if (this.notesSidebarExpand) {
-          this.notesSidebarExpand.classList.remove('hidden');
-        }
-      });
-    }
-    if (this.notesSidebarExpand && this.notesSidebarPanel) {
-      this.notesSidebarExpand.addEventListener('click', () => {
-        this.notesSidebarPanel.classList.remove('collapsed');
-        this.notesSidebarExpand.classList.add('hidden');
-      });
-    }
+
 
     // Split view resizer dragging
     if (this.notesSidebarResizer && this.notesSidebarPanel) {
@@ -1640,6 +1630,46 @@ const BookmarkManager = {
             this.selectNote(nextNoteName);
           }
         });
+      }
+    });
+
+    // Workspace Floating actions overlay menu triggers and shortcuts
+    const floatBtn = document.getElementById('workspace-floating-btn');
+    if (floatBtn) {
+      floatBtn.addEventListener('click', (e) => this.toggleFloatingMenu(e));
+    }
+
+    // Close menu on click outside
+    document.addEventListener('click', (e) => {
+      const btn = document.getElementById('workspace-floating-btn');
+      const menu = document.getElementById('workspace-floating-menu');
+      if (btn && menu && !btn.contains(e.target) && !menu.contains(e.target)) {
+        menu.classList.add('hidden');
+      }
+    });
+
+    // Close menu on escape, and handle action shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        this.closeFloatingMenu();
+      }
+      
+      const isCtrl = e.ctrlKey || e.metaKey;
+      if (isCtrl) {
+        const key = e.key.toLowerCase();
+        if (key === 'r' && this.activeView === 'bookmarks') {
+          e.preventDefault();
+          this.runBackgroundRestructure();
+        } else if (key === 'd' && this.activeView === 'bookmarks') {
+          e.preventDefault();
+          this.openDbModal();
+        } else if (key === 'p' && (this.activeView === 'bookmarks' || this.activeView === 'settings')) {
+          e.preventDefault();
+          this.openBackupsModal();
+        } else if (key === 's' && (this.activeView === 'bookmarks' || this.activeView === 'history')) {
+          e.preventDefault();
+          this.showWizard();
+        }
       }
     });
 
@@ -3278,8 +3308,8 @@ const BookmarkManager = {
         this.searchInput.placeholder = "Search website cookies...";
         this.searchInput.disabled = false;
       } else if (viewName === 'notes') {
-        this.searchInput.placeholder = "Notes Workspace - search disabled";
-        this.searchInput.disabled = true;
+        this.searchInput.placeholder = "Search note titles or content...";
+        this.searchInput.disabled = false;
       } else if (viewName === 'settings') {
         this.searchInput.placeholder = "Settings Panel - search disabled";
         this.searchInput.disabled = true;
@@ -3356,6 +3386,7 @@ const BookmarkManager = {
     
     // Refresh content
     this.refreshViewContent();
+    this.renderFloatingMenu();
   },
 
   async refreshViewContent() {
@@ -3788,6 +3819,9 @@ const BookmarkManager = {
     const filterCollapseToggle = document.getElementById('filter-sidebar-collapse-toggle');
     const filterSidebar = document.querySelector('.history-sidebar-filters');
     if (filterCollapseToggle && filterSidebar) {
+      filterCollapseToggle.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+      });
       filterCollapseToggle.addEventListener('click', (e) => {
         e.stopPropagation();
         const isCollapsed = filterSidebar.classList.toggle('collapsed');
@@ -5764,7 +5798,7 @@ const BookmarkManager = {
     }
   },
 
-  loadNotesManager() {
+  loadNotesManager(filterQuery = "") {
     if (!this.notesSidebarList) return;
     this.notesSidebarList.innerHTML = '';
     
@@ -5772,7 +5806,28 @@ const BookmarkManager = {
       const notes = result.bookmark_organizer_notes || {};
       const names = Object.keys(notes);
       
-      names.forEach(name => {
+      const q = typeof filterQuery === 'string' ? filterQuery.toLowerCase().trim() : "";
+      
+      let filteredNames = names;
+      if (q) {
+        filteredNames = names.filter(name => {
+          const noteObj = notes[name];
+          let noteContent = "";
+          if (typeof noteObj === 'string') {
+            noteContent = noteObj;
+          } else if (noteObj && noteObj.content) {
+            noteContent = noteObj.content;
+          }
+          return name.toLowerCase().includes(q) || noteContent.toLowerCase().includes(q);
+        });
+      }
+      
+      if (filteredNames.length === 0) {
+        this.notesSidebarList.innerHTML = '<span style="font-size: 11.5px; color: var(--text-muted); text-align: center; padding: 20px 10px; display: block; width: 100%;">No matching notes found.</span>';
+        return;
+      }
+      
+      filteredNames.forEach(name => {
         const item = document.createElement('div');
         item.className = 'notes-sidebar-item';
         if (name === this.activeNoteName) {
@@ -5811,7 +5866,7 @@ const BookmarkManager = {
                 this.noteEditorPane.classList.add('hidden');
                 this.noteEditorPlaceholder.classList.remove('hidden');
               }
-              this.loadNotesManager();
+              this.loadNotesManager(filterQuery);
             });
           });
         });
@@ -6042,6 +6097,458 @@ const BookmarkManager = {
         this.selectNote(cleanName);
       });
     });
+  },
+
+  toggleFloatingMenu(e) {
+    if (e) e.stopPropagation();
+    const menu = document.getElementById('workspace-floating-menu');
+    if (!menu) return;
+    
+    // Hide other dropdown menus
+    document.querySelectorAll('.dropdown-menu').forEach(m => {
+      if (m !== menu) m.classList.add('hidden');
+    });
+
+    const isHidden = menu.classList.toggle('hidden');
+    if (!isHidden) {
+      this.renderFloatingMenu();
+    }
+  },
+
+  closeFloatingMenu() {
+    const menu = document.getElementById('workspace-floating-menu');
+    if (menu) menu.classList.add('hidden');
+  },
+
+  renderFloatingMenu() {
+    const menu = document.getElementById('workspace-floating-menu');
+    if (!menu) return;
+    
+    let html = '';
+    const view = this.activeView;
+
+    if (view === 'bookmarks') {
+      html += `
+        <div class="menu-section-header">Workspace</div>
+        <button class="menu-item" id="floating-btn-restructure" type="button">
+          <div class="menu-item-left">
+            <i class="fi fi-rr-books-medical" style="color: #60a5fa;"></i>
+            <span>Restructure Library</span>
+          </div>
+          <span class="menu-item-shortcut">Ctrl+R</span>
+        </button>
+        <button class="menu-item" id="floating-btn-db" type="button">
+          <div class="menu-item-left">
+            <i class="fi fi-sr-database-cloud-circle" style="color: #34d399;"></i>
+            <span>Domain Database</span>
+          </div>
+          <span class="menu-item-shortcut">Ctrl+D</span>
+        </button>
+        <button class="menu-item" id="floating-btn-backups" type="button">
+          <div class="menu-item-left">
+            <i class="fi fi-sr-system-restore" style="color: #f59e0b;"></i>
+            <span>Restore Points</span>
+          </div>
+          <span class="menu-item-shortcut">Ctrl+P</span>
+        </button>
+        <button class="menu-item" id="floating-btn-sorter" type="button">
+          <div class="menu-item-left">
+            <i class="fi fi-sr-filter-list" style="color: #a78bfa;"></i>
+            <span>Smart Sorter</span>
+          </div>
+          <span class="menu-item-shortcut">Ctrl+S</span>
+        </button>
+        
+        <div class="menu-divider"></div>
+        <div class="menu-section-header">Actions</div>
+        <button class="menu-item" id="floating-btn-import-bookmarks" type="button">
+          <div class="menu-item-left">
+            <i class="fi fi-rr-upload" style="color: #a855f7;"></i>
+            <span>Import Bookmarks</span>
+          </div>
+        </button>
+        <button class="menu-item" id="floating-btn-export-bookmarks" type="button">
+          <div class="menu-item-left">
+            <i class="fi fi-rr-download" style="color: #06b6d4;"></i>
+            <span>Export Bookmarks</span>
+          </div>
+        </button>
+      `;
+    } else if (view === 'history') {
+      html += `
+        <div class="menu-section-header">History Tools</div>
+        <button class="menu-item" id="floating-btn-blacklist" type="button">
+          <div class="menu-item-left">
+            <i class="fi fi-rr-ban" style="color: #f87171;"></i>
+            <span>Blacklist Manager</span>
+          </div>
+        </button>
+        <button class="menu-item" id="floating-btn-import-rules" type="button">
+          <div class="menu-item-left">
+            <i class="fi fi-rr-upload" style="color: #a855f7;"></i>
+            <span>Import Rules</span>
+          </div>
+        </button>
+        <button class="menu-item" id="floating-btn-export-history" type="button">
+          <div class="menu-item-left">
+            <i class="fi fi-rr-download" style="color: #34d399;"></i>
+            <span>Export History</span>
+          </div>
+        </button>
+        <button class="menu-item" id="floating-btn-sorter" type="button">
+          <div class="menu-item-left">
+            <i class="fi fi-sr-filter-list" style="color: #a78bfa;"></i>
+            <span>Smart Sorter</span>
+          </div>
+          <span class="menu-item-shortcut">Ctrl+S</span>
+        </button>
+      `;
+    } else if (view === 'notes') {
+      html += `
+        <div class="menu-section-header">Notes Tools</div>
+        <button class="menu-item" id="floating-btn-import-notes" type="button">
+          <div class="menu-item-left">
+            <i class="fi fi-rr-upload" style="color: #60a5fa;"></i>
+            <span>Import Notes</span>
+          </div>
+        </button>
+        <button class="menu-item" id="floating-btn-export-notes" type="button">
+          <div class="menu-item-left">
+            <i class="fi fi-rr-download" style="color: #34d399;"></i>
+            <span>Export Notes</span>
+          </div>
+        </button>
+        <button class="menu-item" id="floating-btn-backup-notes" type="button">
+          <div class="menu-item-left">
+            <i class="fi fi-rs-disk" style="color: #a78bfa;"></i>
+            <span>Backup Notes</span>
+          </div>
+        </button>
+        <button class="menu-item" id="floating-btn-restore-notes" type="button">
+          <div class="menu-item-left">
+            <i class="fi fi-sr-system-restore" style="color: #f59e0b;"></i>
+            <span>Restore Notes</span>
+          </div>
+        </button>
+      `;
+    } else if (view === 'cookies') {
+      html += `
+        <div class="menu-section-header">Cookie Tools</div>
+        <button class="menu-item" id="floating-btn-export-cookies" type="button">
+          <div class="menu-item-left">
+            <i class="fi fi-rr-download" style="color: #34d399;"></i>
+            <span>Export Cookies</span>
+          </div>
+        </button>
+        <button class="menu-item" id="floating-btn-clear-cookies" type="button">
+          <div class="menu-item-left">
+            <i class="fi fi-rr-trash" style="color: #f87171;"></i>
+            <span>Delete All Cookies</span>
+          </div>
+        </button>
+      `;
+    } else if (view === 'settings') {
+      html += `
+        <div class="menu-section-header">System Utilities</div>
+        <button class="menu-item" id="floating-btn-reset-settings" type="button">
+          <div class="menu-item-left">
+            <i class="fi fi-rr-undo" style="color: #f59e0b;"></i>
+            <span>Reset Settings</span>
+          </div>
+        </button>
+        <button class="menu-item" id="floating-btn-backups" type="button">
+          <div class="menu-item-left">
+            <i class="fi fi-sr-system-restore" style="color: #60a5fa;"></i>
+            <span>Restore Points</span>
+          </div>
+          <span class="menu-item-shortcut">Ctrl+P</span>
+        </button>
+      `;
+    }
+
+    // Add common settings link to the bottom of all menus
+    html += `
+      <div class="menu-divider"></div>
+      <div class="menu-section-header">System</div>
+      <button class="menu-item" id="floating-btn-nav-settings" type="button">
+        <div class="menu-item-left">
+          <i class="fi fi-br-settings-sliders" style="color: #a855f7;"></i>
+          <span>Settings</span>
+        </div>
+      </button>
+      <button class="menu-item" id="floating-btn-about" type="button">
+        <div class="menu-item-left">
+          <i class="fi fi-rr-info" style="color: #06b6d4;"></i>
+          <span>About Info</span>
+        </div>
+      </button>
+    `;
+
+    menu.innerHTML = html;
+    this.bindFloatingMenuEvents();
+  },
+
+  bindFloatingMenuEvents() {
+    // 1. Bookmarks view actions
+    document.getElementById('floating-btn-restructure')?.addEventListener('click', () => {
+      this.closeFloatingMenu();
+      this.runBackgroundRestructure();
+    });
+    document.getElementById('floating-btn-db')?.addEventListener('click', () => {
+      this.closeFloatingMenu();
+      this.openDbModal();
+    });
+    document.getElementById('floating-btn-backups')?.addEventListener('click', () => {
+      this.closeFloatingMenu();
+      this.openBackupsModal();
+    });
+    document.getElementById('floating-btn-sorter')?.addEventListener('click', () => {
+      this.closeFloatingMenu();
+      this.showWizard();
+    });
+    document.getElementById('floating-btn-import-bookmarks')?.addEventListener('click', () => {
+      this.closeFloatingMenu();
+      this.importBookmarks();
+    });
+    document.getElementById('floating-btn-export-bookmarks')?.addEventListener('click', () => {
+      this.closeFloatingMenu();
+      this.exportBookmarks();
+    });
+
+    // 2. History view actions
+    document.getElementById('floating-btn-blacklist')?.addEventListener('click', () => {
+      this.closeFloatingMenu();
+      if (this.blacklistManagerPanel) {
+        this.blacklistManagerPanel.classList.remove('hidden');
+        this.loadBlacklistRules();
+      }
+    });
+    document.getElementById('floating-btn-import-rules')?.addEventListener('click', () => {
+      this.closeFloatingMenu();
+      document.getElementById('blacklist-import-input')?.click();
+    });
+    document.getElementById('floating-btn-export-history')?.addEventListener('click', () => {
+      this.closeFloatingMenu();
+      this.exportHistory(this.historyFilteredItems);
+    });
+
+    // 3. Notes view actions
+    document.getElementById('floating-btn-import-notes')?.addEventListener('click', () => {
+      this.closeFloatingMenu();
+      this.importNotes();
+    });
+    document.getElementById('floating-btn-export-notes')?.addEventListener('click', () => {
+      this.closeFloatingMenu();
+      this.exportNotes();
+    });
+    document.getElementById('floating-btn-backup-notes')?.addEventListener('click', () => {
+      this.closeFloatingMenu();
+      this.backupNotes();
+    });
+    document.getElementById('floating-btn-restore-notes')?.addEventListener('click', () => {
+      this.closeFloatingMenu();
+      this.restoreNotes();
+    });
+
+    // 4. Cookie view actions
+    document.getElementById('floating-btn-export-cookies')?.addEventListener('click', () => {
+      this.closeFloatingMenu();
+      this.exportCookies();
+    });
+    document.getElementById('floating-btn-clear-cookies')?.addEventListener('click', () => {
+      this.closeFloatingMenu();
+      this.clearAllCookies();
+    });
+
+    // 5. Settings view actions
+    document.getElementById('floating-btn-reset-settings')?.addEventListener('click', () => {
+      this.closeFloatingMenu();
+      this.resetSettings();
+    });
+
+    // 6. Navigation / Common actions
+    document.getElementById('floating-btn-nav-settings')?.addEventListener('click', () => {
+      this.closeFloatingMenu();
+      this.switchView('settings');
+    });
+    document.getElementById('floating-btn-about')?.addEventListener('click', () => {
+      this.closeFloatingMenu();
+      showToast('Smart Bookmark Organizer v1.0.0 • Private & Secure', 'info');
+    });
+  },
+
+  importBookmarks() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const data = JSON.parse(event.target.result);
+          const createRecursive = (node, parentId) => {
+            if (node.url) {
+              chrome.bookmarks.create({ parentId, title: node.title, url: node.url });
+            } else {
+              chrome.bookmarks.create({ parentId, title: node.title }, (newFolder) => {
+                if (node.children) {
+                  node.children.forEach(child => createRecursive(child, newFolder.id));
+                }
+              });
+            }
+          };
+          const rootNodes = Array.isArray(data) ? data : [data];
+          rootNodes.forEach(root => {
+            if (root.children) {
+              root.children.forEach(child => createRecursive(child, this.activeFolderId || "1"));
+            } else {
+              createRecursive(root, this.activeFolderId || "1");
+            }
+          });
+          showToast('Bookmarks imported successfully!', 'success');
+          this.refreshLibrary();
+        } catch(err) {
+          showToast('Failed to parse JSON file.', 'error');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  },
+
+  exportBookmarks() {
+    chrome.bookmarks.getTree((tree) => {
+      const jsonStr = JSON.stringify(tree, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bookmarks_export_${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Bookmarks exported successfully!', 'success');
+    });
+  },
+
+  importNotes() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const data = JSON.parse(event.target.result);
+          chrome.storage.local.get(['bookmark_organizer_notes'], (res) => {
+            const currentNotes = res.bookmark_organizer_notes || {};
+            Object.assign(currentNotes, data);
+            chrome.storage.local.set({ 'bookmark_organizer_notes': currentNotes }, () => {
+              showToast('Notes imported successfully!', 'success');
+              this.loadNotesManager();
+            });
+          });
+        } catch(err) {
+          showToast('Failed to parse JSON file.', 'error');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  },
+
+  exportNotes() {
+    chrome.storage.local.get(['bookmark_organizer_notes'], (res) => {
+      const notes = res.bookmark_organizer_notes || {};
+      const jsonStr = JSON.stringify(notes, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `notes_export_${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Notes exported successfully!', 'success');
+    });
+  },
+
+  backupNotes() {
+    chrome.storage.local.get(['bookmark_organizer_notes'], (res) => {
+      const notes = res.bookmark_organizer_notes || {};
+      chrome.storage.local.set({ 'bookmark_organizer_notes_backup': notes }, () => {
+        showToast('Notes backup saved locally!', 'success');
+      });
+    });
+  },
+
+  restoreNotes() {
+    chrome.storage.local.get(['bookmark_organizer_notes_backup'], (res) => {
+      if (!res.bookmark_organizer_notes_backup) {
+        showToast('No local notes backup found!', 'error');
+        return;
+      }
+      if (confirm('Are you sure you want to restore notes from backup? Current notes will be overwritten.')) {
+        chrome.storage.local.set({ 'bookmark_organizer_notes': res.bookmark_organizer_notes_backup }, () => {
+          showToast('Notes restored successfully!', 'success');
+          this.loadNotesManager();
+        });
+      }
+    });
+  },
+
+  exportCookies() {
+    chrome.cookies.getAll({}, (cookies) => {
+      const jsonStr = JSON.stringify(cookies, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cookies_export_${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Cookies exported successfully!', 'success');
+    });
+  },
+
+  clearAllCookies() {
+    if (confirm("Are you sure you want to delete ALL cookies stored in your browser? This will log you out of all sites!")) {
+      chrome.cookies.getAll({}, (cookies) => {
+        let count = 0;
+        if (cookies.length === 0) {
+          showToast("No cookies to delete.", "info");
+          return;
+        }
+        cookies.forEach(c => {
+          const url = (c.secure ? 'https://' : 'http://') + c.domain.replace(/^\./, '') + c.path;
+          chrome.cookies.remove({ url: url, name: c.name }, () => {
+            count++;
+            if (count === cookies.length) {
+              showToast("All cookies deleted!", "success");
+              this.loadCookies();
+            }
+          });
+        });
+      });
+    }
+  },
+
+  resetSettings() {
+    if (confirm("Are you sure you want to reset all configurations to defaults?")) {
+      chrome.storage.local.remove([
+        'organizer_user_settings',
+        'notes_sidebar_width_pref',
+        'sidebar_collapsed_pref',
+        'history_view_mode',
+        'history_expanded_timelines',
+        'history_blacklist_rules'
+      ], () => {
+        showToast("Settings reset to defaults!", "success");
+        window.location.reload();
+      });
+    }
   }
 };
 
