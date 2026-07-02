@@ -3,6 +3,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   initPopup();
   setupEventListeners();
+  setupSoundBoost();
 });
 
 let lastBackup = null;
@@ -102,5 +103,77 @@ function setupEventListeners() {
       restoreBtn.textContent = 'Undo Last Sorting';
       restoreBtn.classList.add('hidden');
     }
+  });
+}
+
+function setupSoundBoost() {
+  const valLabel = document.getElementById('sound-boost-val');
+  const upBtn = document.getElementById('sound-up-btn');
+  const downBtn = document.getElementById('sound-down-btn');
+  const resetBtn = document.getElementById('sound-reset-btn');
+  
+  if (!valLabel || !upBtn || !downBtn || !resetBtn) return;
+  
+  let currentSoundLevel = 100;
+  
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (tabs.length === 0) return;
+    const tab = tabs[0];
+    const tabId = tab.id;
+    let hostname = 'unknown';
+    try { hostname = new URL(tab.url).hostname; } catch(e) {}
+    const storageKey = `sound_level_host_${hostname}`;
+    
+    // Load persisted level for this tab/host
+    chrome.storage.local.get([storageKey], (res) => {
+      currentSoundLevel = res[storageKey] || 100;
+      valLabel.textContent = `${currentSoundLevel}%`;
+    });
+    
+    const applyToTab = (level) => {
+      valLabel.textContent = `${level}%`;
+      chrome.storage.local.set({ [storageKey]: level });
+      
+      chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        func: (lvl) => {
+          if (!window._sbContext) {
+            window._sbContext = new (window.AudioContext || window.webkitAudioContext)();
+            window._sbGainNode = window._sbContext.createGain();
+            window._sbGainNode.connect(window._sbContext.destination);
+            
+            const attachMedia = (media) => {
+              if (!media._sbConnected) {
+                try {
+                  const source = window._sbContext.createMediaElementSource(media);
+                  source.connect(window._sbGainNode);
+                  media._sbConnected = true;
+                } catch(e) {}
+              }
+            };
+            
+            document.querySelectorAll('video, audio').forEach(attachMedia);
+            
+            new MutationObserver(mutations => {
+              mutations.forEach(mutation => {
+                mutation.addedNodes.forEach(node => {
+                  if (node.tagName === 'VIDEO' || node.tagName === 'AUDIO') attachMedia(node);
+                  else if (node.querySelectorAll) node.querySelectorAll('video, audio').forEach(attachMedia);
+                });
+              });
+            }).observe(document.body, { childList: true, subtree: true });
+          }
+          if (window._sbContext.state === 'suspended') {
+            window._sbContext.resume();
+          }
+          window._sbGainNode.gain.value = lvl / 100;
+        },
+        args: [level]
+      });
+    };
+    
+    upBtn.addEventListener('click', () => { currentSoundLevel += 25; applyToTab(currentSoundLevel); });
+    downBtn.addEventListener('click', () => { currentSoundLevel = Math.max(0, currentSoundLevel - 25); applyToTab(currentSoundLevel); });
+    resetBtn.addEventListener('click', () => { currentSoundLevel = 100; applyToTab(currentSoundLevel); });
   });
 }

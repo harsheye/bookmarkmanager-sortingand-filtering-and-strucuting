@@ -1157,6 +1157,7 @@ const BookmarkManager = {
   lastClickedId: null, // Shift-selection anchor
   dragStartRow: null, // Start row for drag selection marquee
   activeView: 'bookmarks',
+  expandedFolders: new Set(), // Track which folders are expanded
 
   async init() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -1170,9 +1171,14 @@ const BookmarkManager = {
     this.bindDOM();
     this.setupListeners();
     this.setupColumnResizing();
+    this.setupSidebarResizer();
     
-    // Load persisted settings
-    chrome.storage.local.get(['organizer_user_settings'], (result) => {
+    // Load persisted settings and folder expansion state
+    chrome.storage.local.get(['organizer_user_settings', 'expandedFolders'], (result) => {
+      if (result.expandedFolders && Array.isArray(result.expandedFolders)) {
+        this.expandedFolders = new Set(result.expandedFolders);
+      }
+      
       if (result.organizer_user_settings) {
         const settings = result.organizer_user_settings;
         const parentNameInput = document.getElementById('parent-folder-name');
@@ -1215,6 +1221,8 @@ const BookmarkManager = {
     
     this.folderTreeList = document.getElementById('folder-tree-list');
     this.addBookmarkBtn = document.getElementById('add-bookmark-btn');
+    this.sidebarResizer = document.getElementById('sidebar-resizer');
+    this.managerSidebar = document.querySelector('.manager-sidebar');
     
     // Modal Elements
     this.modal = document.getElementById('bookmark-modal');
@@ -1325,6 +1333,50 @@ const BookmarkManager = {
     // Toggle Views
     this.toggleWizardBtn.addEventListener('click', () => this.showWizard());
     this.toggleManagerBtn.addEventListener('click', () => this.showManager());
+
+    // Folder Tree Keyboard Navigation
+    if (this.folderTreeList) {
+      this.folderTreeList.addEventListener('keydown', (e) => {
+        const labels = Array.from(this.folderTreeList.querySelectorAll('.folder-tree-label'));
+        if (labels.length === 0) return;
+        let activeIdx = labels.findIndex(l => l.classList.contains('active'));
+        if (activeIdx === -1) activeIdx = 0;
+
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          if (activeIdx < labels.length - 1) {
+            labels[activeIdx + 1].click();
+          }
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          if (activeIdx > 0) {
+            labels[activeIdx - 1].click();
+          }
+        } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+          e.preventDefault();
+          const activeLabel = labels[activeIdx];
+          const arrow = activeLabel.querySelector('.tree-toggle-arrow');
+          if (arrow && !arrow.classList.contains('spacer')) {
+            const isExpanded = arrow.classList.contains('expanded');
+            if (e.key === 'ArrowRight' && !isExpanded) {
+              activeLabel.click(); // Expand
+            } else if (e.key === 'ArrowLeft' && isExpanded) {
+              activeLabel.click(); // Collapse
+            } else if (e.key === 'ArrowLeft' && !isExpanded) {
+              // Move to parent folder
+              const currentDepth = parseInt(activeLabel.style.paddingLeft) || 0;
+              for (let i = activeIdx - 1; i >= 0; i--) {
+                const pDepth = parseInt(labels[i].style.paddingLeft) || 0;
+                if (pDepth < currentDepth) {
+                  labels[i].click();
+                  break;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
 
     // Sidebar Views
     if (this.tabBookmarks) {
@@ -2195,16 +2247,25 @@ const BookmarkManager = {
     return new Promise((resolve) => {
       chrome.bookmarks.getTree((tree) => {
         const flattened = [];
-        function traverse(node) {
-          if (node.url) {
+        this.bookmarkParentMap = new Map();
+        
+        const traverse = (node) => {
+          if (node.id !== "0") {
             flattened.push(node);
           }
           if (node.children) {
-            node.children.forEach(traverse);
+            node.children.forEach(child => {
+              this.bookmarkParentMap.set(child.id, node.id);
+              traverse(child);
+            });
           }
-        }
+        };
+        
         if (tree && tree[0] && tree[0].children) {
-          tree[0].children.forEach(traverse);
+          tree[0].children.forEach(child => {
+            this.bookmarkParentMap.set(child.id, tree[0].id);
+            traverse(child);
+          });
         }
         this.allFlattenedBookmarks = flattened;
         resolve();
@@ -2234,7 +2295,7 @@ const BookmarkManager = {
         rootUl.appendChild(allLi);
 
         const self = this;
-        function buildTreeDOM(node) {
+        function buildTreeDOM(node, depth = 0) {
           // If it is a folder and not system root (id "0")
           if (node.children && !node.url && node.id !== "0") {
             const folderLi = document.createElement('li');
@@ -2244,8 +2305,15 @@ const BookmarkManager = {
             labelDiv.className = `folder-tree-label ${self.activeFolderId === node.id ? 'active' : ''}`;
             labelDiv.dataset.folderId = node.id;
             
+            // Indentation based on depth
+            labelDiv.style.paddingLeft = `calc(${depth} * 12px + 8px)`;
+            
             // Drag and Drop Zone listeners for folder drop targets with spring-loaded expansion
             let hoverTimer = null;
+            
+            const subfolders = node.children.filter(child => child.children && !child.url);
+            const hasSubfolders = subfolders.length > 0;
+            const isExpanded = self.expandedFolders.has(node.id);
             
             labelDiv.addEventListener('dragover', (e) => {
               e.preventDefault();
@@ -2263,6 +2331,8 @@ const BookmarkManager = {
                       arrow.textContent = '▼';
                     }
                     childrenUl.style.display = 'flex';
+                    self.expandedFolders.add(node.id);
+                    self.saveExpandedFolders();
                     hoverTimer = null;
                   }, 600);
                 }
@@ -2303,19 +2373,16 @@ const BookmarkManager = {
             
             const displayTitle = node.title || (node.id === "1" ? "Bookmark Bar" : node.id === "2" ? "Other Bookmarks" : "Folder");
             
-            const subfolders = node.children.filter(child => child.children && !child.url);
-            const hasSubfolders = subfolders.length > 0;
-            
             let toggleHtml = '';
             if (hasSubfolders) {
-              toggleHtml = `<span class="tree-toggle-arrow">▶</span>`;
+              toggleHtml = `<span class="tree-toggle-arrow ${isExpanded ? 'expanded' : ''}">${isExpanded ? '▼' : '▶'}</span>`;
             } else {
               toggleHtml = `<span class="tree-toggle-arrow spacer"></span>`;
             }
 
             labelDiv.innerHTML = `
               ${toggleHtml}
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color:var(--color-secondary); margin-right:4px;"><path d="M19.5,5H13.243a3,3,0,0,1-2.122-.879l-1.414-1.414A3,3,0,0,0,7.586,1.828H4.5A2.5,2.5,0,0,0,2,4.328V19.5A2.5,2.5,0,0,0,4.5,22h15A2.5,2.5,0,0,0,22,19.5V7.5A2.5,2.5,0,0,0,19.5,5ZM20,19.5a.5.5,0,0,1-.5.5H4.5a.5.5,0,0,1-.5-.5V7.5A.5.5,0,0,1,4.5,7h15a.5.5,0,0,1,.5.5Z"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color:var(--color-secondary); margin-right:4px; flex-shrink: 0;"><path d="M19.5,5H13.243a3,3,0,0,1-2.122-.879l-1.414-1.414A3,3,0,0,0,7.586,1.828H4.5A2.5,2.5,0,0,0,2,4.328V19.5A2.5,2.5,0,0,0,4.5,22h15A2.5,2.5,0,0,0,22,19.5V7.5A2.5,2.5,0,0,0,19.5,5ZM20,19.5a.5.5,0,0,1-.5.5H4.5a.5.5,0,0,1-.5-.5V7.5A.5.5,0,0,1,4.5,7h15a.5.5,0,0,1,.5.5Z"/></svg>
               <span class="folder-name-text" title="${node.title}">${displayTitle}</span>
             `;
             
@@ -2324,35 +2391,41 @@ const BookmarkManager = {
             if (hasSubfolders) {
               const childrenUl = document.createElement('ul');
               childrenUl.className = 'manager-tree-children';
-              childrenUl.style.display = 'none';
+              childrenUl.style.display = isExpanded ? 'flex' : 'none';
+              
               subfolders.forEach(sub => {
-                const subDOM = buildTreeDOM(sub);
+                const subDOM = buildTreeDOM(sub, depth + 1);
                 if (subDOM) childrenUl.appendChild(subDOM);
               });
               folderLi.appendChild(childrenUl);
 
-              // Click logic on the entire label container to switch folder AND toggle expand/collapse
               const arrow = labelDiv.querySelector('.tree-toggle-arrow');
               labelDiv.addEventListener('click', (e) => {
                 e.stopPropagation();
                 self.switchFolder(node.id);
                 
-                const isExpanded = arrow.classList.contains('expanded');
-                if (isExpanded) {
+                const currentlyExpanded = arrow.classList.contains('expanded');
+                if (currentlyExpanded) {
                   arrow.classList.remove('expanded');
                   arrow.textContent = '▶';
                   childrenUl.style.display = 'none';
+                  self.expandedFolders.delete(node.id);
+                  self.saveExpandedFolders();
                 } else {
                   arrow.classList.add('expanded');
                   arrow.textContent = '▼';
                   childrenUl.style.display = 'flex';
+                  self.expandedFolders.add(node.id);
+                  self.saveExpandedFolders();
                 }
+                
+                labelDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
               });
             } else {
-              // No subfolders, just switch folder on click
               labelDiv.addEventListener('click', (e) => {
                 e.stopPropagation();
                 self.switchFolder(node.id);
+                labelDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
               });
             }
             return folderLi;
@@ -2362,12 +2435,20 @@ const BookmarkManager = {
 
         if (tree && tree[0] && tree[0].children) {
           tree[0].children.forEach(child => {
-            const childDOM = buildTreeDOM(child);
+            const childDOM = buildTreeDOM(child, 0);
             if (childDOM) rootUl.appendChild(childDOM);
           });
         }
 
         this.folderTreeList.appendChild(rootUl);
+        
+        setTimeout(() => {
+          const activeLbl = this.folderTreeList.querySelector('.folder-tree-label.active');
+          if (activeLbl) {
+            activeLbl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        }, 100);
+        
         resolve();
       });
     });
@@ -2777,7 +2858,7 @@ const BookmarkManager = {
       // Render Suggestions list
       this.renderSuggestions(val);
       // Run Command search
-      this.executeCommandSearch(val);
+      this.executeCommandSearch(val, false);
     } else {
       this.hideSuggestions();
       // Normal string query matching globally
@@ -2786,6 +2867,23 @@ const BookmarkManager = {
         (bm.title && bm.title.toLowerCase().includes(query)) || 
         (bm.url && bm.url.toLowerCase().includes(query))
       );
+      
+      // Auto-expand parents in sidebar
+      if (results.length > 0) {
+        const parentsToExpand = new Set();
+        results.forEach(res => {
+          let currentParentId = this.bookmarkParentMap.get(res.id);
+          while (currentParentId && currentParentId !== "0") {
+            parentsToExpand.add(currentParentId);
+            currentParentId = this.bookmarkParentMap.get(currentParentId);
+          }
+        });
+        
+        parentsToExpand.forEach(pid => {
+          this.expandFolderInDOM(pid);
+        });
+      }
+
       this.renderExplorerList(results);
       this.updateBreadcrumbs([{ id: 'search', title: `Search: "${val}"` }]);
     }
@@ -2849,6 +2947,18 @@ const BookmarkManager = {
         this.searchInput.value = selectedCmd;
         this.hideSuggestions();
         this.handleSearchInput(selectedCmd);
+      } else if (this.searchInput.value.trim().startsWith('/')) {
+        e.preventDefault();
+        this.executeCommandSearch(this.searchInput.value.trim(), true);
+      }
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      let idx = this.selectedSuggestionIndex >= 0 ? this.selectedSuggestionIndex : 0;
+      if (idx < items.length) {
+        const selectedCmd = items[idx].querySelector('.suggestion-cmd').textContent;
+        this.searchInput.value = selectedCmd;
+        this.hideSuggestions();
+        this.handleSearchInput(selectedCmd);
       }
     }
   },
@@ -2863,7 +2973,7 @@ const BookmarkManager = {
     }
   },
 
-  executeCommandSearch(val) {
+  executeCommandSearch(val, isEnter = false) {
     const parts = val.split(' ');
     const cmd = parts[0].toLowerCase();
     const query = parts.slice(1).join(' ').trim().toLowerCase();
@@ -2874,7 +2984,91 @@ const BookmarkManager = {
     switch (cmd) {
       case '/help':
       case '/?':
+        if (!isEnter) return;
         this.showHelpOverlay();
+        this.searchInput.value = '';
+        this.clearSearchBtn.classList.add('hidden');
+        break;
+
+      case '/sound':
+        if (!query && !isEnter) return;
+        if (query && query !== '+' && query !== '-' && !isEnter) return;
+
+        chrome.tabs.query({ audible: true }, (tabs) => {
+          if (tabs.length === 0) {
+            showToast('No audio playing in any tab', 'error');
+            return;
+          }
+          
+          tabs.forEach(tab => {
+            const tabId = tab.id;
+            let hostname = 'unknown';
+            try { hostname = new URL(tab.url).hostname; } catch(e) {}
+            const storageKey = `sound_level_host_${hostname}`;
+
+            chrome.storage.local.get([storageKey], (res) => {
+              let currentSoundLevel = res[storageKey] || 100;
+              
+              if (!query) {
+                currentSoundLevel = 100; // Reset
+              } else if (query === '+') {
+                currentSoundLevel += 25;
+              } else if (query === '-') {
+                currentSoundLevel = Math.max(0, currentSoundLevel - 25);
+              } else {
+                const parsed = parseInt(query, 10);
+                if (!isNaN(parsed) && parsed >= 0) {
+                  currentSoundLevel = parsed;
+                }
+              }
+              
+              chrome.storage.local.set({ [storageKey]: currentSoundLevel });
+              
+              chrome.scripting.executeScript({
+                target: { tabId: tabId },
+                func: (lvl) => {
+                  if (!window._sbContext) {
+                    window._sbContext = new (window.AudioContext || window.webkitAudioContext)();
+                    window._sbGainNode = window._sbContext.createGain();
+                    window._sbGainNode.connect(window._sbContext.destination);
+                    
+                    const attachMedia = (media) => {
+                      if (!media._sbConnected) {
+                        try {
+                          const source = window._sbContext.createMediaElementSource(media);
+                          source.connect(window._sbGainNode);
+                          media._sbConnected = true;
+                        } catch(e) {}
+                      }
+                    };
+                    
+                    document.querySelectorAll('video, audio').forEach(attachMedia);
+                    
+                    new MutationObserver(mutations => {
+                      mutations.forEach(mutation => {
+                        mutation.addedNodes.forEach(node => {
+                          if (node.tagName === 'VIDEO' || node.tagName === 'AUDIO') attachMedia(node);
+                          else if (node.querySelectorAll) node.querySelectorAll('video, audio').forEach(attachMedia);
+                        });
+                      });
+                    }).observe(document.body, { childList: true, subtree: true });
+                  }
+                  if (window._sbContext.state === 'suspended') {
+                    window._sbContext.resume().catch(() => {});
+                  }
+                  window._sbGainNode.gain.value = lvl / 100;
+                },
+                args: [currentSoundLevel]
+              }).catch(() => {});
+            });
+          });
+          
+          showToast(`Sound level adjusted`, 'success');
+        });
+        
+        breadcrumbTitle = `Sound level command`;
+        this.searchInput.value = '';
+        this.clearSearchBtn.classList.add('hidden');
         break;
       
       case '/t':
@@ -3001,6 +3195,84 @@ const BookmarkManager = {
     if (urlIcon) urlIcon.textContent = this.sortState.column === 'url' ? (asc ? ' ▲' : ' ▼') : '';
     
     this.renderExplorerList(this.currentVisibleItems);
+  },
+
+  setupSidebarResizer() {
+    if (!this.sidebarResizer || !this.managerSidebar) return;
+    
+    // Load persisted width
+    chrome.storage.local.get(['sidebarWidth'], (res) => {
+      if (res.sidebarWidth) {
+        this.managerSidebar.style.width = res.sidebarWidth + 'px';
+      }
+    });
+
+    let isResizing = false;
+    let startX = 0;
+    let startWidth = 0;
+
+    const onMouseMove = (e) => {
+      if (!isResizing) return;
+      const dx = e.clientX - startX;
+      let newWidth = startWidth + dx;
+      
+      // Constraints
+      if (newWidth < 220) newWidth = 220;
+      if (newWidth > 600) newWidth = 600;
+      
+      this.managerSidebar.style.width = newWidth + 'px';
+    };
+
+    const onMouseUp = () => {
+      if (isResizing) {
+        isResizing = false;
+        this.sidebarResizer.classList.remove('is-resizing');
+        document.body.style.cursor = '';
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        
+        // Persist
+        chrome.storage.local.set({ sidebarWidth: parseInt(this.managerSidebar.style.width, 10) });
+      }
+    };
+
+    this.sidebarResizer.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      isResizing = true;
+      startX = e.clientX;
+      startWidth = this.managerSidebar.getBoundingClientRect().width;
+      
+      this.sidebarResizer.classList.add('is-resizing');
+      document.body.style.cursor = 'col-resize';
+      
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+  },
+
+  saveExpandedFolders() {
+    chrome.storage.local.set({ expandedFolders: Array.from(this.expandedFolders) });
+  },
+
+  expandFolderInDOM(folderId) {
+    if (this.expandedFolders.has(folderId)) return;
+    this.expandedFolders.add(folderId);
+    this.saveExpandedFolders();
+    
+    if (this.folderTreeList) {
+      const labelDiv = this.folderTreeList.querySelector(`.folder-tree-label[data-folder-id="${folderId}"]`);
+      if (labelDiv) {
+        const arrow = labelDiv.querySelector('.tree-toggle-arrow');
+        if (arrow && !arrow.classList.contains('spacer')) {
+          arrow.classList.add('expanded');
+          arrow.textContent = '▼';
+        }
+        const childrenUl = labelDiv.nextElementSibling;
+        if (childrenUl && childrenUl.classList.contains('manager-tree-children')) {
+          childrenUl.style.display = 'flex';
+        }
+      }
+    }
   },
 
   setupColumnResizing() {
@@ -7547,6 +7819,7 @@ const COMMANDS = [
   { cmd: "/c ", desc: "Filter by category: /c [movies, study, software, adult, sports]" },
   { cmd: "/d ", desc: "Filter by domain: /d [domain.com]" },
   { cmd: "/sort ", desc: "Sort current list: /sort [name, date, url]" },
+  { cmd: "/sound ", desc: "Boost volume of active tab: /sound [level, +, -]" },
   { cmd: "/wizard", desc: "Launch Smart Sorter wizard" },
   { cmd: "/undo", desc: "Undo last bookmark organization" }
 ];

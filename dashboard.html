@@ -84,12 +84,14 @@
             <span class="tab-label">Settings</span>
           </div>
         </div>
+        
+
         <div class="navigation-box">
           <h3 style="display:flex; align-items:center; gap:8px;">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color:var(--text-muted);"><path d="M19.5,5H13.243a3,3,0,0,1-2.122-.879l-1.414-1.414A3,3,0,0,0,7.586,1.828H4.5A2.5,2.5,0,0,0,2,4.328V19.5A2.5,2.5,0,0,0,4.5,22h15A2.5,2.5,0,0,0,22,19.5V7.5A2.5,2.5,0,0,0,19.5,5ZM20,19.5a.5.5,0,0,1-.5.5H4.5a.5.5,0,0,1-.5-.5V7.5A.5.5,0,0,1,4.5,7h15a.5.5,0,0,1,.5.5Z"/></svg>
             Folder Directory
           </h3>
-          <div id="folder-tree-list">
+          <div id="folder-tree-list" tabindex="0">
              <!-- Dynamically populated tree of folders -->
           </div>
         </div>
@@ -97,22 +99,24 @@
         <button id="sidebar-collapse-toggle" class="sidebar-collapse-btn" title="Collapse Sidebar" type="button">
           <i class="fi fi-rr-angle-small-left"></i>
         </button>
+        <!-- Resizer handle -->
+        <div id="sidebar-resizer"></div>
       </aside>
 
       <!-- Right Panel: Command Search, Breadcrumbs and Bookmarks Explorer -->
       <section class="manager-explorer glass-panel">
-        <!-- Search bar with commands suggestions -->
-        <div class="search-section" style="position: relative;">
-          <div class="search-bar-wrapper">
-            <span class="search-icon" style="display:flex; align-items:center;"><i class="fi fi-rr-search"></i></span>
-            <input type="text" id="manager-search" placeholder="Search bookmarks or type / for commands (e.g. /help, /t movie, /sort date)..." autocomplete="off">
-            <span class="search-shortcut-hint">Ctrl + K</span>
-            <button id="clear-search-btn" class="clear-btn hidden">✕</button>
-          </div>
-          
-          <!-- Command suggestions dropdown -->
-          <div id="command-suggestions" class="suggestions-dropdown hidden">
-             <!-- Populated dynamically via JS -->
+        
+        <div class="main-header">
+          <div class="search-section" style="position: relative;">
+            <div class="search-bar-wrapper">
+              <span class="search-icon" style="display:flex; align-items:center;"><i class="fi fi-rr-search"></i></span>
+              <input type="text" id="manager-search" placeholder="Search / commands..." autocomplete="off">
+              <span class="search-shortcut-hint">Ctrl + K</span>
+              <button id="clear-search-btn" class="clear-btn hidden">✕</button>
+            </div>
+            <div id="command-suggestions" class="suggestions-dropdown hidden">
+               <!-- Populated dynamically via JS -->
+            </div>
           </div>
         </div>
 

@@ -137,6 +137,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === "save_sound_level") {
+    if (sender && sender.tab && sender.tab.url) {
+      let hostname = 'unknown';
+      try { hostname = new URL(sender.tab.url).hostname; } catch(e) {}
+      chrome.storage.local.set({ [`sound_level_host_${hostname}`]: message.level });
+    }
+    sendResponse({ success: true });
+    return;
+  }
+
   return true;
 });
 

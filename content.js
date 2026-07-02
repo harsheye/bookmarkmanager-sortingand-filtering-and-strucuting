@@ -23,6 +23,51 @@ let activeQuery = "";
 // Cache on script load
 loadBookmarksTreeAndCache();
 
+// Auto-apply saved sound level
+try {
+  let hostname = new URL(window.location.href).hostname;
+  chrome.storage.local.get([`sound_level_host_${hostname}`], (res) => {
+    let savedLevel = res[`sound_level_host_${hostname}`];
+    if (savedLevel !== undefined && savedLevel !== 100) {
+      applySoundLevel(savedLevel);
+    }
+  });
+} catch(e) {}
+
+function applySoundLevel(level) {
+  if (!window._sbContext) {
+    window._sbContext = new (window.AudioContext || window.webkitAudioContext)();
+    window._sbGainNode = window._sbContext.createGain();
+    window._sbGainNode.connect(window._sbContext.destination);
+    
+    const attachMedia = (media) => {
+      if (!media._sbConnected) {
+        try {
+          const source = window._sbContext.createMediaElementSource(media);
+          source.connect(window._sbGainNode);
+          media._sbConnected = true;
+        } catch(e) {}
+      }
+    };
+    
+    document.querySelectorAll('video, audio').forEach(attachMedia);
+    
+    new MutationObserver(mutations => {
+      mutations.forEach(mutation => {
+        mutation.addedNodes.forEach(node => {
+          if (node.tagName === 'VIDEO' || node.tagName === 'AUDIO') attachMedia(node);
+          else if (node.querySelectorAll) node.querySelectorAll('video, audio').forEach(attachMedia);
+        });
+      });
+    }).observe(document.body, { childList: true, subtree: true });
+  }
+  
+  if (window._sbContext.state === 'suspended') {
+    window._sbContext.resume().catch(() => {});
+  }
+  window._sbGainNode.gain.value = level / 100;
+}
+
 function loadBookmarksTreeAndCache() {
   chrome.storage.local.get(['categories_config', 'learned_domains'], (result) => {
     if (result.categories_config) {
@@ -61,6 +106,7 @@ const CC_COMMANDS = [
   { cmd: "/c ", desc: "Filter by category: /c <category>" },
   { cmd: "/d ", desc: "Filter by domain: /d <domain>" },
   { cmd: "/sort ", desc: "Sort list: /sort [name, date, url]" },
+  { cmd: "/sound ", desc: "Boost volume of active tab: /sound [level, +, -]" },
   { cmd: "/wizard", desc: "Open Smart Sorter wizard page" },
   { cmd: "/undo", desc: "Restore original bookmarks" }
 ];
@@ -682,7 +728,7 @@ function handleCCSearch(val) {
 
   if (val.startsWith("/")) {
     renderCCSuggestions(val);
-    executeCCCommand(val);
+    executeCCCommand(val, false);
   } else {
     hideSuggestions();
     
@@ -856,7 +902,7 @@ function executeSelection() {
       return;
     }
     if (query.startsWith("/")) {
-      executeCCCommand(query);
+      executeCCCommand(query, true);
       return;
     }
 
@@ -954,7 +1000,7 @@ function hideSuggestions() {
   ccSuggestions.innerHTML = "";
 }
 
-function executeCCCommand(val) {
+function executeCCCommand(val, isEnter = false) {
   const parts = val.split(" ");
   const cmd = parts[0].toLowerCase();
   const query = parts.slice(1).join(" ").trim().toLowerCase();
@@ -964,8 +1010,37 @@ function executeCCCommand(val) {
 
   switch (cmd) {
     case "/help":
+      if (!isEnter) return;
       showCCHelp();
       break;
+
+    case "/sound":
+      if (!query && !isEnter) return;
+      if (query && query !== '+' && query !== '-' && !isEnter) return;
+
+      let currentSoundLevel = window._sbGainNode ? window._sbGainNode.gain.value * 100 : 100;
+      
+      if (!query) {
+        currentSoundLevel = 100; // Reset to 100 if no argument provided
+      } else if (query === '+') {
+        currentSoundLevel += 25;
+      } else if (query === '-') {
+        currentSoundLevel = Math.max(0, currentSoundLevel - 25);
+      } else {
+        const parsed = parseInt(query, 10);
+        if (!isNaN(parsed) && parsed >= 0) {
+          currentSoundLevel = parsed;
+        }
+      }
+      
+      applySoundLevel(currentSoundLevel);
+      
+      chrome.runtime.sendMessage({ action: "save_sound_level", level: currentSoundLevel });
+      
+      showCCToast(`Sound level set to ${currentSoundLevel}%`);
+      ccSearchInput.value = "";
+      closeCommandCenter();
+      return;
 
     case "/t":
       if (!query) return;

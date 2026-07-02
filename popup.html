@@ -33,9 +33,22 @@
           <span>Open Sorter Dashboard</span> <span>🚀</span>
         </button>
         
-        <button id="quick-restore-btn" class="btn btn-danger hidden" style="width: 100%;">
+        <button id="quick-restore-btn" class="btn btn-danger hidden" style="margin-bottom: 8px; width: 100%;">
           <span>↩️ Undo Last Sorting</span>
         </button>
+        
+        <!-- Sound Boost Tool -->
+        <div class="sound-boost-container">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="font-size: 13px; font-weight: 500; color: #fff;">🔊 Sound Boost</span>
+            <span id="sound-boost-val" style="font-size: 13px; color: var(--color-primary);">100%</span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button id="sound-down-btn" class="btn btn-secondary" style="flex: 1; padding: 4px;">- 25%</button>
+            <button id="sound-reset-btn" class="btn btn-secondary" style="flex: 1; padding: 4px;">Reset</button>
+            <button id="sound-up-btn" class="btn btn-secondary" style="flex: 1; padding: 4px;">+ 25%</button>
+          </div>
+        </div>
       </div>
     </div>
 
