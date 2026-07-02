@@ -1271,7 +1271,12 @@ input:checked + .slider-switch:before {
 .folder-children::-webkit-scrollbar,
 .subfolder-children::-webkit-scrollbar,
 .explorer-list-container::-webkit-scrollbar,
-.manager-sidebar::-webkit-scrollbar,
+.manager-sidebar::-webkit-scrollbar {
+  display: none;
+}
+
+
+
 .categories-list::-webkit-scrollbar,
 .scan-log::-webkit-scrollbar {
   width: 6px;
@@ -1318,6 +1323,8 @@ input:checked + .slider-switch:before {
   gap: 6px;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   flex-shrink: 0;
   height: 100%;
   position: relative;

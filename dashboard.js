@@ -3349,18 +3349,23 @@ const BookmarkManager = {
     // Clean up when LEAVING history
     if (previousView === 'history' && viewName !== 'history') {
       this.clearHistorySelection();
-      // Reset any expanded cookie rows that may have leaked
       document.querySelectorAll('.cookie-detail-row.expanded').forEach(r => r.classList.remove('expanded'));
     }
 
     // Clean up when LEAVING cookies
     if (previousView === 'cookies' && viewName !== 'cookies') {
+      // Hide the empty state that cookies may have shown
+      if (this.emptyState) this.emptyState.classList.add('hidden');
       // Clear any cookie-specific inline styles on the bookmarks table body
       if (this.bookmarksBody) {
+        this.bookmarksBody.innerHTML = '';
         this.bookmarksBody.style.removeProperty('max-height');
         this.bookmarksBody.style.removeProperty('overflow');
       }
     }
+
+    // Always hide empty state when navigating — each view manages its own
+    if (this.emptyState) this.emptyState.classList.add('hidden');
     
     // Toggle history-view-active class on app-container
     const appContainer = document.querySelector('.app-container');
@@ -3549,6 +3554,7 @@ const BookmarkManager = {
       // History view: hide folder breadcrumbs, hide add bookmark button
       document.getElementById('explorer-breadcrumbs').style.display = 'none';
       document.getElementById('add-bookmark-btn').style.display = 'none';
+      this.emptyState.classList.add('hidden');
       
       // Update Table Headers
       document.getElementById('th-name').innerHTML = `Page Title`;
