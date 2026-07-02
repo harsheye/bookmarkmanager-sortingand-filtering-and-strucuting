@@ -22,6 +22,12 @@
   
   --glow-1: rgba(99, 102, 241, 0.15);
   --glow-2: rgba(217, 70, 239, 0.15);
+
+  /* Dynamic Customization Properties */
+  --border-radius: 14px;
+  --glass-opacity: 0.7;
+  --transition-speed: 0.24s;
+  --font-scale: 100%;
 }
 
 /* Reset and Global Styles */
@@ -1328,16 +1334,16 @@ input:checked + .slider-switch:before {
   flex-shrink: 0;
   height: 100%;
   position: relative;
-  background: rgba(12, 12, 24, 0.7);
+  background: rgba(12, 12, 24, var(--glass-opacity, 0.7));
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
+  border-radius: var(--border-radius, 14px);
   box-sizing: border-box;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25),
               0 0 0 1px rgba(255, 255, 255, 0.03) inset;
-  transition: width 0.24s cubic-bezier(0.22, 1, 0.36, 1),
-              padding 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: width var(--transition-speed, 0.24s) cubic-bezier(0.22, 1, 0.36, 1),
+              padding var(--transition-speed, 0.24s) cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* ─── Collapsed state ──────────────────── */
@@ -1635,11 +1641,11 @@ input:checked + .slider-switch:before {
   overflow: hidden;
   height: 100%;
   box-sizing: border-box;
-  background: rgba(12, 12, 24, 0.5);
+  background: rgba(12, 12, 24, var(--glass-opacity, 0.7));
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 14px;
+  border-radius: var(--border-radius, 14px);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
 }
 
@@ -4440,42 +4446,64 @@ select option {
   background: rgba(0,0,0,0.15);
 }
 
-/* ── Sidebar Tab Icon Colors ─────────────────────────────────────────────── */
-.tab-icon-bookmarks { color: var(--color-primary); }
-.tab-icon-history   { color: #f43f5e; }
-.tab-icon-cookies   { color: #fbbf24; }
-.tab-icon-notes     { color: #10b981; }
-.tab-icon-settings  { color: #a855f7; font-size: 14px; display: flex; align-items: center; }
-
-/* sidebar tabs container */
-.sidebar-tabs {
+/* ─── Navigation Box & Tree Scrolling ─── */
+.navigation-box {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 20px;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
-  padding-bottom: 15px;
+  flex-grow: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.sidebar-tab {
+.folder-tree-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: 8px;
-  cursor: pointer;
-  color: var(--text-muted);
-  font-size: 14px;
-  transition: background 0.2s;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  flex-grow: 1;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.folder-tree-list::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 
-.sidebar-tab.active {
-  color: white;
-  font-weight: 600;
-  background: rgba(255,255,255,0.06);
+/* ─── Interface Density: Compact Mode overrides ─── */
+body.compact-mode {
+  font-size: 12px;
+}
+body.compact-mode .manager-sidebar {
+  gap: 4px;
+}
+body.compact-mode .sidebar-tab {
+  padding: 6px 10px;
+}
+body.compact-mode .bookmarks-table th,
+body.compact-mode .bookmarks-table td {
+  padding: 8px 12px;
+}
+body.compact-mode .settings-card {
+  padding: 12px;
+  margin-bottom: 10px;
 }
 
-.sidebar-tab:hover {
-  background: rgba(255,255,255,0.05);
-  color: white;
+/* ─── Accessibility: High Contrast overrides ─── */
+body.high-contrast {
+  --bg-dark: #000000;
+  --panel-bg: #000000;
+  --panel-border: #ffffff;
+  --text-main: #ffffff;
+  --text-muted: #e5e7eb;
+}
+body.high-contrast * {
+  border-color: #ffffff !important;
+}
+
+/* ─── Accessibility: Reduced Motion overrides ─── */
+body.reduced-motion * {
+  transition-duration: 0.01s !important;
+  animation-duration: 0.01s !important;
 }
