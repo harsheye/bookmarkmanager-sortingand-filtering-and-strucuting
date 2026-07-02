@@ -1342,10 +1342,16 @@
 .history-sidebar-filters,
 #blacklist-manager-panel,
 .history-details-sidebar,
+.manager-sidebar {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
 .history-viewport::-webkit-scrollbar,
 .history-sidebar-filters::-webkit-scrollbar,
 #blacklist-manager-panel::-webkit-scrollbar,
-.history-details-sidebar::-webkit-scrollbar {
+.history-details-sidebar::-webkit-scrollbar,
+.manager-sidebar::-webkit-scrollbar {
   width: 0 !important;
   height: 0 !important;
   display: none !important;
