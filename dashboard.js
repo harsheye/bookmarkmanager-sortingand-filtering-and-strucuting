@@ -1497,6 +1497,7 @@ const BookmarkManager = {
         this.cacheActiveNoteState();
         this.activeNoteName = null;
         this.exitFocusMode();
+        this.closeDiffOverlay();
         this.noteEditorPane.classList.add('hidden');
         this.noteEditorPlaceholder.classList.remove('hidden');
         this.loadNotesManager();
@@ -1605,6 +1606,79 @@ const BookmarkManager = {
           ? '<i class="fi fi-rr-edit"></i> Edit Note' 
           : '<i class="fi fi-rr-eye"></i> Read';
         showToast(isRead ? 'Reading Mode: note is read-only' : 'Editing Mode activated', 'info');
+      });
+    }
+
+    // ── Checklist Toolbar Listeners ──────────────────────────────────────────
+    const chkInsertBtn       = document.getElementById('chk-insert-btn');
+    const chkToggleBtn       = document.getElementById('chk-toggle-btn');
+    const chkCompleteAllBtn  = document.getElementById('chk-complete-all');
+    const chkIncompleteAll   = document.getElementById('chk-incomplete-all');
+    const chkRemoveCompleted = document.getElementById('chk-remove-completed');
+    const chkSortTasksBtn    = document.getElementById('chk-sort-tasks');
+
+    if (chkInsertBtn) {
+      chkInsertBtn.addEventListener('click', () => this.insertChecklistItem());
+    }
+    if (chkToggleBtn) {
+      chkToggleBtn.addEventListener('click', () => this.toggleChecklistItemAtCursor());
+    }
+    if (chkCompleteAllBtn) {
+      chkCompleteAllBtn.addEventListener('click', () => this.setAllChecklistItems(true));
+    }
+    if (chkIncompleteAll) {
+      chkIncompleteAll.addEventListener('click', () => this.setAllChecklistItems(false));
+    }
+    if (chkRemoveCompleted) {
+      chkRemoveCompleted.addEventListener('click', () => this.clearCompletedChecklistItems());
+    }
+    if (chkSortTasksBtn) {
+      chkSortTasksBtn.addEventListener('click', () => this.sortChecklistItems());
+    }
+
+    // Update progress bar whenever the editor content changes
+    if (this.noteEditorBody) {
+      this.noteEditorBody.addEventListener('input', () => this.updateChecklistProgress());
+    }
+
+    // ── Version Diff Overlay Buttons ──────────────────────────────────────────
+    const diffCloseBtn   = document.getElementById('diff-close-btn');
+    const diffRestoreBtn = document.getElementById('diff-restore-btn');
+    const diffInlineBtn  = document.getElementById('diff-mode-inline');
+    const diffSideBtn    = document.getElementById('diff-mode-side');
+
+    if (diffCloseBtn) {
+      diffCloseBtn.addEventListener('click', () => this.closeDiffOverlay());
+    }
+    if (diffRestoreBtn) {
+      diffRestoreBtn.addEventListener('click', () => this.restoreDiffVersion());
+    }
+    if (diffInlineBtn) {
+      diffInlineBtn.addEventListener('click', () => {
+        diffInlineBtn.classList.add('active');
+        diffSideBtn && diffSideBtn.classList.remove('active');
+        this.currentDiffMode = 'inline';
+        if (this.currentDiffVersion) this.renderDiffContent(this.currentDiffVersion);
+      });
+    }
+    if (diffSideBtn) {
+      diffSideBtn.addEventListener('click', () => {
+        diffSideBtn.classList.add('active');
+        diffInlineBtn && diffInlineBtn.classList.remove('active');
+        this.currentDiffMode = 'side';
+        if (this.currentDiffVersion) this.renderDiffContent(this.currentDiffVersion);
+      });
+    }
+
+    // Version search filter
+    if (this.versionSearchInput) {
+      this.versionSearchInput.addEventListener('input', (e) => {
+        const q = e.target.value.toLowerCase().trim();
+        if (!this.noteVersionsList) return;
+        this.noteVersionsList.querySelectorAll('.note-revision-item').forEach(row => {
+          const text = row.textContent.toLowerCase();
+          row.style.display = q && !text.includes(q) ? 'none' : '';
+        });
       });
     }
 
@@ -3264,6 +3338,27 @@ const BookmarkManager = {
         explorerList.classList.remove('notes-active');
         this.cacheActiveNoteState();
         this.exitFocusMode();
+        this.closeDiffOverlay();
+      }
+    }
+
+    // ─── View Disposal: clean up page-specific state when leaving ───
+    const previousView = this._previousView || 'bookmarks';
+    this._previousView = viewName;
+
+    // Clean up when LEAVING history
+    if (previousView === 'history' && viewName !== 'history') {
+      this.clearHistorySelection();
+      // Reset any expanded cookie rows that may have leaked
+      document.querySelectorAll('.cookie-detail-row.expanded').forEach(r => r.classList.remove('expanded'));
+    }
+
+    // Clean up when LEAVING cookies
+    if (previousView === 'cookies' && viewName !== 'cookies') {
+      // Clear any cookie-specific inline styles on the bookmarks table body
+      if (this.bookmarksBody) {
+        this.bookmarksBody.style.removeProperty('max-height');
+        this.bookmarksBody.style.removeProperty('overflow');
       }
     }
     
@@ -3377,22 +3472,51 @@ const BookmarkManager = {
         }
       }
       this.clearHistorySelection();
-      
-      // Auto-collapse main navigation sidebar when entering history for the first time in the session
-      if (!this.historySessionStarted && !this.hasManuallyToggledSidebarThisSession) {
-        this.historySessionStarted = true;
-        const managerSidebar = document.querySelector('.manager-sidebar');
-        if (managerSidebar && !managerSidebar.classList.contains('collapsed')) {
-          managerSidebar.classList.add('collapsed');
-          const toggle = document.getElementById('sidebar-collapse-toggle');
-          if (toggle) toggle.setAttribute('title', 'Expand Sidebar');
-        }
-      }
     } else {
       if (tableEl) tableEl.classList.remove('hidden');
       if (settingsEl) settingsEl.classList.add('hidden');
       if (notesEl) notesEl.classList.add('hidden');
       if (this.historyViewContainer) this.historyViewContainer.classList.add('hidden');
+    }
+
+    // ─── Smart Page-Aware Sidebar Behavior ───
+    // History: auto-collapse. All other pages: auto-expand.
+    // Manual toggles on History are respected until user leaves.
+    const managerSidebar = document.querySelector('.manager-sidebar');
+    const sidebarToggle = document.getElementById('sidebar-collapse-toggle');
+    if (managerSidebar && sidebarToggle) {
+      if (viewName === 'history') {
+        if (!this._sidebarManuallyExpandedOnHistory) {
+          if (!managerSidebar.classList.contains('collapsed')) {
+            this._sidebarWasExpandedBeforeHistory = true;
+            managerSidebar.classList.add('collapsed');
+            sidebarToggle.setAttribute('title', 'Expand Sidebar');
+          }
+        }
+      } else {
+        // Leaving history (or entering a non-history page): auto-expand
+        this._sidebarManuallyExpandedOnHistory = false;
+        if (this._sidebarWasExpandedBeforeHistory) {
+          if (managerSidebar.classList.contains('collapsed')) {
+            managerSidebar.classList.remove('collapsed');
+            sidebarToggle.setAttribute('title', 'Collapse Sidebar');
+          }
+        }
+        this._sidebarWasExpandedBeforeHistory = false;
+      }
+    }
+
+    // ─── Hide global search bar on Settings page (it has its own search) ───
+    if (searchSection) {
+      searchSection.style.display = viewName === 'settings' ? 'none' : '';
+    }
+
+    // Recalculate history virtual scroll after sidebar animation completes
+    if (viewName === 'history') {
+      setTimeout(() => {
+        if (this.calculateRowOffsets) this.calculateRowOffsets();
+        if (this.renderVirtualHistory) this.renderVirtualHistory();
+      }, 260);
     }
     
     // Refresh content
@@ -4069,13 +4193,19 @@ const BookmarkManager = {
         const isCollapsed = managerSidebar.classList.toggle('collapsed');
         sidebarCollapseToggle.setAttribute('title', isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar');
         chrome.storage.local.set({ 'sidebar_collapsed_pref': isCollapsed });
+
+        // Track manual expansion on History page to prevent auto-collapse fighting user
+        if (this.activeView === 'history' && !isCollapsed) {
+          this._sidebarManuallyExpandedOnHistory = true;
+        }
+
         // Recalculate virtual scrolling offsets if the workspace resized
         setTimeout(() => {
           if (this.activeView === 'history') {
             this.calculateRowOffsets();
             this.renderVirtualHistory();
           }
-        }, 230); // matches CSS transition duration
+        }, 250); // matches CSS transition duration
       });
     }
 
@@ -6181,6 +6311,7 @@ const BookmarkManager = {
       
       this.noteEditorBody.value = content;
       this.renderNoteVersions(name, versions);
+      this.updateChecklistProgress();
       
       // Update sidebar active highlights
       if (this.notesSidebarList) {
@@ -6217,45 +6348,72 @@ const BookmarkManager = {
   renderNoteVersions(noteName, versions) {
     this.noteVersionsList.innerHTML = '';
     if (versions.length === 0) {
-      this.noteVersionsList.innerHTML = '<span style="font-size: 11.5px; color: var(--text-muted); text-align: center; padding: 10px 0; display: block; width: 100%;">No revisions saved.</span>';
+      this.noteVersionsList.innerHTML = '<span style="font-size: 11.5px; color: var(--text-muted); text-align: center; padding: 10px 0; display: block; width: 100%;">No revisions saved yet. Save your note to create the first revision.</span>';
       return;
     }
-    
+
+    // Group by date
+    const grouped = {};
     versions.forEach((v, idx) => {
-      const row = document.createElement('div');
-      row.className = 'note-revision-item';
-      
-      const timeStr = new Date(v.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const dateStr = new Date(v.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
-      
-      row.innerHTML = `
-        <div class="note-revision-dot"></div>
-        <div class="note-revision-info">
-          <span class="note-revision-name">Revision ${versions.length - idx}</span>
-          <span class="note-revision-time">${dateStr} ${timeStr}</span>
-        </div>
-        <div class="note-revision-actions">
-          <button class="revert-ver-btn" title="Revert to this version">↩️</button>
-          <button class="delete-ver-btn" title="Delete this revision">🗑️</button>
-        </div>
-      `;
-      
-      row.querySelector('.revert-ver-btn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        const confirmRevert = confirm("Are you sure you want to revert active note content to this revision?");
-        if (!confirmRevert) return;
-        this.noteEditorBody.value = v.content;
-        this.saveActiveNote();
+      const d = new Date(v.timestamp);
+      const today    = new Date();
+      const yesterday = new Date(); yesterday.setDate(today.getDate() - 1);
+      let label;
+      if (d.toDateString() === today.toDateString())     label = 'Today';
+      else if (d.toDateString() === yesterday.toDateString()) label = 'Yesterday';
+      else label = d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+      if (!grouped[label]) grouped[label] = [];
+      grouped[label].push({ v, idx });
+    });
+
+    Object.entries(grouped).forEach(([dateLabel, items]) => {
+      // Date divider
+      const divider = document.createElement('div');
+      divider.style.cssText = 'font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;padding:8px 0 4px 2px;';
+      divider.textContent = dateLabel;
+      this.noteVersionsList.appendChild(divider);
+
+      items.forEach(({ v, idx }) => {
+        const row = document.createElement('div');
+        row.className = 'note-revision-item';
+        row.style.cursor = 'pointer';
+
+        const timeStr = new Date(v.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const revNum  = versions.length - idx;
+        const wc      = v.content ? v.content.trim().split(/\s+/).filter(Boolean).length : 0;
+
+        row.innerHTML = `
+          <div class="note-revision-dot"></div>
+          <div class="note-revision-info" style="flex:1; min-width:0;">
+            <span class="note-revision-name">Revision ${revNum}</span>
+            <span class="note-revision-time">${timeStr} &nbsp;·&nbsp; ${wc} words</span>
+          </div>
+          <div class="note-revision-actions">
+            <button class="diff-ver-btn"   title="View Diff"            style="font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid rgba(255,255,255,0.15);background:rgba(99,102,241,0.15);color:#a78bfa;cursor:pointer;">Diff</button>
+            <button class="delete-ver-btn" title="Delete this revision" style="font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid rgba(255,255,255,0.1);background:rgba(239,68,68,0.12);color:#f87171;cursor:pointer;">🗑</button>
+          </div>
+        `;
+
+        // Clicking the row body shows diff
+        row.addEventListener('click', (e) => {
+          if (e.target.closest('.diff-ver-btn') || e.target.closest('.delete-ver-btn')) return;
+          this.openDiffOverlay(v, revNum);
+        });
+
+        row.querySelector('.diff-ver-btn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.openDiffOverlay(v, revNum);
+        });
+
+        row.querySelector('.delete-ver-btn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          const confirmDel = confirm(`Delete Revision ${revNum} from version history?`);
+          if (!confirmDel) return;
+          this.deleteNoteVersion(noteName, v.timestamp);
+        });
+
+        this.noteVersionsList.appendChild(row);
       });
-      
-      row.querySelector('.delete-ver-btn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        const confirmDel = confirm("Delete this revision from version history?");
-        if (!confirmDel) return;
-        this.deleteNoteVersion(noteName, v.timestamp);
-      });
-      
-      this.noteVersionsList.appendChild(row);
     });
   },
 
@@ -6274,10 +6432,262 @@ const BookmarkManager = {
     });
   },
 
+  // ── Checklist Helpers ──────────────────────────────────────────────────────
+
+  /** Inserts a new `☐ ` checklist line at the cursor position */
+  insertChecklistItem() {
+    const ta = this.noteEditorBody;
+    if (!ta) return;
+    ta.focus();
+    const start = ta.selectionStart;
+    const end   = ta.selectionEnd;
+    const val   = ta.value;
+    // Go to start of line
+    const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+    const insert    = '☐ ';
+    // Only insert if not already a checklist line
+    if (val.substring(lineStart, lineStart + insert.length) === insert) {
+      showToast('Line is already a checklist item', 'info');
+      return;
+    }
+    ta.value = val.substring(0, lineStart) + insert + val.substring(lineStart);
+    // Restore cursor
+    const offset = insert.length;
+    ta.setSelectionRange(start + offset, end + offset);
+    this.updateChecklistProgress();
+    showToast('Checklist item inserted', 'success');
+  },
+
+  /** Toggles the checklist checkbox on the line where the cursor currently sits */
+  toggleChecklistItemAtCursor() {
+    const ta = this.noteEditorBody;
+    if (!ta) return;
+    const start     = ta.selectionStart;
+    const val       = ta.value;
+    const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+    const lineEnd   = val.indexOf('\n', start);
+    const eol       = lineEnd === -1 ? val.length : lineEnd;
+    const line      = val.substring(lineStart, eol);
+
+    let newLine;
+    if (line.startsWith('☐ ')) {
+      newLine = '☑ ' + line.substring(2);
+    } else if (line.startsWith('☑ ')) {
+      newLine = '☐ ' + line.substring(2);
+    } else {
+      showToast('No checklist item on this line. Use "Checklist" to add one.', 'info');
+      return;
+    }
+    ta.value = val.substring(0, lineStart) + newLine + val.substring(eol);
+    ta.setSelectionRange(start, start);
+    this.updateChecklistProgress();
+  },
+
+  /** Marks all checklist items complete (☐ → ☑) or incomplete (☑ → ☐) */
+  setAllChecklistItems(complete) {
+    const ta = this.noteEditorBody;
+    if (!ta) return;
+    if (complete) {
+      ta.value = ta.value.replace(/^☐ /gm, '☑ ');
+      showToast('All items marked complete', 'success');
+    } else {
+      ta.value = ta.value.replace(/^☑ /gm, '☐ ');
+      showToast('All items reset to incomplete', 'info');
+    }
+    this.updateChecklistProgress();
+  },
+
+  /** Removes lines that start with ☑ (completed items) */
+  clearCompletedChecklistItems() {
+    const ta = this.noteEditorBody;
+    if (!ta) return;
+    const before = ta.value;
+    ta.value = before.split('\n').filter(l => !l.startsWith('☑ ')).join('\n');
+    const removed = (before.match(/^☑ /gm) || []).length;
+    showToast(`Cleared ${removed} completed item${removed !== 1 ? 's' : ''}`, 'success');
+    this.updateChecklistProgress();
+  },
+
+  /** Sorts: incomplete items first, completed items last */
+  sortChecklistItems() {
+    const ta = this.noteEditorBody;
+    if (!ta) return;
+    const lines     = ta.value.split('\n');
+    const pending   = lines.filter(l => l.startsWith('☐ '));
+    const completed = lines.filter(l => l.startsWith('☑ '));
+    const other     = lines.filter(l => !l.startsWith('☐ ') && !l.startsWith('☑ '));
+    ta.value = [...other, ...pending, ...completed].join('\n');
+    showToast('Tasks sorted: pending first, completed last', 'success');
+    this.updateChecklistProgress();
+  },
+
+  /** Recomputes progress bar and stats from current editor content */
+  updateChecklistProgress() {
+    const ta = this.noteEditorBody;
+    if (!ta) return;
+    const lines     = ta.value.split('\n');
+    const total     = lines.filter(l => l.startsWith('☐ ') || l.startsWith('☑ ')).length;
+    const completed = lines.filter(l => l.startsWith('☑ ')).length;
+    const pending   = total - completed;
+    const pct       = total === 0 ? 0 : Math.round((completed / total) * 100);
+
+    if (this.checklistProgressText) {
+      this.checklistProgressText.textContent = `${pct}% (${completed} / ${total} Tasks Completed)`;
+    }
+    if (this.checklistProgressBarFill) {
+      this.checklistProgressBarFill.style.width = pct + '%';
+      // Colour: green when done, orange in progress, grey when empty
+      this.checklistProgressBarFill.style.background =
+        total === 0 ? 'rgba(255,255,255,0.08)' :
+        pct === 100 ? 'linear-gradient(90deg,#10b981,#34d399)' :
+                      'linear-gradient(90deg,#6366f1,#8b5cf6)';
+    }
+
+    const stats = document.getElementById('checklist-actions-stats');
+    if (stats) {
+      stats.innerHTML = `<span>Total: ${total}</span><span>Pending: ${pending}</span>`;
+    }
+  },
+
+  // ── Version Diff Overlay ───────────────────────────────────────────────────
+
+  /** Opens the diff overlay, comparing version v against current editor content */
+  openDiffOverlay(v, revNum) {
+    this.currentDiffVersion = v;
+    this.currentDiffMode    = this.currentDiffMode || 'inline';
+
+    if (this.diffVersionInfo) {
+      this.diffVersionInfo.textContent = `Revision ${revNum} vs Current`;
+    }
+    if (this.diffMetadataRow) {
+      const ts  = new Date(v.timestamp).toLocaleString();
+      const wc  = v.content ? v.content.trim().split(/\s+/).filter(Boolean).length : 0;
+      this.diffMetadataRow.innerHTML = `
+        <span>📅 Saved: ${ts}</span>
+        <span>📝 Words in revision: ${wc}</span>
+      `;
+    }
+
+    this.renderDiffContent(v);
+
+    if (this.notesDiffOverlay) {
+      this.notesDiffOverlay.classList.remove('hidden');
+    }
+  },
+
+  /** Renders the diff content based on currentDiffMode */
+  renderDiffContent(v) {
+    if (!this.diffViewerContent) return;
+    const currentText = this.noteEditorBody ? this.noteEditorBody.value : '';
+    const oldLines    = (v.content || '').split('\n');
+    const newLines    = currentText.split('\n');
+
+    if (this.currentDiffMode === 'side') {
+      this.diffViewerContent.innerHTML = this.buildSideBySideDiff(oldLines, newLines);
+    } else {
+      this.diffViewerContent.innerHTML = this.buildInlineDiff(oldLines, newLines);
+    }
+  },
+
+  /** Simple LCS-based line diff → inline HTML */
+  buildInlineDiff(oldLines, newLines) {
+    const lcs = this.computeLCS(oldLines, newLines);
+    const result = [];
+    let oi = 0, ni = 0, li = 0;
+    while (oi < oldLines.length || ni < newLines.length) {
+      if (li < lcs.length && oi < oldLines.length && ni < newLines.length &&
+          oldLines[oi] === lcs[li] && newLines[ni] === lcs[li]) {
+        result.push(`<div class="diff-line diff-unchanged"><span class="diff-gutter"> </span><pre>${this.escapeHtml(oldLines[oi])}</pre></div>`);
+        oi++; ni++; li++;
+      } else if (li < lcs.length && ni < newLines.length && newLines[ni] !== lcs[li]) {
+        result.push(`<div class="diff-line diff-added"><span class="diff-gutter">+</span><pre>${this.escapeHtml(newLines[ni])}</pre></div>`);
+        ni++;
+      } else if (oi < oldLines.length) {
+        result.push(`<div class="diff-line diff-removed"><span class="diff-gutter">−</span><pre>${this.escapeHtml(oldLines[oi])}</pre></div>`);
+        oi++;
+      } else {
+        result.push(`<div class="diff-line diff-added"><span class="diff-gutter">+</span><pre>${this.escapeHtml(newLines[ni])}</pre></div>`);
+        ni++;
+      }
+    }
+    return result.join('') || '<div style="padding:20px;color:var(--text-muted);text-align:center;">No changes between this revision and current content.</div>';
+  },
+
+  /** Side-by-side diff HTML */
+  buildSideBySideDiff(oldLines, newLines) {
+    const lcs = this.computeLCS(oldLines, newLines);
+    const leftRows = [], rightRows = [];
+    let oi = 0, ni = 0, li = 0;
+    while (oi < oldLines.length || ni < newLines.length) {
+      if (li < lcs.length && oi < oldLines.length && ni < newLines.length &&
+          oldLines[oi] === lcs[li] && newLines[ni] === lcs[li]) {
+        leftRows.push(`<div class="diff-line diff-unchanged"><pre>${this.escapeHtml(oldLines[oi])}</pre></div>`);
+        rightRows.push(`<div class="diff-line diff-unchanged"><pre>${this.escapeHtml(newLines[ni])}</pre></div>`);
+        oi++; ni++; li++;
+      } else if (li < lcs.length && ni < newLines.length && newLines[ni] !== lcs[li]) {
+        leftRows.push(`<div class="diff-line diff-empty"><pre> </pre></div>`);
+        rightRows.push(`<div class="diff-line diff-added"><pre>${this.escapeHtml(newLines[ni])}</pre></div>`);
+        ni++;
+      } else if (oi < oldLines.length) {
+        leftRows.push(`<div class="diff-line diff-removed"><pre>${this.escapeHtml(oldLines[oi])}</pre></div>`);
+        rightRows.push(`<div class="diff-line diff-empty"><pre> </pre></div>`);
+        oi++;
+      } else {
+        leftRows.push(`<div class="diff-line diff-empty"><pre> </pre></div>`);
+        rightRows.push(`<div class="diff-line diff-added"><pre>${this.escapeHtml(newLines[ni])}</pre></div>`);
+        ni++;
+      }
+    }
+    return `<div class="diff-side-by-side"><div class="diff-side diff-side-old">${leftRows.join('')}</div><div class="diff-side diff-side-new">${rightRows.join('')}</div></div>`;
+  },
+
+  /** Longest Common Subsequence of two string arrays */
+  computeLCS(a, b) {
+    const m = a.length, n = b.length;
+    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+    const result = [];
+    let i = m, j = n;
+    while (i > 0 && j > 0) {
+      if (a[i - 1] === b[j - 1]) { result.unshift(a[i - 1]); i--; j--; }
+      else if (dp[i - 1][j] > dp[i][j - 1]) i--;
+      else j--;
+    }
+    return result;
+  },
+
+  escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  },
+
+  closeDiffOverlay() {
+    if (this.notesDiffOverlay) this.notesDiffOverlay.classList.add('hidden');
+    this.currentDiffVersion = null;
+  },
+
+  restoreDiffVersion() {
+    if (!this.currentDiffVersion) return;
+    const confirmRestore = confirm('Restore note content to this revision? Current unsaved changes will be replaced.');
+    if (!confirmRestore) return;
+    this.noteEditorBody.value = this.currentDiffVersion.content || '';
+    this.closeDiffOverlay();
+    this.updateChecklistProgress();
+    showToast('Note restored to selected revision', 'success');
+  },
+
   saveActiveNote() {
     const name = this.noteEditorTitle.value.trim();
     const content = this.noteEditorBody.value;
     
+
     if (!name) {
       showToast('Note name cannot be empty!', 'error');
       return;
