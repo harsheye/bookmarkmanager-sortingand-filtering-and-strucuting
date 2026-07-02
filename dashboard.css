@@ -1276,16 +1276,18 @@ input:checked + .slider-switch:before {
 .tree-preview-container::-webkit-scrollbar,
 .folder-children::-webkit-scrollbar,
 .subfolder-children::-webkit-scrollbar,
-.explorer-list-container::-webkit-scrollbar,
-.manager-sidebar::-webkit-scrollbar {
+.explorer-list-container::-webkit-scrollbar {
   display: none;
 }
 
 
 
+#folder-tree-list::-webkit-scrollbar,
+.manager-sidebar::-webkit-scrollbar,
 .categories-list::-webkit-scrollbar,
 .scan-log::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 
 .tree-preview-container::-webkit-scrollbar-track,
@@ -1293,6 +1295,7 @@ input:checked + .slider-switch:before {
 .subfolder-children::-webkit-scrollbar-track,
 .explorer-list-container::-webkit-scrollbar-track,
 .manager-sidebar::-webkit-scrollbar-track,
+#folder-tree-list::-webkit-scrollbar-track,
 .categories-list::-webkit-scrollbar-track,
 .scan-log::-webkit-scrollbar-track {
   background: transparent;
@@ -1303,9 +1306,10 @@ input:checked + .slider-switch:before {
 .subfolder-children::-webkit-scrollbar-thumb,
 .explorer-list-container::-webkit-scrollbar-thumb,
 .manager-sidebar::-webkit-scrollbar-thumb,
+#folder-tree-list::-webkit-scrollbar-thumb,
 .categories-list::-webkit-scrollbar-thumb,
 .scan-log::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 3px;
 }
 
@@ -1329,8 +1333,6 @@ input:checked + .slider-switch:before {
   gap: 6px;
   overflow-y: auto;
   overflow-x: hidden;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
   flex-shrink: 0;
   height: 100%;
   position: relative;
@@ -1572,12 +1574,6 @@ input:checked + .slider-switch:before {
   gap: 6px;
   overflow-y: auto;
   flex-grow: 1;
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE/Edge */
-}
-
-#folder-tree-list::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
 }
 
 .manager-tree-root {
