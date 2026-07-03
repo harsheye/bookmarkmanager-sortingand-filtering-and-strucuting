@@ -2994,6 +2994,11 @@ const BookmarkManager = {
         if (!query && !isEnter) return;
         if (query && query !== '+' && query !== '-' && !isEnter) return;
 
+        if (isEnter) {
+          this.searchInput.value = '';
+          this.hideSuggestions();
+        }
+
         chrome.tabs.query({ audible: true }, (tabs) => {
           if (tabs.length === 0) {
             showToast('No audio playing in any tab', 'error');
@@ -3652,24 +3657,19 @@ const BookmarkManager = {
       }
     }
 
-    // Dynamically relocate search bar wrapper
-    const searchWrapper = document.querySelector('.search-bar-wrapper');
+    // Dynamically relocate search section
     const searchSection = document.querySelector('.search-section');
+    const mainHeader = document.querySelector('.main-header');
     const historySearchContainer = document.getElementById('history-search-container');
     
-    if (searchWrapper) {
+    if (searchSection) {
       if (viewName === 'history') {
         if (historySearchContainer) {
-          historySearchContainer.appendChild(searchWrapper);
+          historySearchContainer.appendChild(searchSection);
         }
       } else {
-        if (searchSection) {
-          const suggestions = document.getElementById('command-suggestions');
-          if (suggestions) {
-            searchSection.insertBefore(searchWrapper, suggestions);
-          } else {
-            searchSection.appendChild(searchWrapper);
-          }
+        if (mainHeader) {
+          mainHeader.appendChild(searchSection);
         }
       }
     }
@@ -3797,9 +3797,10 @@ const BookmarkManager = {
       }
     }
 
-    // ─── Hide global search bar on Settings page (it has its own search) ───
-    if (searchSection) {
-      searchSection.style.display = viewName === 'settings' ? 'none' : '';
+    // ─── Hide global search bar on Settings and History pages ───
+    const topMainHeader = document.querySelector('.main-header');
+    if (topMainHeader) {
+      topMainHeader.style.display = (viewName === 'settings' || viewName === 'history') ? 'none' : '';
     }
 
     // Recalculate history virtual scroll after sidebar animation completes
