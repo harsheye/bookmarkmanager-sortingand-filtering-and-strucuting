@@ -10,7 +10,7 @@
   <link href="https://cdn-uicons.flaticon.com/2.6.0/uicons-regular-rounded/css/uicons-regular-rounded.css" rel="stylesheet">
   <link href="https://cdn-uicons.flaticon.com/2.6.0/uicons-solid-rounded/css/uicons-solid-rounded.css" rel="stylesheet">
   <link href="https://cdn-uicons.flaticon.com/2.6.0/uicons-bold-rounded/css/uicons-bold-rounded.css" rel="stylesheet">
-  <link rel="stylesheet" href="dashboard.css">
+  <link rel="stylesheet" href="dashboard.css?v=2">
   <link rel="stylesheet" href="history.css">
 </head>
 <body>
@@ -86,13 +86,29 @@
         </div>
         
 
-        <div class="navigation-box">
+        <div class="navigation-box" id="bookmarks-navigation-box">
           <h3 style="display:flex; align-items:center; gap:8px;">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color:var(--text-muted);"><path d="M19.5,5H13.243a3,3,0,0,1-2.122-.879l-1.414-1.414A3,3,0,0,0,7.586,1.828H4.5A2.5,2.5,0,0,0,2,4.328V19.5A2.5,2.5,0,0,0,4.5,22h15A2.5,2.5,0,0,0,22,19.5V7.5A2.5,2.5,0,0,0,19.5,5ZM20,19.5a.5.5,0,0,1-.5.5H4.5a.5.5,0,0,1-.5-.5V7.5A.5.5,0,0,1,4.5,7h15a.5.5,0,0,1,.5.5Z"/></svg>
             Folder Directory
           </h3>
           <div id="folder-tree-list" tabindex="0">
              <!-- Dynamically populated tree of folders -->
+          </div>
+        </div>
+
+        <div class="navigation-box hidden" id="cookies-navigation-box">
+          <h3 style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <i class="fi fi-rr-folder-tree" style="color: var(--warning);"></i>
+              Domain Explorer
+            </div>
+            <div style="display: flex; gap: 4px;">
+              <button class="action-icon-btn" title="Expand All" id="explorer-expand-all"><i class="fi fi-rr-angle-double-down"></i></button>
+              <button class="action-icon-btn" title="Collapse All" id="explorer-collapse-all"><i class="fi fi-rr-angle-double-up"></i></button>
+            </div>
+          </h3>
+          <div id="cookies-sidebar-list" class="domain-tree-container">
+            <!-- Populated dynamically with domain tree -->
           </div>
         </div>
         <!-- Integrated edge collapse handle — lives inside sidebar -->
@@ -639,82 +655,86 @@
 
     <!-- Cookies Profiles View -->
     <div id="cookies-view-container" class="cookies-view hidden">
-      <div class="cookies-workspace-layout">
-        <!-- Cookies Sidebar (left) -->
-        <aside class="cookies-sidebar" id="cookies-sidebar-panel">
-          <div class="cookies-sidebar-title">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <i class="fi fi-rr-cookie" style="color: var(--warning);"></i>
-              <span>Cookie Profiles</span>
-            </div>
+      
+      <!-- Global Statistics & Filters -->
+      <div class="cookies-global-header">
+        <div class="cookies-global-filters">
+          <div class="filter-toggles">
+            <button class="filter-badge" data-filter="secure"><i class="fi fi-rr-lock"></i> Secure</button>
+            <button class="filter-badge" data-filter="session"><i class="fi fi-rr-time-fast"></i> Session</button>
+            <button class="filter-badge" data-filter="expired"><i class="fi fi-rr-exclamation"></i> Expired</button>
           </div>
-          <button id="cookies-new-btn" class="btn btn-primary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; font-size: 13px;">
-            <i class="fi fi-br-plus"></i> New Profile
-          </button>
-          
-          <div class="cookies-sidebar-search" style="padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.05);">
-            <div class="settings-search-wrapper" style="width: 100%; background: rgba(0,0,0,0.2);">
-              <i class="fi fi-rr-search"></i>
-              <input type="text" id="cookies-local-search" placeholder="Search profiles...">
-            </div>
+          <div style="margin-left: auto; display: flex; gap: 8px;">
+            <button id="cookies-new-btn" class="btn btn-primary btn-small"><i class="fi fi-br-plus"></i> New Profile</button>
+            <button id="cookies-import-btn" class="btn btn-secondary btn-small"><i class="fi fi-rr-download"></i> Import</button>
+            <button id="cookies-export-all-btn" class="btn btn-secondary btn-small"><i class="fi fi-rr-upload"></i> Export All</button>
           </div>
+        </div>
+      </div>
 
-          <div id="cookies-sidebar-list">
-            <!-- Populated with cookie profiles -->
-          </div>
-        </aside>
-        
-        <div class="cookies-resizer" id="cookies-sidebar-resizer"></div>
-        
-        <!-- Cookies Main Content Area (right) -->
+      <div class="cookies-workspace-layout">
+        <!-- Main Workspace (Center) -->
         <main class="cookies-main-area">
           
           <!-- Empty State -->
-          <div id="cookies-empty-state" style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:var(--text-muted); opacity:0.6;">
-            <i class="fi fi-rr-cookie" style="font-size: 48px; margin-bottom: 15px;"></i>
-            <h3>Select a Cookie Profile</h3>
-            <p>Select a profile from the sidebar to view and edit its contents.</p>
+          <div id="cookies-empty-state" class="cookies-empty-state">
+            <i class="fi fi-rr-cookie-alt" style="font-size: 64px; margin-bottom: 20px; color: var(--warning); opacity: 0.8;"></i>
+            <h3>Select a Profile to Inspect</h3>
+            <p>Browse domains in the explorer or create a new profile.</p>
           </div>
 
           <!-- Cookie Editor Workspace -->
           <div id="cookie-editor-pane" class="cookie-editor-wrapper hidden">
-            <div class="cookie-editor-toolbar">
-              <div class="cookie-editor-toolbar-left">
-                <input type="text" id="cookie-editor-title" placeholder="Profile Name" style="background: transparent; border: none; color: white; font-size: 16px; font-weight: 600; outline: none; width: 250px;">
-                <span id="cookie-editor-hostname" style="color: var(--text-muted); font-size: 13px; margin-left: 10px;"></span>
+            
+            <div class="cookie-editor-header">
+              <div class="cookie-editor-header-main">
+                <div class="profile-title-group">
+                  <img id="cookie-editor-favicon" src="" onerror="this.style.display='none'" class="profile-favicon">
+                  <input type="text" id="cookie-editor-title" placeholder="Profile Name">
+                </div>
+                <div class="profile-meta-group">
+                  <span class="meta-badge"><i class="fi fi-rr-globe"></i> <span id="cookie-editor-hostname"></span></span>
+                  <span class="meta-badge"><i class="fi fi-rr-cookie"></i> <span id="cookie-editor-count">0</span> cookies</span>
+                  <span class="meta-badge"><i class="fi fi-rr-clock"></i> <span id="cookie-editor-date"></span></span>
+                </div>
               </div>
-              <div style="display: flex; gap: 8px; flex-shrink: 0;">
-                <button id="cookie-view-json-btn" class="btn btn-secondary btn-small active" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px;" title="JSON View" type="button"><i class="fi fi-rr-brackets-curly"></i> JSON</button>
-                <button id="cookie-view-table-btn" class="btn btn-secondary btn-small" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px;" title="Table View" type="button"><i class="fi fi-rr-table"></i> Table</button>
-                <button id="cookie-refresh-btn" class="btn btn-secondary btn-small" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px;"><i class="fi fi-rr-refresh"></i> Refresh</button>
-                <button id="cookie-save-btn" class="btn btn-success btn-small" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px;"><i class="fi fi-rs-disk"></i> Save</button>
-                <button id="cookie-delete-btn" class="btn btn-danger btn-small" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px;"><i class="fi fi-rr-trash"></i> Delete</button>
+              
+              <div class="cookie-editor-actions">
+                <button id="cookie-refresh-btn" class="btn btn-secondary btn-small" title="Reload from storage"><i class="fi fi-rr-refresh"></i></button>
+                <button id="cookie-duplicate-btn" class="btn btn-secondary btn-small" title="Duplicate Profile"><i class="fi fi-rr-copy"></i></button>
+                <button id="cookie-export-btn" class="btn btn-secondary btn-small" title="Export Profile"><i class="fi fi-rr-upload"></i></button>
+                <button id="cookie-delete-btn" class="btn btn-danger btn-small" title="Delete Profile"><i class="fi fi-rr-trash"></i> Delete</button>
+                <button id="cookie-save-btn" class="btn btn-success btn-small"><i class="fi fi-rs-disk"></i> Save</button>
+              </div>
+            </div>
+            
+            <div class="cookie-view-tabs">
+              <button class="view-tab active" data-view="table"><i class="fi fi-rr-table"></i> Table</button>
+              <button class="view-tab" data-view="card"><i class="fi fi-rr-apps"></i> Cards</button>
+              <button class="view-tab" data-view="json"><i class="fi fi-rr-brackets-curly"></i> JSON</button>
+              <button class="view-tab" data-view="raw"><i class="fi fi-rr-database"></i> Storage</button>
+              <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+                <button id="cookie-add-row-btn" class="btn btn-secondary btn-small" style="padding: 4px 10px; font-size: 11px;"><i class="fi fi-br-plus"></i> Add Cookie</button>
               </div>
             </div>
             
             <div class="cookie-workspace-canvas">
-              <!-- JSON Editor Area -->
-              <div id="cookie-json-view" class="cookie-view-container">
-                <textarea id="cookie-editor-body" placeholder="Paste or edit cookie JSON here..."></textarea>
-              </div>
-              
-              <!-- Table Editor Area -->
-              <div id="cookie-table-view" class="cookie-view-container hidden">
+              <!-- Table View -->
+              <div id="cookie-table-view" class="cookie-view-container">
                 <div class="cookie-table-wrapper">
-                  <table class="cookie-data-table">
+                  <table class="cookie-data-table devtools-table">
                     <thead>
                       <tr>
-                        <th>Name</th>
+                        <th style="width: 30px;"><input type="checkbox" id="selectAllCookies"></th>
+                        <th style="width: 150px;">Name</th>
                         <th>Value</th>
-                        <th>Domain</th>
-                        <th>Path</th>
-                        <th>Expiration</th>
-                        <th>Secure</th>
-                        <th>HttpOnly</th>
-                        <th>SameSite</th>
-                        <th>HostOnly</th>
-                        <th>Session</th>
-                        <th>StoreId</th>
+                        <th style="width: 100px;">Domain</th>
+                        <th style="width: 80px;">Path</th>
+                        <th style="width: 120px;">Expiration</th>
+                        <th style="width: 60px; text-align:center;">Secure</th>
+                        <th style="width: 60px; text-align:center;">HttpOnly</th>
+                        <th style="width: 90px;">SameSite</th>
+                        <th style="width: 50px;">Actions</th>
                       </tr>
                     </thead>
                     <tbody id="cookie-table-body">
@@ -723,9 +743,120 @@
                   </table>
                 </div>
               </div>
+              
+              <!-- Card View -->
+              <div id="cookie-card-view" class="cookie-view-container hidden">
+                <div class="cookie-card-grid" id="cookie-card-grid">
+                  <!-- Rendered dynamically -->
+                </div>
+              </div>
+
+              <!-- JSON Editor Area -->
+              <div id="cookie-json-view" class="cookie-view-container hidden">
+                <textarea id="cookie-editor-body" class="code-editor" spellcheck="false" placeholder="Paste or edit cookie JSON here..."></textarea>
+              </div>
+              
+              <!-- Raw Storage View -->
+              <div id="cookie-raw-view" class="cookie-view-container hidden">
+                <textarea id="cookie-raw-body" class="code-editor readonly" readonly spellcheck="false"></textarea>
+              </div>
             </div>
           </div>
         </main>
+        
+        <div class="cookies-resizer" id="inspector-resizer"></div>
+        
+        <!-- 3. Cookie Inspector (Right) -->
+        <aside class="cookie-inspector-panel closed" id="cookie-inspector-panel">
+          <div class="inspector-header">
+            <h3 style="margin: 0; font-size: 14px;"><i class="fi fi-rr-search-alt"></i> Inspector</h3>
+            <button class="action-icon-btn" id="close-inspector-btn"><i class="fi fi-rr-cross-small"></i></button>
+          </div>
+          
+          <div id="inspector-empty" class="inspector-empty">
+            <p>Select a cookie to inspect its properties.</p>
+          </div>
+          
+          <div id="inspector-content" class="inspector-content hidden">
+            <div class="inspector-section">
+              <div class="inspector-field">
+                <label>Name</label>
+                <input type="text" id="insp-name" class="inspector-input">
+              </div>
+              <div class="inspector-field">
+                <label>Value <span class="action-link" id="insp-decode-btn">Decode Base64/URL</span></label>
+                <textarea id="insp-value" class="inspector-textarea" rows="4"></textarea>
+              </div>
+              <div class="inspector-field">
+                <label>Decoded Preview</label>
+                <textarea id="insp-decoded" class="inspector-textarea readonly" rows="3" readonly></textarea>
+              </div>
+            </div>
+            
+            <div class="inspector-section">
+              <h4>Attributes</h4>
+              <div class="inspector-grid">
+                <div class="inspector-field">
+                  <label>Domain</label>
+                  <input type="text" id="insp-domain" class="inspector-input">
+                </div>
+                <div class="inspector-field">
+                  <label>Path</label>
+                  <input type="text" id="insp-path" class="inspector-input">
+                </div>
+                <div class="inspector-field">
+                  <label>Expiration (Epoch)</label>
+                  <input type="number" step="any" id="insp-expiration" class="inspector-input">
+                </div>
+                <div class="inspector-field">
+                  <label>SameSite</label>
+                  <select id="insp-samesite" class="inspector-select">
+                    <option value="">Unspecified</option>
+                    <option value="no_restriction">None</option>
+                    <option value="lax">Lax</option>
+                    <option value="strict">Strict</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            
+            <div class="inspector-section">
+              <h4>Flags</h4>
+              <div class="inspector-checkbox-group">
+                <label class="inspector-checkbox-label">
+                  <input type="checkbox" id="insp-secure"> Secure
+                </label>
+                <label class="inspector-checkbox-label">
+                  <input type="checkbox" id="insp-httponly"> HttpOnly
+                </label>
+                <label class="inspector-checkbox-label">
+                  <input type="checkbox" id="insp-session"> Session
+                </label>
+                <label class="inspector-checkbox-label">
+                  <input type="checkbox" id="insp-hostonly"> HostOnly
+                </label>
+              </div>
+            </div>
+            
+            <div class="inspector-section">
+              <h4>System</h4>
+              <div class="inspector-grid">
+                <div class="inspector-field">
+                  <label>Store ID</label>
+                  <input type="text" id="insp-storeid" class="inspector-input">
+                </div>
+                <div class="inspector-field">
+                  <label>Size</label>
+                  <input type="text" id="insp-size" class="inspector-input readonly" readonly>
+                </div>
+              </div>
+            </div>
+            
+            <div class="inspector-footer">
+              <button id="insp-apply-btn" class="btn btn-primary" style="width: 100%;">Apply Changes</button>
+            </div>
+          </div>
+        </aside>
       </div>
     </div>
 
