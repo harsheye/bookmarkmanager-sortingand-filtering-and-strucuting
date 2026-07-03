@@ -7870,62 +7870,390 @@ function showToast(message, type = 'success') {
   }, 3500);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  const refreshBtn = document.getElementById('refresh-cookies-btn');
-  if (refreshBtn) {
-    refreshBtn.addEventListener('click', renderSavedCookieProfiles);
-  }
-  
-  const tabCookies = document.getElementById('tab-cookies');
-  if (tabCookies) {
-    tabCookies.addEventListener('click', renderSavedCookieProfiles);
-  }
+class CookieProfileManager {
+  constructor() {
+    this.profiles = [];
+    this.activeProfileIdx = -1;
+    this.currentViewMode = 'json'; // 'json' or 'table'
 
-  setTimeout(() => {
-    renderSavedCookieProfiles();
-  }, 500);
-});
-
-function renderSavedCookieProfiles() {
-  const container = document.getElementById('cookies-list-render-area');
-  if (!container) return;
-  
-  chrome.storage.local.get(['cookie_profiles'], (res) => {
-    const profiles = res.cookie_profiles || [];
+    // DOM Elements
+    this.sidebarList = document.getElementById('cookies-sidebar-list');
+    this.emptyState = document.getElementById('cookies-empty-state');
+    this.editorPane = document.getElementById('cookie-editor-pane');
     
-    if (profiles.length === 0) {
-      container.innerHTML = '<p style="color: var(--text-muted); font-size: 13px;">No cookie profiles saved yet. Use the Command Center to save some!</p>';
-      return;
+    this.titleInput = document.getElementById('cookie-editor-title');
+    this.hostnameLabel = document.getElementById('cookie-editor-hostname');
+    
+    this.jsonViewBtn = document.getElementById('cookie-view-json-btn');
+    this.tableViewBtn = document.getElementById('cookie-view-table-btn');
+    
+    this.jsonViewContainer = document.getElementById('cookie-json-view');
+    this.tableViewContainer = document.getElementById('cookie-table-view');
+    
+    this.jsonEditor = document.getElementById('cookie-editor-body');
+    this.tableBody = document.getElementById('cookie-table-body');
+    
+    this.refreshBtn = document.getElementById('cookie-refresh-btn');
+    this.saveBtn = document.getElementById('cookie-save-btn');
+    this.deleteBtn = document.getElementById('cookie-delete-btn');
+    
+    this.newBtn = document.getElementById('cookies-new-btn');
+    this.searchInput = document.getElementById('cookies-local-search');
+
+    this.bindEvents();
+    this.loadProfiles();
+  }
+
+  bindEvents() {
+    if (this.jsonViewBtn) {
+      this.jsonViewBtn.addEventListener('click', () => this.switchView('json'));
+    }
+    if (this.tableViewBtn) {
+      this.tableViewBtn.addEventListener('click', () => this.switchView('table'));
+    }
+    if (this.refreshBtn) {
+      this.refreshBtn.addEventListener('click', () => this.loadProfiles());
+    }
+    if (this.saveBtn) {
+      this.saveBtn.addEventListener('click', () => this.saveActiveProfile());
+    }
+    if (this.deleteBtn) {
+      this.deleteBtn.addEventListener('click', () => this.deleteActiveProfile());
+    }
+    if (this.newBtn) {
+      this.newBtn.addEventListener('click', () => this.createNewProfile());
+    }
+    if (this.searchInput) {
+      this.searchInput.addEventListener('input', (e) => this.renderSidebar(e.target.value));
+    }
+  }
+
+  loadProfiles() {
+    chrome.storage.local.get(['cookie_profiles'], (res) => {
+      this.profiles = res.cookie_profiles || [];
+      // preserve active profile
+      let activeId = null;
+      if (this.activeProfileIdx !== -1 && this.profiles[this.activeProfileIdx]) {
+        activeId = this.profiles[this.activeProfileIdx].id;
+      }
+
+      this.renderSidebar(this.searchInput ? this.searchInput.value : '');
+      
+      if (activeId) {
+        const newIdx = this.profiles.findIndex(p => p.id === activeId);
+        if (newIdx !== -1) {
+          this.selectProfile(newIdx);
+        } else {
+          this.closeEditor();
+        }
+      } else {
+        this.closeEditor();
+      }
+    });
+  }
+
+  renderSidebar(filter = '') {
+    if (!this.sidebarList) return;
+    this.sidebarList.innerHTML = '';
+
+    const query = filter.toLowerCase().trim();
+    let hasMatches = false;
+
+    this.profiles.forEach((p, idx) => {
+      if (query && !p.profileName.toLowerCase().includes(query) && !p.hostname.toLowerCase().includes(query)) {
+        return;
+      }
+      hasMatches = true;
+      
+      const item = document.createElement('div');
+      item.className = 'cookie-sidebar-item';
+      if (idx === this.activeProfileIdx) {
+        item.classList.add('active');
+      }
+
+      item.innerHTML = `
+        <div class="cookie-profile-name">${this.escapeHtml(p.profileName || 'Untitled Profile')}</div>
+        <div class="cookie-profile-domain">${this.escapeHtml(p.hostname || 'No Domain')}</div>
+      `;
+
+      item.addEventListener('click', () => {
+        this.selectProfile(idx);
+      });
+
+      this.sidebarList.appendChild(item);
+    });
+
+    if (!hasMatches) {
+      this.sidebarList.innerHTML = '<div style="color:var(--text-muted); font-size:12px; padding:10px; text-align:center;">No profiles found</div>';
+    }
+  }
+
+  selectProfile(idx) {
+    if (idx < 0 || idx >= this.profiles.length) return;
+    this.activeProfileIdx = idx;
+    
+    // Highlight sidebar
+    document.querySelectorAll('.cookie-sidebar-item').forEach((el, i) => {
+      if (i === idx) el.classList.add('active');
+      else el.classList.remove('active');
+    });
+
+    const profile = this.profiles[idx];
+    
+    this.emptyState.classList.add('hidden');
+    this.editorPane.classList.remove('hidden');
+    
+    this.titleInput.value = profile.profileName || '';
+    this.hostnameLabel.textContent = profile.hostname || '';
+    
+    // Sync JSON data to editor
+    const cookiesJson = JSON.stringify(profile.cookies || [], null, 2);
+    this.jsonEditor.value = cookiesJson;
+    
+    // Sync Table data
+    this.renderTable(profile.cookies || []);
+  }
+
+  closeEditor() {
+    this.activeProfileIdx = -1;
+    this.emptyState.classList.remove('hidden');
+    this.editorPane.classList.add('hidden');
+    document.querySelectorAll('.cookie-sidebar-item').forEach(el => el.classList.remove('active'));
+  }
+
+  switchView(viewName) {
+    this.currentViewMode = viewName;
+    
+    // Sync data before switching
+    if (viewName === 'table') {
+      try {
+        const parsed = JSON.parse(this.jsonEditor.value);
+        this.renderTable(parsed);
+      } catch (e) {
+        alert("Cannot switch to Table View: JSON is invalid.\n\n" + e.message);
+        return;
+      }
+    } else if (viewName === 'json') {
+      const tableData = this.extractTableData();
+      this.jsonEditor.value = JSON.stringify(tableData, null, 2);
     }
     
-    container.innerHTML = '';
+    if (viewName === 'json') {
+      this.jsonViewBtn.classList.add('active');
+      this.tableViewBtn.classList.remove('active');
+      this.jsonViewContainer.classList.remove('hidden');
+      this.tableViewContainer.classList.add('hidden');
+    } else {
+      this.tableViewBtn.classList.add('active');
+      this.jsonViewBtn.classList.remove('active');
+      this.tableViewContainer.classList.remove('hidden');
+      this.jsonViewContainer.classList.add('hidden');
+    }
+  }
+
+  renderTable(cookies) {
+    if (!this.tableBody) return;
+    this.tableBody.innerHTML = '';
     
-    profiles.forEach((p, idx) => {
-      const card = document.createElement('div');
-      card.style = "background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;";
-      
-      card.innerHTML = `
-        <div>
-          <h4 style="margin: 0 0 5px 0; color: white;">${p.profileName} <span style="font-size: 12px; color: var(--text-muted); font-weight: normal; margin-left: 10px;">${p.hostname}</span></h4>
-          <div style="font-size: 12px; color: var(--text-muted); display: flex; gap: 15px;">
-            <span>${p.cookies.length} cookies</span>
-            <span>Saved: ${new Date(p.createdAt).toLocaleString()}</span>
-          </div>
-        </div>
-        <button class="btn btn-danger btn-small delete-profile-btn" data-idx="${idx}"><i class="fi fi-rr-trash"></i> Delete</button>
+    if (!Array.isArray(cookies)) return;
+
+    cookies.forEach((c, idx) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input type="text" class="cookie-input field-name" value="${this.escapeHtml(c.name || '')}"></td>
+        <td><input type="text" class="cookie-input field-value" value="${this.escapeHtml(c.value || '')}"></td>
+        <td><input type="text" class="cookie-input field-domain" value="${this.escapeHtml(c.domain || '')}"></td>
+        <td><input type="text" class="cookie-input field-path" value="${this.escapeHtml(c.path || '/')}"></td>
+        <td><input type="number" step="any" class="cookie-input field-expiration" value="${c.expirationDate || ''}"></td>
+        <td style="text-align:center;"><input type="checkbox" class="field-secure" ${c.secure ? 'checked' : ''}></td>
+        <td style="text-align:center;"><input type="checkbox" class="field-httponly" ${c.httpOnly ? 'checked' : ''}></td>
+        <td>
+          <select class="cookie-select field-samesite">
+            <option value="" ${!c.sameSite ? 'selected' : ''}>Unspecified</option>
+            <option value="no_restriction" ${c.sameSite === 'no_restriction' ? 'selected' : ''}>None</option>
+            <option value="lax" ${c.sameSite === 'lax' ? 'selected' : ''}>Lax</option>
+            <option value="strict" ${c.sameSite === 'strict' ? 'selected' : ''}>Strict</option>
+          </select>
+        </td>
+        <td style="text-align:center;"><input type="checkbox" class="field-hostonly" ${c.hostOnly ? 'checked' : ''}></td>
+        <td style="text-align:center;"><input type="checkbox" class="field-session" ${c.session ? 'checked' : ''}></td>
+        <td><input type="text" class="cookie-input field-storeid" value="${this.escapeHtml(c.storeId || '')}"></td>
+        <td><button class="btn btn-danger btn-small delete-row-btn" style="padding:2px 6px;"><i class="fi fi-rr-trash"></i></button></td>
       `;
-      
-      card.querySelector('.delete-profile-btn').addEventListener('click', () => {
-        if (confirm(`Delete profile "${p.profileName}" for ${p.hostname}?`)) {
-          profiles.splice(idx, 1);
-          chrome.storage.local.set({ cookie_profiles: profiles }, () => {
-            renderSavedCookieProfiles();
-            showToast("Profile deleted");
-          });
-        }
+
+      tr.querySelector('.delete-row-btn').addEventListener('click', () => {
+        tr.remove();
       });
-      
-      container.appendChild(card);
+
+      this.tableBody.appendChild(tr);
     });
-  });
+
+    const addRowTr = document.createElement('tr');
+    addRowTr.innerHTML = `
+      <td colspan="12" style="text-align:center; padding: 12px;">
+        <button id="cookie-add-row-btn" class="btn btn-secondary btn-small"><i class="fi fi-br-plus"></i> Add Cookie</button>
+      </td>
+    `;
+    addRowTr.querySelector('#cookie-add-row-btn').addEventListener('click', () => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input type="text" class="cookie-input field-name" value="new_cookie"></td>
+        <td><input type="text" class="cookie-input field-value" value=""></td>
+        <td><input type="text" class="cookie-input field-domain" value="${this.escapeHtml(this.profiles[this.activeProfileIdx]?.hostname || '')}"></td>
+        <td><input type="text" class="cookie-input field-path" value="/"></td>
+        <td><input type="number" step="any" class="cookie-input field-expiration" value=""></td>
+        <td style="text-align:center;"><input type="checkbox" class="field-secure"></td>
+        <td style="text-align:center;"><input type="checkbox" class="field-httponly"></td>
+        <td>
+          <select class="cookie-select field-samesite">
+            <option value="" selected>Unspecified</option>
+            <option value="no_restriction">None</option>
+            <option value="lax">Lax</option>
+            <option value="strict">Strict</option>
+          </select>
+        </td>
+        <td style="text-align:center;"><input type="checkbox" class="field-hostonly"></td>
+        <td style="text-align:center;"><input type="checkbox" class="field-session" checked></td>
+        <td><input type="text" class="cookie-input field-storeid" value=""></td>
+        <td><button class="btn btn-danger btn-small delete-row-btn" style="padding:2px 6px;"><i class="fi fi-rr-trash"></i></button></td>
+      `;
+      tr.querySelector('.delete-row-btn').addEventListener('click', () => tr.remove());
+      this.tableBody.insertBefore(tr, addRowTr);
+    });
+    this.tableBody.appendChild(addRowTr);
+  }
+
+  extractTableData() {
+    const cookies = [];
+    if (!this.tableBody) return cookies;
+    
+    const rows = this.tableBody.querySelectorAll('tr:not(:last-child)'); // ignore the "add" button row
+    rows.forEach(tr => {
+      const name = tr.querySelector('.field-name').value;
+      if (!name) return; // skip empty
+
+      const c = {
+        name: name,
+        value: tr.querySelector('.field-value').value,
+        domain: tr.querySelector('.field-domain').value,
+        path: tr.querySelector('.field-path').value,
+        secure: tr.querySelector('.field-secure').checked,
+        httpOnly: tr.querySelector('.field-httponly').checked,
+        hostOnly: tr.querySelector('.field-hostonly').checked,
+        session: tr.querySelector('.field-session').checked
+      };
+
+      const exp = tr.querySelector('.field-expiration').value;
+      if (exp) c.expirationDate = parseFloat(exp);
+
+      const sameSite = tr.querySelector('.field-samesite').value;
+      if (sameSite) c.sameSite = sameSite;
+
+      const storeId = tr.querySelector('.field-storeid').value;
+      if (storeId) c.storeId = storeId;
+
+      cookies.push(c);
+    });
+    return cookies;
+  }
+
+  saveActiveProfile() {
+    if (this.activeProfileIdx === -1) return;
+
+    let newCookies = [];
+
+    // Sync from active view
+    if (this.currentViewMode === 'json') {
+      try {
+        newCookies = JSON.parse(this.jsonEditor.value);
+        if (!Array.isArray(newCookies)) throw new Error("JSON must be an array of cookies.");
+      } catch (e) {
+        alert("Invalid JSON: " + e.message);
+        return;
+      }
+    } else {
+      newCookies = this.extractTableData();
+    }
+
+    const newTitle = this.titleInput.value.trim() || 'Untitled Profile';
+
+    this.profiles[this.activeProfileIdx].cookies = newCookies;
+    this.profiles[this.activeProfileIdx].profileName = newTitle;
+    
+    // Save to storage
+    chrome.storage.local.set({ cookie_profiles: this.profiles }, () => {
+      if (window.showToast) {
+        window.showToast("Profile saved successfully");
+      } else {
+        alert("Profile saved successfully");
+      }
+      this.renderSidebar(this.searchInput ? this.searchInput.value : '');
+    });
+  }
+
+  deleteActiveProfile() {
+    if (this.activeProfileIdx === -1) return;
+    const p = this.profiles[this.activeProfileIdx];
+
+    if (confirm(`Are you sure you want to delete the profile "${p.profileName}"?`)) {
+      this.profiles.splice(this.activeProfileIdx, 1);
+      chrome.storage.local.set({ cookie_profiles: this.profiles }, () => {
+        if (window.showToast) {
+          window.showToast("Profile deleted");
+        }
+        this.closeEditor();
+        this.renderSidebar(this.searchInput ? this.searchInput.value : '');
+      });
+    }
+  }
+
+  createNewProfile() {
+    const profileName = prompt("Enter a name for the new profile:");
+    if (!profileName) return;
+    
+    const hostname = prompt("Enter the hostname (e.g., example.com):");
+
+    const newProfile = {
+      id: "profile_" + Date.now(),
+      hostname: hostname || "unknown.domain",
+      url: hostname ? ("https://" + hostname) : "",
+      title: profileName,
+      profileName: profileName,
+      createdAt: Date.now(),
+      cookies: []
+    };
+
+    this.profiles.push(newProfile);
+    chrome.storage.local.set({ cookie_profiles: this.profiles }, () => {
+      this.loadProfiles();
+      this.selectProfile(this.profiles.length - 1);
+    });
+  }
+
+  escapeHtml(unsafe) {
+    if (unsafe == null) return '';
+    return unsafe
+      .toString()
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
 }
+
+let cookieProfileManagerInstance = null;
+
+function initCookieProfileManager() {
+  if (!cookieProfileManagerInstance) {
+    cookieProfileManagerInstance = new CookieProfileManager();
+  } else {
+    cookieProfileManagerInstance.loadProfiles();
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    initCookieProfileManager();
+  }, 500);
+});
