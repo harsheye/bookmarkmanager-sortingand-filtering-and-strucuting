@@ -638,86 +638,22 @@
 
 
     <!-- Cookies Profiles View -->
-    <div id="cookies-view-container" class="cookies-view hidden">
-      <div class="notes-workspace-layout">
-        
-        <!-- Cookies Sidebar (left) -->
-        <aside class="notes-sidebar" id="cookies-sidebar-panel">
-          <div class="notes-sidebar-title">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <i class="fi fi-rr-cookie" style="color: var(--notes-accent);"></i>
-              <span>Cookie Profiles</span>
-            </div>
-          </div>
-          <button id="cookies-new-btn" class="btn btn-primary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; font-size: 13px;">
-            <i class="fi fi-br-plus"></i> New Profile
-          </button>
-          <div id="cookies-sidebar-list">
-            <!-- Populated with cookie profiles -->
-          </div>
-        </aside>
-        
-        <div class="notes-resizer" id="cookies-sidebar-resizer"></div>
-        
-        <!-- Cookies Main Content Area (right) -->
-        <main class="notes-main-area">
-          
-          <!-- Cookie Editor Workspace -->
-          <div id="cookie-editor-pane" class="note-editor-wrapper hidden">
-            <div class="note-editor-toolbar">
-              <div class="note-editor-toolbar-left">
-                <button id="cookie-close-btn" class="note-editor-back-btn" title="Back to Dashboard">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-                </button>
-                <input type="text" id="cookie-editor-title" placeholder="Profile Name" style="width: 180px; background: transparent; border: 1px solid transparent; color: white; padding: 4px 8px; font-weight: 600; font-size: 16px;">
-                <input type="text" id="cookie-editor-domain" placeholder="Domain (e.g. google.com)" style="width: 180px; background: transparent; border: 1px solid rgba(255,255,255,0.1); color: var(--text-muted); padding: 4px 8px; font-size: 13px; border-radius: 4px; margin-left: 10px;">
-              </div>
-              <div style="display: flex; gap: 8px; flex-shrink: 0;">
-                <button id="cookie-view-json-btn" class="btn btn-secondary btn-small active" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px;" type="button"><i class="fi fi-rr-code"></i> JSON</button>
-                <button id="cookie-view-table-btn" class="btn btn-secondary btn-small" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px;" type="button"><i class="fi fi-rr-table"></i> Table</button>
-                <button id="cookie-save-btn" class="btn btn-success btn-small" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px;"><i class="fi fi-rs-disk"></i> Save Profile</button>
-                <button id="cookie-delete-btn" class="btn btn-danger btn-small" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px;"><i class="fi fi-rr-trash"></i> Delete</button>
-              </div>
-            </div>
-            
-            <div class="note-writing-canvas" style="display: flex; flex-direction: column; flex-grow: 1;">
-              
-              <!-- JSON Editor View -->
-              <div id="cookie-json-view" class="cookie-editor-body-container" style="flex-grow: 1; display: flex; padding: 20px;">
-                <textarea id="cookie-editor-body" placeholder="[ { ... } ]" style="width: 100%; height: 100%; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #a5d6ff; font-family: monospace; padding: 15px; resize: none; outline: none;"></textarea>
-              </div>
-              
-              <!-- Table Editor View -->
-              <div id="cookie-table-view" class="cookie-editor-body-container hidden" style="flex-grow: 1; display: flex; flex-direction: column; padding: 20px; overflow-y: auto;">
-                <div style="margin-bottom: 10px; display: flex; justify-content: flex-end;">
-                  <button id="cookie-add-row-btn" class="btn btn-secondary btn-small"><i class="fi fi-br-plus"></i> Add Cookie</button>
-                </div>
-                <table style="width: 100%; border-collapse: collapse; text-align: left; background: rgba(0,0,0,0.2); border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);">
-                  <thead style="background: rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.1);">
-                    <tr>
-                      <th style="padding: 12px; font-weight: 500; font-size: 13px; color: var(--text-muted);">Name</th>
-                      <th style="padding: 12px; font-weight: 500; font-size: 13px; color: var(--text-muted);">Value</th>
-                      <th style="padding: 12px; font-weight: 500; font-size: 13px; color: var(--text-muted);">Domain</th>
-                      <th style="padding: 12px; font-weight: 500; font-size: 13px; color: var(--text-muted);">Path</th>
-                      <th style="padding: 12px; font-weight: 500; font-size: 13px; width: 60px; color: var(--text-muted); text-align: center;">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody id="cookie-table-body">
-                    <!-- Rows generated via JS -->
-                  </tbody>
-                </table>
-              </div>
+    <div id="cookies-view-container" class="cookies-view hidden" style="padding: 20px; overflow-y: auto; width: 100%; height: 100%;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+        <h2 style="margin:0; font-size: 24px;">Cookie Profiles</h2>
+      </div>
 
-            </div>
-          </div>
-          
-          <!-- Editor Placeholder -->
-          <div id="cookie-editor-placeholder" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-muted);">
-            <span style="font-size: 48px; display: block; margin-bottom: 16px;">🍪</span>
-            <span style="font-size: 16px;">Select a cookie profile from the sidebar or click "New Profile" to create one.</span>
-          </div>
-          
-        </main>
+      <div class="glass-panel" style="padding: 30px; border-radius: 12px; margin: 0 20px 20px 20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+          <h3 style="margin:0;">Saved Cookie Profiles</h3>
+          <button id="refresh-cookies-btn" class="btn btn-secondary btn-small" style="display:flex; align-items:center; gap:6px;">
+            <i class="fi fi-rr-refresh"></i> Refresh
+          </button>
+        </div>
+        <div id="cookies-list-render-area" style="display: flex; flex-direction: column; gap: 10px;">
+          <!-- Populated dynamically via JS -->
+          <p style="color: var(--text-muted); font-size: 13px;">No cookie profiles saved yet. Use the Command Center to save some!</p>
+        </div>
       </div>
     </div>
 

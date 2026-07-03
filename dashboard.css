@@ -2398,7 +2398,7 @@ input:checked + .slider-switch:before {
 }
 
 /* Base Notes Panel layout overrides */
-#notes-view-container, #cookies-view-container {
+#notes-view-container {
   padding: 18px !important;
   height: 100%;
 }

@@ -7870,249 +7870,62 @@ function showToast(message, type = 'success') {
   }, 3500);
 }
 
-// --- Cookie Profiles Workspace Logic ---
-let activeCookieProfileIdx = null;
-let cookieProfilesList = [];
-let currentCookieView = 'json'; // 'json' or 'table'
-
 document.addEventListener('DOMContentLoaded', () => {
+  const refreshBtn = document.getElementById('refresh-cookies-btn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', renderSavedCookieProfiles);
+  }
+  
   const tabCookies = document.getElementById('tab-cookies');
   if (tabCookies) {
-    tabCookies.addEventListener('click', loadCookiesManager);
+    tabCookies.addEventListener('click', renderSavedCookieProfiles);
   }
 
-  // View toggle buttons
-  const jsonBtn = document.getElementById('cookie-view-json-btn');
-  const tableBtn = document.getElementById('cookie-view-table-btn');
-  if (jsonBtn) jsonBtn.addEventListener('click', () => switchCookieView('json'));
-  if (tableBtn) tableBtn.addEventListener('click', () => switchCookieView('table'));
-
-  // Action buttons
-  const saveBtn = document.getElementById('cookie-save-btn');
-  const deleteBtn = document.getElementById('cookie-delete-btn');
-  const closeBtn = document.getElementById('cookie-close-btn');
-  const newBtn = document.getElementById('cookies-new-btn');
-  const addRowBtn = document.getElementById('cookie-add-row-btn');
-
-  if (saveBtn) saveBtn.addEventListener('click', saveCookieProfile);
-  if (deleteBtn) deleteBtn.addEventListener('click', deleteCookieProfile);
-  if (closeBtn) closeBtn.addEventListener('click', closeCookieEditor);
-  if (newBtn) newBtn.addEventListener('click', createNewCookieProfile);
-  if (addRowBtn) addRowBtn.addEventListener('click', addCookieTableRow);
-
-  setTimeout(loadCookiesManager, 500);
+  setTimeout(() => {
+    renderSavedCookieProfiles();
+  }, 500);
 });
 
-function loadCookiesManager() {
+function renderSavedCookieProfiles() {
+  const container = document.getElementById('cookies-list-render-area');
+  if (!container) return;
+  
   chrome.storage.local.get(['cookie_profiles'], (res) => {
-    cookieProfilesList = res.cookie_profiles || [];
-    renderCookiesSidebar();
-  });
-}
-
-function renderCookiesSidebar() {
-  const sidebarList = document.getElementById('cookies-sidebar-list');
-  if (!sidebarList) return;
-
-  sidebarList.innerHTML = '';
-
-  if (cookieProfilesList.length === 0) {
-    sidebarList.innerHTML = '<div style="padding: 15px; color: var(--text-muted); font-size: 13px; text-align: center;">No cookie profiles. Click "New Profile" to create one.</div>';
-    return;
-  }
-
-  cookieProfilesList.forEach((p, idx) => {
-    const item = document.createElement('div');
-    item.className = 'note-sidebar-item' + (activeCookieProfileIdx === idx ? ' active' : '');
-    item.innerHTML = `
-      <div class="note-sidebar-item-header">
-        <span class="note-sidebar-item-title">${p.profileName || 'Untitled Profile'}</span>
-      </div>
-      <div class="note-sidebar-item-date">${p.hostname || 'No domain'} • ${p.cookies ? p.cookies.length : 0} cookies</div>
-    `;
+    const profiles = res.cookie_profiles || [];
     
-    item.addEventListener('click', () => {
-      document.querySelectorAll('#cookies-sidebar-list .note-sidebar-item').forEach(el => el.classList.remove('active'));
-      item.classList.add('active');
-      openCookieEditor(idx);
-    });
-
-    sidebarList.appendChild(item);
-  });
-}
-
-function openCookieEditor(idx) {
-  activeCookieProfileIdx = idx;
-  const profile = cookieProfilesList[idx];
-  
-  document.getElementById('cookie-editor-placeholder').style.display = 'none';
-  document.getElementById('cookie-editor-pane').classList.remove('hidden');
-
-  document.getElementById('cookie-editor-title').value = profile.profileName || '';
-  document.getElementById('cookie-editor-domain').value = profile.hostname || '';
-
-  const cookiesStr = JSON.stringify(profile.cookies || [], null, 2);
-  document.getElementById('cookie-editor-body').value = cookiesStr;
-
-  renderCookieTable();
-}
-
-function closeCookieEditor() {
-  activeCookieProfileIdx = null;
-  document.getElementById('cookie-editor-pane').classList.add('hidden');
-  document.getElementById('cookie-editor-placeholder').style.display = 'flex';
-  renderCookiesSidebar();
-}
-
-function switchCookieView(view) {
-  currentCookieView = view;
-  const jsonView = document.getElementById('cookie-json-view');
-  const tableView = document.getElementById('cookie-table-view');
-  const jsonBtn = document.getElementById('cookie-view-json-btn');
-  const tableBtn = document.getElementById('cookie-view-table-btn');
-
-  if (view === 'json') {
-    // If switching FROM table TO json, try to parse the table back to JSON first
-    if (!tableView.classList.contains('hidden')) {
-      syncTableToJson();
+    if (profiles.length === 0) {
+      container.innerHTML = '<p style="color: var(--text-muted); font-size: 13px;">No cookie profiles saved yet. Use the Command Center to save some!</p>';
+      return;
     }
-    jsonView.classList.remove('hidden');
-    tableView.classList.add('hidden');
-    jsonBtn.classList.add('active');
-    tableBtn.classList.remove('active');
-  } else {
-    // If switching FROM json TO table, try to parse the JSON back to table first
-    if (!jsonView.classList.contains('hidden')) {
-      const success = syncJsonToTable();
-      if (!success) return; // don't switch if json is invalid
-    }
-    jsonView.classList.add('hidden');
-    tableView.classList.remove('hidden');
-    jsonBtn.classList.remove('active');
-    tableBtn.classList.add('active');
-  }
-}
-
-function syncTableToJson() {
-  const tbody = document.getElementById('cookie-table-body');
-  const rows = tbody.querySelectorAll('tr');
-  const cookies = [];
-  rows.forEach(row => {
-    const inputs = row.querySelectorAll('input');
-    if (inputs.length >= 4) {
-      cookies.push({
-        name: inputs[0].value,
-        value: inputs[1].value,
-        domain: inputs[2].value,
-        path: inputs[3].value
+    
+    container.innerHTML = '';
+    
+    profiles.forEach((p, idx) => {
+      const card = document.createElement('div');
+      card.style = "background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;";
+      
+      card.innerHTML = `
+        <div>
+          <h4 style="margin: 0 0 5px 0; color: white;">${p.profileName} <span style="font-size: 12px; color: var(--text-muted); font-weight: normal; margin-left: 10px;">${p.hostname}</span></h4>
+          <div style="font-size: 12px; color: var(--text-muted); display: flex; gap: 15px;">
+            <span>${p.cookies.length} cookies</span>
+            <span>Saved: ${new Date(p.createdAt).toLocaleString()}</span>
+          </div>
+        </div>
+        <button class="btn btn-danger btn-small delete-profile-btn" data-idx="${idx}"><i class="fi fi-rr-trash"></i> Delete</button>
+      `;
+      
+      card.querySelector('.delete-profile-btn').addEventListener('click', () => {
+        if (confirm(`Delete profile "${p.profileName}" for ${p.hostname}?`)) {
+          profiles.splice(idx, 1);
+          chrome.storage.local.set({ cookie_profiles: profiles }, () => {
+            renderSavedCookieProfiles();
+            showToast("Profile deleted");
+          });
+        }
       });
-    }
-  });
-  document.getElementById('cookie-editor-body').value = JSON.stringify(cookies, null, 2);
-}
-
-function syncJsonToTable() {
-  const jsonStr = document.getElementById('cookie-editor-body').value;
-  try {
-    const cookies = JSON.parse(jsonStr || '[]');
-    if (!Array.isArray(cookies)) throw new Error('Cookies must be an array');
-    
-    const tbody = document.getElementById('cookie-table-body');
-    tbody.innerHTML = '';
-    
-    cookies.forEach((c, index) => {
-      addCookieTableRow(c);
+      
+      container.appendChild(card);
     });
-    return true;
-  } catch (e) {
-    alert("Invalid JSON: " + e.message + "\\n\\nPlease fix the JSON before switching to Table View.");
-    return false;
-  }
-}
-
-function renderCookieTable() {
-  if (currentCookieView === 'table') {
-    syncJsonToTable();
-  }
-}
-
-function addCookieTableRow(cookie = { name: '', value: '', domain: '', path: '/' }) {
-  const tbody = document.getElementById('cookie-table-body');
-  const tr = document.createElement('tr');
-  tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-  
-  tr.innerHTML = \`
-    <td style="padding: 8px;"><input type="text" value="\${escapeHtml(cookie.name || '')}" style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 6px; border-radius: 4px;"></td>
-    <td style="padding: 8px;"><input type="text" value="\${escapeHtml(cookie.value || '')}" style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 6px; border-radius: 4px;"></td>
-    <td style="padding: 8px;"><input type="text" value="\${escapeHtml(cookie.domain || '')}" style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 6px; border-radius: 4px;"></td>
-    <td style="padding: 8px;"><input type="text" value="\${escapeHtml(cookie.path || '')}" style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 6px; border-radius: 4px;"></td>
-    <td style="padding: 8px; text-align: center;"><button class="btn btn-danger btn-small" type="button" onclick="this.closest('tr').remove()"><i class="fi fi-rr-trash"></i></button></td>
-  \`;
-  tbody.appendChild(tr);
-}
-
-function escapeHtml(unsafe) {
-    return (unsafe||'').toString()
-         .replace(/&/g, "&amp;")
-         .replace(/</g, "&lt;")
-         .replace(/>/g, "&gt;")
-         .replace(/"/g, "&quot;")
-         .replace(/'/g, "&#039;");
-}
-
-function saveCookieProfile() {
-  if (activeCookieProfileIdx === null) return;
-  
-  if (currentCookieView === 'table') {
-    syncTableToJson();
-  }
-  
-  const jsonStr = document.getElementById('cookie-editor-body').value;
-  let parsedCookies = [];
-  try {
-    parsedCookies = JSON.parse(jsonStr || '[]');
-    if (!Array.isArray(parsedCookies)) throw new Error('Cookies must be an array');
-  } catch(e) {
-    alert("Cannot save! Invalid JSON format: " + e.message);
-    return;
-  }
-
-  const profileName = document.getElementById('cookie-editor-title').value.trim() || 'Untitled Profile';
-  const hostname = document.getElementById('cookie-editor-domain').value.trim();
-
-  cookieProfilesList[activeCookieProfileIdx].profileName = profileName;
-  cookieProfilesList[activeCookieProfileIdx].hostname = hostname;
-  cookieProfilesList[activeCookieProfileIdx].cookies = parsedCookies;
-
-  chrome.storage.local.set({ cookie_profiles: cookieProfilesList }, () => {
-    showToast('Cookie profile saved successfully');
-    renderCookiesSidebar();
   });
-}
-
-function deleteCookieProfile() {
-  if (activeCookieProfileIdx === null) return;
-  const profile = cookieProfilesList[activeCookieProfileIdx];
-  
-  if (confirm(\`Are you sure you want to delete "\${profile.profileName}"?\`)) {
-    cookieProfilesList.splice(activeCookieProfileIdx, 1);
-    chrome.storage.local.set({ cookie_profiles: cookieProfilesList }, () => {
-      showToast('Profile deleted');
-      closeCookieEditor();
-    });
-  }
-}
-
-function createNewCookieProfile() {
-  const newProfile = {
-    id: 'profile_' + Date.now(),
-    profileName: 'New Profile',
-    hostname: '',
-    createdAt: Date.now(),
-    cookies: []
-  };
-  cookieProfilesList.unshift(newProfile);
-  activeCookieProfileIdx = 0;
-  openCookieEditor(0);
-  renderCookiesSidebar();
 }
