@@ -3732,6 +3732,8 @@ const BookmarkManager = {
       if (tableEl) tableEl.classList.add('hidden');
       if (settingsEl) settingsEl.classList.add('hidden');
       if (notesEl) notesEl.classList.add('hidden');
+      const cookiesEl = document.getElementById('cookies-view-container');
+      if (cookiesEl) cookiesEl.classList.add('hidden');
       if (this.historyViewContainer) this.historyViewContainer.classList.remove('hidden');
       
       // Force Timeline View as the default layout
@@ -3752,11 +3754,19 @@ const BookmarkManager = {
         }
       }
       this.clearHistorySelection();
+    } else if (viewName === 'cookies') {
+      if (tableEl) tableEl.classList.add('hidden');
+      if (settingsEl) settingsEl.classList.add('hidden');
+      if (notesEl) notesEl.classList.add('hidden');
+      if (this.historyViewContainer) this.historyViewContainer.classList.add('hidden');
+      if (cookiesEl) cookiesEl.classList.remove('hidden');
     } else {
       if (tableEl) tableEl.classList.remove('hidden');
       if (settingsEl) settingsEl.classList.add('hidden');
       if (notesEl) notesEl.classList.add('hidden');
       if (this.historyViewContainer) this.historyViewContainer.classList.add('hidden');
+      const cookiesEl = document.getElementById('cookies-view-container');
+      if (cookiesEl) cookiesEl.classList.add('hidden');
     }
 
     // ─── Smart Page-Aware Sidebar Behavior ───
@@ -7849,3 +7859,62 @@ function showToast(message, type = 'success') {
   }, 3500);
 }
 
+document.addEventListener('DOMContentLoaded', () => {
+  const refreshBtn = document.getElementById('refresh-cookies-btn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', renderSavedCookieProfiles);
+  }
+  
+  const tabCookies = document.getElementById('tab-cookies');
+  if (tabCookies) {
+    tabCookies.addEventListener('click', renderSavedCookieProfiles);
+  }
+
+  setTimeout(() => {
+    renderSavedCookieProfiles();
+  }, 500);
+});
+
+function renderSavedCookieProfiles() {
+  const container = document.getElementById('cookies-list-render-area');
+  if (!container) return;
+  
+  chrome.storage.local.get(['cookie_profiles'], (res) => {
+    const profiles = res.cookie_profiles || [];
+    
+    if (profiles.length === 0) {
+      container.innerHTML = '<p style="color: var(--text-muted); font-size: 13px;">No cookie profiles saved yet. Use the Command Center to save some!</p>';
+      return;
+    }
+    
+    container.innerHTML = '';
+    
+    profiles.forEach((p, idx) => {
+      const card = document.createElement('div');
+      card.style = "background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;";
+      
+      card.innerHTML = `
+        <div>
+          <h4 style="margin: 0 0 5px 0; color: white;">${p.profileName} <span style="font-size: 12px; color: var(--text-muted); font-weight: normal; margin-left: 10px;">${p.hostname}</span></h4>
+          <div style="font-size: 12px; color: var(--text-muted); display: flex; gap: 15px;">
+            <span>${p.cookies.length} cookies</span>
+            <span>Saved: ${new Date(p.createdAt).toLocaleString()}</span>
+          </div>
+        </div>
+        <button class="btn btn-danger btn-small delete-profile-btn" data-idx="${idx}"><i class="fi fi-rr-trash"></i> Delete</button>
+      `;
+      
+      card.querySelector('.delete-profile-btn').addEventListener('click', () => {
+        if (confirm(`Delete profile "${p.profileName}" for ${p.hostname}?`)) {
+          profiles.splice(idx, 1);
+          chrome.storage.local.set({ cookie_profiles: profiles }, () => {
+            renderSavedCookieProfiles();
+            showToast("Profile deleted");
+          });
+        }
+      });
+      
+      container.appendChild(card);
+    });
+  });
+}

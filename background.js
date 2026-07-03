@@ -147,6 +147,60 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return;
   }
 
+  // --- COOKIE PROFILES API ---
+  if (message.action === "get_cookies") {
+    const targetUrl = message.url || ("https://" + message.domain);
+    chrome.cookies.getAll({ url: targetUrl }, (cookies) => {
+      sendResponse({ cookies });
+    });
+    return true; // Keep channel open
+  }
+
+  if (message.action === "clear_cookies") {
+    const targetUrl = message.url || ("https://" + message.domain);
+    chrome.cookies.getAll({ url: targetUrl }, (cookies) => {
+      let pending = cookies.length;
+      if (pending === 0) {
+        sendResponse({ success: true });
+        return;
+      }
+      cookies.forEach(cookie => {
+        const url = "http" + (cookie.secure ? "s" : "") + "://" + cookie.domain + cookie.path;
+        chrome.cookies.remove({ url: url, name: cookie.name }, () => {
+          pending--;
+          if (pending === 0) sendResponse({ success: true });
+        });
+      });
+    });
+    return true;
+  }
+
+  if (message.action === "set_cookie") {
+    const cookie = message.cookie;
+    let url = "http" + (cookie.secure ? "s" : "") + "://" + (cookie.domain?.startsWith('.') ? cookie.domain.slice(1) : cookie.domain) + cookie.path;
+    if (url.includes('undefined')) url = "https://" + message.domain + "/";
+    const newCookie = {
+      url: url,
+      name: cookie.name,
+      value: cookie.value,
+      domain: cookie.domain,
+      path: cookie.path,
+      secure: cookie.secure,
+      httpOnly: cookie.httpOnly,
+      sameSite: cookie.sameSite,
+      expirationDate: cookie.expirationDate
+    };
+    chrome.cookies.set(newCookie, (result) => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ success: false, error: chrome.runtime.lastError });
+      } else {
+        sendResponse({ success: true, result });
+      }
+    });
+    return true;
+  }
+
+
   return true;
 });
 

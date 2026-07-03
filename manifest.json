@@ -11,6 +11,9 @@
     "cookies",
     "history"
   ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_title": "Smart Bookmark Organizer"

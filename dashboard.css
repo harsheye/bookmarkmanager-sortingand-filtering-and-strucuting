@@ -131,7 +131,7 @@ body {
 }
 
 .app-header {
-  display: flex;
+  display: none !important;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 25px;

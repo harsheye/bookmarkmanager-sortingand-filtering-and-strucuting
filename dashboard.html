@@ -635,8 +635,58 @@
 
           </div>
 
-          <!-- Notes Manager View Container -->
-          <div id="notes-view-container" class="settings-view-panel hidden">
+
+
+    <!-- Cookies Profiles View -->
+    <div id="cookies-view-container" class="cookies-view hidden" style="padding: 20px; overflow-y: auto; width: 100%; height: 100%;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+        <h2 style="margin:0; font-size: 24px;">Cookie Profiles</h2>
+      </div>
+
+      <div class="glass-panel" style="padding: 30px; border-radius: 12px; margin-bottom: 30px;">
+        <h3 style="margin-top: 0;">How to use Cookie Profiles</h3>
+        <p style="color: var(--text-muted); line-height: 1.6; margin-bottom: 20px;">
+          Cookie Profiles allow you to backup, save, and restore session cookies directly to your computer as secure JSON files. This is perfect for managing multiple accounts on a single website without needing to log in and out repeatedly.
+        </p>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+          <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 8px;">
+            <h4 style="margin-top: 0; display: flex; align-items: center; gap: 8px;">
+              <span style="background: #10b981; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">1</span> 
+              Export a Profile
+            </h4>
+            <p style="font-size: 13px; color: var(--text-muted);">
+              While on the website you want to save (e.g. twitter.com), open the Command Center (<kbd>Ctrl+K</kbd>) and type <strong><code>/cook -get</code></strong>. Give your profile a name, and a JSON file containing your active session cookies will be downloaded to your device.
+            </p>
+          </div>
+          <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 8px;">
+            <h4 style="margin-top: 0; display: flex; align-items: center; gap: 8px;">
+              <span style="background: #6366f1; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">2</span> 
+              Restore a Profile
+            </h4>
+            <p style="font-size: 13px; color: var(--text-muted);">
+              Whenever you want to switch back to that account, open the Command Center on that website and type <strong><code>/cook -paste</code></strong>. Select your saved JSON file, and the extension will magically inject the session and reload the page!
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-panel" style="padding: 30px; border-radius: 12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+          <h3 style="margin:0;">Saved Cookie Profiles</h3>
+          <button id="refresh-cookies-btn" class="btn btn-secondary btn-small" style="display:flex; align-items:center; gap:6px;">
+            <i class="fi fi-rr-refresh"></i> Refresh
+          </button>
+        </div>
+        <div id="cookies-list-render-area" style="display: flex; flex-direction: column; gap: 10px;">
+          <!-- Populated dynamically via JS -->
+          <p style="color: var(--text-muted); font-size: 13px;">No cookie profiles saved yet. Use the Command Center to save some!</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notes Manager View Container -->
+    <div id="notes-view-container" class="notes-view hidden">
             <div class="notes-workspace-layout">
               <!-- Notes Sidebar (left) -->
               <aside class="notes-sidebar" id="notes-sidebar-panel">
@@ -754,6 +804,7 @@
                 <!-- Diff lines generated dynamically -->
               </div>
             </div>
+    </div>
           </div>
 
           <!-- Dedicated History View Container -->

@@ -43,9 +43,16 @@ function applySoundLevel(level) {
     const attachMedia = (media) => {
       if (!media._sbConnected) {
         try {
+          const wasPlaying = !media.paused;
           const source = window._sbContext.createMediaElementSource(media);
           source.connect(window._sbGainNode);
           media._sbConnected = true;
+          
+          if (wasPlaying) {
+            // Kick chromium's audio graph for already playing media
+            const p = media.play();
+            if (p && p.catch) p.catch(() => {});
+          }
         } catch(e) {}
       }
     };
@@ -108,7 +115,9 @@ const CC_COMMANDS = [
   { cmd: "/sort ", desc: "Sort list: /sort [name, date, url]" },
   { cmd: "/sound ", desc: "Boost volume of active tab: /sound [level, +, -]" },
   { cmd: "/wizard", desc: "Open Smart Sorter wizard page" },
-  { cmd: "/undo", desc: "Restore original bookmarks" }
+  { cmd: "/undo", desc: "Restore original bookmarks" },
+  { cmd: "/cook -get", desc: "Save current website cookies to a profile" },
+  { cmd: "/cook -paste", desc: "Restore a cookie profile for this website" }
 ];
 
 // Listen for messages from background script
@@ -838,9 +847,20 @@ function handleCCKeydown(e) {
         if (selectedSuggestionIndex >= 0 && selectedSuggestionIndex < sugItems.length) {
           e.preventDefault();
           const cmd = sugItems[selectedSuggestionIndex].querySelector(".cc-sug-cmd").textContent;
+          
+          if (ccSearchInput.value.trim().toLowerCase() === cmd.trim().toLowerCase()) {
+            hideSuggestions();
+            executeSelection();
+            return;
+          }
+
           ccSearchInput.value = cmd;
           hideSuggestions();
           handleCCSearch(cmd);
+          
+          if (!cmd.endsWith(" ")) {
+            executeSelection();
+          }
           return;
         }
       }
@@ -931,6 +951,11 @@ function executeSelection() {
   }
   
   const item = visibleItems[selectedIndex];
+
+  if (item.isCookieProfile) {
+    restoreProfileLocally(item.cookieData.cookies, item.cookieData.profileName);
+    return;
+  }
 
   if (item.isNote) {
     if (item.textToAppend) {
@@ -1037,7 +1062,7 @@ function executeCCCommand(val, isEnter = false) {
       
       chrome.runtime.sendMessage({ action: "save_sound_level", level: currentSoundLevel });
       
-      showCCToast(`Sound level set to ${currentSoundLevel}%`);
+      showToast(`Sound level set to ${currentSoundLevel}%`);
       ccSearchInput.value = "";
       closeCommandCenter();
       return;
@@ -1091,28 +1116,42 @@ function executeCCCommand(val, isEnter = false) {
       break;
 
     case "/wizard":
+      if (!isEnter) return;
+      ccSearchInput.value = "";
       chrome.runtime.sendMessage({ action: "open_dashboard" });
       closeCommandCenter();
       return;
 
     case "/manager":
+      if (!isEnter) return;
+      ccSearchInput.value = "";
       chrome.runtime.sendMessage({ action: "open_dashboard" });
       closeCommandCenter();
       return;
 
     case "/notes":
+      if (!isEnter) return;
+      ccSearchInput.value = "";
       chrome.runtime.sendMessage({ action: "open_dashboard", view: "notes" });
       closeCommandCenter();
       return;
 
     case "/undo":
+      if (!isEnter) return;
+      ccSearchInput.value = "";
       alert("Undo requested. Opening dashboard to recover bookmarks tree.");
       chrome.runtime.sendMessage({ action: "open_dashboard" });
       closeCommandCenter();
       return;
+
+    case "/cook":
+      if (!isEnter) return;
+      ccSearchInput.value = "";
+      handleCookCommand(query);
+      return;
   }
 
-  if (cmd !== "/help" && cmd !== "/wizard" && cmd !== "/undo" && cmd !== "/notes") {
+  if (cmd !== "/help" && cmd !== "/wizard" && cmd !== "/undo" && cmd !== "/notes" && cmd !== "/cook") {
     visibleItems = results;
     renderItemsList(results);
     ccBreadcrumbs.textContent = title;
@@ -1137,7 +1176,9 @@ function showCCHelp() {
     { title: "/d <domain>", desc: "Filter bookmarks by domain" },
     { title: "/sort <type>", desc: "Sort items by name, date, or url" },
     { title: "/wizard", desc: "Open the smart sorter wizard page" },
-    { title: "/undo", desc: "Restore original backup of bookmarks" }
+    { title: "/undo", desc: "Restore original backup of bookmarks" },
+    { title: "/cook -get", desc: "Save current website cookies to a profile" },
+    { title: "/cook -paste", desc: "Restore a cookie profile for this website" }
   ];
 
   helpItems.forEach(item => {
@@ -1641,4 +1682,106 @@ function showToast(message, type = 'success') {
     toast.style.opacity = '0';
     setTimeout(() => toast.remove(), 400);
   }, 3500);
+}
+
+async function handleCookCommand(query) {
+  if (!query || query === "-get") {
+    closeCommandCenter();
+    const profileName = prompt("Enter a name for this cookie profile (e.g., Personal, Work):");
+    if (!profileName) return;
+
+    chrome.runtime.sendMessage({ action: "get_cookies", domain: window.location.hostname, url: window.location.href }, (response) => {
+      if (!response || !response.cookies || response.cookies.length === 0) {
+        alert("No cookies found for this website.");
+        return;
+      }
+
+      const payload = {
+        id: "profile_" + Date.now(),
+        hostname: window.location.hostname,
+        url: window.location.origin,
+        title: document.title,
+        profileName: profileName,
+        createdAt: Date.now(),
+        cookies: response.cookies.map(c => ({
+          name: c.name,
+          value: c.value,
+          domain: c.domain,
+          path: c.path,
+          secure: c.secure,
+          httpOnly: c.httpOnly,
+          sameSite: c.sameSite === "unspecified" ? undefined : c.sameSite,
+          expirationDate: c.expirationDate,
+          hostOnly: c.hostOnly,
+          session: c.session
+        }))
+      };
+
+      chrome.storage.local.get(['cookie_profiles'], (res) => {
+        const profiles = res.cookie_profiles || [];
+        profiles.push(payload);
+        chrome.storage.local.set({ cookie_profiles: profiles }, () => {
+          showToast(`Successfully saved cookie profile: ${profileName}`);
+        });
+      });
+    });
+  } else if (query === "-paste") {
+    chrome.storage.local.get(['cookie_profiles'], (res) => {
+      const profiles = res.cookie_profiles || [];
+      const currentHost = window.location.hostname;
+      const matchingProfiles = profiles.filter(p => p.hostname === currentHost);
+
+      if (matchingProfiles.length === 0) {
+        showToast(`No cookie profiles found for ${currentHost}`);
+        return;
+      }
+
+      const items = matchingProfiles.map(p => ({
+        title: p.profileName,
+        url: `Saved: ${new Date(p.createdAt).toLocaleString()}`,
+        isCookieProfile: true,
+        cookieData: p
+      }));
+
+      visibleItems = items;
+      renderItemsList(items);
+      ccBreadcrumbs.textContent = `Select a profile to restore for ${currentHost}`;
+    });
+  }
+}
+
+function restoreProfileLocally(cookies, profileName) {
+  try {
+    // 1. Clear current cookies
+    chrome.runtime.sendMessage({ action: "clear_cookies", domain: window.location.hostname, url: window.location.href }, (clearRes) => {
+      if (!clearRes || !clearRes.success) {
+        alert("Failed to clear current cookies.");
+        return;
+      }
+      
+      // 2. Set new cookies
+      let pending = cookies.length;
+      if (pending === 0) {
+        alert(`Profile '${profileName}' restored (empty). Reloading page...`);
+        window.location.reload();
+        return;
+      }
+
+      cookies.forEach(cookie => {
+        chrome.runtime.sendMessage({ 
+          action: "set_cookie", 
+          domain: window.location.hostname,
+          cookie: cookie
+        }, () => {
+          pending--;
+          if (pending === 0) {
+            alert(`Profile '${profileName}' restored successfully! Reloading page...`);
+            window.location.reload();
+          }
+        });
+      });
+    });
+  } catch (err) {
+    alert("Error restoring profile: " + err.message);
+  }
 }
