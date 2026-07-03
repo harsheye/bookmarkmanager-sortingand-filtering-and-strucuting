@@ -3717,22 +3717,24 @@ const BookmarkManager = {
     const tableEl = document.getElementById('bookmarks-table');
     const settingsEl = document.getElementById('settings-view-container');
     const notesEl = document.getElementById('notes-view-container');
+    const cookiesEl = document.getElementById('cookies-view-container');
     
     if (viewName === 'settings') {
       if (tableEl) tableEl.classList.add('hidden');
       if (settingsEl) settingsEl.classList.remove('hidden');
       if (notesEl) notesEl.classList.add('hidden');
+      if (cookiesEl) cookiesEl.classList.add('hidden');
       if (this.historyViewContainer) this.historyViewContainer.classList.add('hidden');
     } else if (viewName === 'notes') {
       if (tableEl) tableEl.classList.add('hidden');
       if (settingsEl) settingsEl.classList.add('hidden');
       if (notesEl) notesEl.classList.remove('hidden');
+      if (cookiesEl) cookiesEl.classList.add('hidden');
       if (this.historyViewContainer) this.historyViewContainer.classList.add('hidden');
     } else if (viewName === 'history') {
       if (tableEl) tableEl.classList.add('hidden');
       if (settingsEl) settingsEl.classList.add('hidden');
       if (notesEl) notesEl.classList.add('hidden');
-      const cookiesEl = document.getElementById('cookies-view-container');
       if (cookiesEl) cookiesEl.classList.add('hidden');
       if (this.historyViewContainer) this.historyViewContainer.classList.remove('hidden');
       
@@ -3764,9 +3766,8 @@ const BookmarkManager = {
       if (tableEl) tableEl.classList.remove('hidden');
       if (settingsEl) settingsEl.classList.add('hidden');
       if (notesEl) notesEl.classList.add('hidden');
-      if (this.historyViewContainer) this.historyViewContainer.classList.add('hidden');
-      const cookiesEl = document.getElementById('cookies-view-container');
       if (cookiesEl) cookiesEl.classList.add('hidden');
+      if (this.historyViewContainer) this.historyViewContainer.classList.add('hidden');
     }
 
     // ─── Smart Page-Aware Sidebar Behavior ───
@@ -3815,7 +3816,10 @@ const BookmarkManager = {
   },
 
   async refreshViewContent() {
+    const explorerToolbar = document.querySelector('.explorer-toolbar');
+    const explorerList = document.querySelector('.explorer-list-container');
     const historyToolbar = document.getElementById('history-toolbar');
+    
     if (historyToolbar) {
       if (this.activeView === 'history') {
         historyToolbar.classList.remove('hidden');
@@ -3826,6 +3830,8 @@ const BookmarkManager = {
 
     if (this.activeView === 'bookmarks') {
       // Restore bookmarks view: show the breadcrumbs, add button, and load bookmarks
+      if (explorerToolbar) explorerToolbar.classList.remove('hidden');
+      if (explorerList) explorerList.classList.remove('hidden');
       document.getElementById('explorer-breadcrumbs').style.display = 'flex';
       document.getElementById('add-bookmark-btn').style.display = 'inline-flex';
       
@@ -3836,7 +3842,9 @@ const BookmarkManager = {
       
       await this.loadFolderContents(this.activeFolderId);
     } else if (this.activeView === 'history') {
-      // History view: hide folder breadcrumbs, hide add bookmark button
+      // History view: hide toolbar and list container
+      if (explorerToolbar) explorerToolbar.classList.add('hidden');
+      if (explorerList) explorerList.classList.add('hidden');
       document.getElementById('explorer-breadcrumbs').style.display = 'none';
       document.getElementById('add-bookmark-btn').style.display = 'none';
       this.emptyState.classList.add('hidden');
@@ -3848,6 +3856,8 @@ const BookmarkManager = {
       this.loadHistory();
     } else if (this.activeView === 'cookies') {
       // Cookies view: hide breadcrumbs, hide add button
+      if (explorerToolbar) explorerToolbar.classList.add('hidden');
+      if (explorerList) explorerList.classList.remove('hidden');
       document.getElementById('explorer-breadcrumbs').style.display = 'none';
       document.getElementById('add-bookmark-btn').style.display = 'none';
       
@@ -3858,6 +3868,8 @@ const BookmarkManager = {
       this.loadCookies();
     } else if (this.activeView === 'notes') {
       // Notes view: hide breadcrumbs, hide add button
+      if (explorerToolbar) explorerToolbar.classList.add('hidden');
+      if (explorerList) explorerList.classList.add('hidden');
       document.getElementById('explorer-breadcrumbs').style.display = 'none';
       document.getElementById('add-bookmark-btn').style.display = 'none';
       this.emptyState.classList.add('hidden');
@@ -3865,6 +3877,8 @@ const BookmarkManager = {
       this.loadNotesManager();
     } else if (this.activeView === 'settings') {
       // Settings view: hide breadcrumbs, hide add button
+      if (explorerToolbar) explorerToolbar.classList.add('hidden');
+      if (explorerList) explorerList.classList.remove('hidden');
       document.getElementById('explorer-breadcrumbs').style.display = 'none';
       document.getElementById('add-bookmark-btn').style.display = 'none';
       this.emptyState.classList.add('hidden');

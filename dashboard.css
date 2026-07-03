@@ -131,7 +131,7 @@ body {
 }
 
 .app-header {
-  display: none !important;
+  display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 25px;
@@ -2341,7 +2341,6 @@ input:checked + .slider-switch:before {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 15px;
   background: rgba(255, 255, 255, 0.02) !important;
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.25);
