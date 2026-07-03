@@ -3870,7 +3870,7 @@ const BookmarkManager = {
     } else if (this.activeView === 'notes') {
       // Notes view: hide breadcrumbs, hide add button
       if (explorerToolbar) explorerToolbar.classList.add('hidden');
-      if (explorerList) explorerList.classList.add('hidden');
+      if (explorerList) explorerList.classList.remove('hidden');
       document.getElementById('explorer-breadcrumbs').style.display = 'none';
       document.getElementById('add-bookmark-btn').style.display = 'none';
       this.emptyState.classList.add('hidden');
