@@ -3657,7 +3657,24 @@ const BookmarkManager = {
       }
     }
 
-    // Removed dynamic search section relocation because user wants search at the top in History
+    // Dynamically relocate search section
+    const searchSection = document.querySelector('.search-section');
+    const mainHeader = document.querySelector('.main-header');
+    const historyContentArea = document.querySelector('.history-content-area');
+    
+    if (searchSection) {
+      if (viewName === 'history') {
+        if (historyContentArea) {
+          historyContentArea.insertBefore(searchSection, historyContentArea.firstChild);
+          searchSection.style.marginBottom = '15px'; // Add some spacing before controls
+        }
+      } else {
+        if (mainHeader) {
+          mainHeader.appendChild(searchSection);
+          searchSection.style.marginBottom = '0';
+        }
+      }
+    }
     
     // Toggle active classes on sidebar tabs
     document.querySelectorAll('.sidebar-tab').forEach(el => el.classList.remove('active'));
@@ -3782,10 +3799,10 @@ const BookmarkManager = {
       }
     }
 
-    // ─── Hide global search bar on Settings page only ───
+    // ─── Hide global search bar on Settings and History pages ───
     const topMainHeader = document.querySelector('.main-header');
     if (topMainHeader) {
-      topMainHeader.style.display = (viewName === 'settings') ? 'none' : '';
+      topMainHeader.style.display = (viewName === 'settings' || viewName === 'history') ? 'none' : '';
     }
 
     // Recalculate history virtual scroll after sidebar animation completes
