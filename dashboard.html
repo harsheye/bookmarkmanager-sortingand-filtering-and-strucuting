@@ -829,8 +829,13 @@
               <!-- Center Area: Controls, List Viewport -->
               <div class="history-content-area">
                 <div class="history-controls-bar">
-                  <!-- Search container takes the remaining horizontal space -->
-                  <div id="history-search-container" style="flex-grow: 1;"></div>
+                  <!-- Local History Search -->
+                  <div id="history-search-container" style="flex-grow: 1;">
+                    <div class="settings-search-wrapper" style="max-width: 400px;">
+                      <i class="fi fi-rr-search"></i>
+                      <input type="text" id="history-local-search" placeholder="Search your browsing history...">
+                    </div>
+                  </div>
 
                   <!-- View Mode selector dropdown -->
                   <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">

@@ -1212,6 +1212,7 @@ const BookmarkManager = {
     this.toggleWizardBtn = document.getElementById('toggle-wizard-btn');
     
     this.searchInput = document.getElementById('manager-search');
+    this.historySearchInput = document.getElementById('history-local-search');
     this.clearSearchBtn = document.getElementById('clear-search-btn');
     this.suggestionsDropdown = document.getElementById('command-suggestions');
     
@@ -1421,6 +1422,16 @@ const BookmarkManager = {
         this.loadNotesManager(val);
       }
     });
+    
+    if (this.historySearchInput) {
+      this.historySearchInput.addEventListener('input', (e) => {
+        const val = e.target.value.trim();
+        if (this.activeView === 'history') {
+          this.loadHistory(val);
+        }
+      });
+    }
+    
     this.searchInput.addEventListener('keydown', (e) => this.handleSearchKeydown(e));
     this.clearSearchBtn.addEventListener('click', () => {
       this.searchInput.value = '';
@@ -3657,24 +3668,7 @@ const BookmarkManager = {
       }
     }
 
-    // Dynamically relocate search section
-    const searchSection = document.querySelector('.search-section');
-    const mainHeader = document.querySelector('.main-header');
-    const historyContentArea = document.querySelector('.history-content-area');
-    
-    if (searchSection) {
-      if (viewName === 'history') {
-        if (historyContentArea) {
-          historyContentArea.insertBefore(searchSection, historyContentArea.firstChild);
-          searchSection.style.marginBottom = '15px'; // Add some spacing before controls
-        }
-      } else {
-        if (mainHeader) {
-          mainHeader.appendChild(searchSection);
-          searchSection.style.marginBottom = '0';
-        }
-      }
-    }
+    // Search section stays in main header, history now has its own local search input
     
     // Toggle active classes on sidebar tabs
     document.querySelectorAll('.sidebar-tab').forEach(el => el.classList.remove('active'));
