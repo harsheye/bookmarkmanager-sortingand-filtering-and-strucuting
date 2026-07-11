@@ -427,15 +427,18 @@ function createCommandPalette() {
     }
     .cc-content-pane {
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
       position: relative;
+      overflow: hidden;
     }
     .cc-results-container {
+      flex: 1;
       max-height: calc(52px * var(--cc-max-results, 8) + 30px);
       overflow-y: auto;
       padding: 8px 0;
       display: flex;
       flex-direction: column;
+      min-width: 0;
     }
     .cc-group-header {
       font-size: calc(var(--cc-font-size-base, 13px) - 2px);
@@ -2366,6 +2369,23 @@ function renderSubmenuActions() {
     });
   }
 
+  // Mappings details/actions
+  if (item.type === "mapping" && item.mappingData) {
+    actions.push({
+      label: "Delete Account Mapping",
+      icon: "🗑",
+      run: async () => {
+        let mappingsObj = await DB.get("settings", "account_mappings");
+        let mappings = mappingsObj ? mappingsObj.value : [];
+        mappings = mappings.filter(m => m.id !== item.mappingData.id);
+        await DB.put("settings", { key: "account_mappings", value: mappings });
+        showToast("Deleted mapping!", "success");
+        renderSearchResults(activeQuery);
+        closeSubmenu();
+      }
+    });
+  }
+
   // Clipboard details/actions
   if (item.type === "clipboard" && item.clipData) {
     actions.push({
@@ -2428,6 +2448,15 @@ function triggerDeleteAction() {
       showToast("Clip deleted!", "success");
       DB.getClipboardHistory(10).then(clips => {
         clipboardHistoryCache = clips;
+        renderSearchResults(activeQuery);
+      });
+    });
+  } else if (item.type === "mapping" && item.mappingData) {
+    DB.get("settings", "account_mappings").then(mappingsObj => {
+      let mappings = mappingsObj ? mappingsObj.value : [];
+      mappings = mappings.filter(m => m.id !== item.mappingData.id);
+      DB.put("settings", { key: "account_mappings", value: mappings }).then(() => {
+        showToast("Deleted mapping!", "success");
         renderSearchResults(activeQuery);
       });
     });
