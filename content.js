@@ -1950,8 +1950,13 @@ function renderResultsUI() {
     headerEl.textContent = "Recent searches";
   }
 
+  if (selectedIndex >= visibleItems.length) {
+    selectedIndex = Math.max(0, visibleItems.length - 1);
+  }
+
   if (visibleItems.length === 0) {
     ccEmptyState.classList.remove("hidden");
+    ccBreadcrumbs.innerHTML = "Command Palette";
     return;
   }
   ccEmptyState.classList.add("hidden");
@@ -2027,6 +2032,8 @@ function renderResultsUI() {
     if (isSubmenuOpen) {
       renderSubmenuActions();
     }
+  } else {
+    ccBreadcrumbs.innerHTML = "Command Palette";
   }
 }
 
