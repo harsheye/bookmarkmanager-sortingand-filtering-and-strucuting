@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PDF Utilities Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --accent-color: #8b5cf6;
+      --bg-dark: #07080c;
+      --card-bg: rgba(22, 26, 44, 0.45);
+      --border-color: rgba(255, 255, 255, 0.08);
+    }
+    body {
+      margin: 0;
+      padding: 40px;
+      width: 100vw;
+      height: 100vh;
+      box-sizing: border-box;
+      font-family: 'Outfit', sans-serif;
+      background: linear-gradient(135deg, #091a26 0%, var(--bg-dark) 100%);
+      color: #f3f4f6;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      overflow: auto;
+    }
+    .header {
+      width: 100%;
+      max-width: 800px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+    }
+    .logo-section {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo-icon {
+      font-size: 24px;
+      filter: drop-shadow(0 0 8px var(--accent-color));
+    }
+    .logo-text {
+      font-size: 20px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #fff, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .back-link {
+      font-size: 13px;
+      color: #9ca3af;
+      text-decoration: none;
+      font-weight: 600;
+      transition: color 0.2s;
+    }
+    .back-link:hover {
+      color: var(--accent-color);
+    }
+
+    .tabs-header {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      max-width: 800px;
+      margin-bottom: 20px;
+    }
+    .tab-btn {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border-color);
+      color: #9ca3af;
+      padding: 10px 20px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      background: var(--accent-color);
+      border-color: var(--accent-color);
+      color: white;
+    }
+
+    .tab-content {
+      display: none;
+      width: 100%;
+      max-width: 800px;
+    }
+    .tab-content.active {
+      display: block;
+    }
+
+    .dropzone-container {
+      background: var(--card-bg);
+      border: 2px dashed rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
+      padding: 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      cursor: pointer;
+      min-height: 250px;
+      box-sizing: border-box;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+      transition: all 0.2s;
+      position: relative;
+    }
+    .dropzone-container:hover, .dropzone-container.active {
+      border-color: var(--accent-color);
+      background: rgba(139, 92, 246, 0.05);
+    }
+    .drop-input {
+      display: none;
+    }
+
+    .file-list {
+      margin-top: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+      text-align: left;
+    }
+    .file-row {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 10px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13.5px;
+    }
+    .file-size {
+      color: #9ca3af;
+      font-size: 12px;
+    }
+
+    .btn-execute {
+      background: var(--accent-color);
+      border: none;
+      border-radius: 10px;
+      color: white;
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 20px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+    }
+    .btn-execute:hover {
+      opacity: 0.9;
+    }
+  </style>
+  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+</head>
+<body>
+  <div class="header">
+    <div class="logo-section">
+      <span class="logo-icon">📄</span>
+      <span class="logo-text">PDF Utilities</span>
+    </div>
+    <a href="newtab.html" class="back-link">‹ New Tab Launcher</a>
+  </div>
+
+  <div class="tabs-header">
+    <button class="tab-btn active" onclick="switchTab('merge')">Merge PDFs</button>
+    <button class="tab-btn" onclick="switchTab('compress')">Compress PDF</button>
+  </div>
+
+  <!-- Merge Tab -->
+  <div id="tab-merge" class="tab-content active">
+    <div class="dropzone-container" id="merge-dropzone">
+      <div style="font-size: 32px;">📥</div>
+      <div style="font-weight: 700; font-size: 15px; margin-top: 10px;">Select or Drop PDF Files to Merge</div>
+      <div style="font-size: 12px; color: #9ca3af; margin-top: 4px;">Upload multiple files to join them together</div>
+      <input type="file" id="merge-file-input" class="drop-input" accept=".pdf" multiple>
+    </div>
+    <div class="file-list" id="merge-file-list"></div>
+    <button class="btn-execute" id="btn-merge-run" style="display: none;">Merge PDF Files</button>
+  </div>
+
+  <!-- Compress Tab -->
+  <div id="tab-compress" class="tab-content">
+    <div class="dropzone-container" id="compress-dropzone">
+      <div style="font-size: 32px;">📥</div>
+      <div style="font-weight: 700; font-size: 15px; margin-top: 10px;">Select or Drop a PDF File to Compress</div>
+      <div style="font-size: 12px; color: #9ca3af; margin-top: 4px;">Reduces file size using PDF stream optimization</div>
+      <input type="file" id="compress-file-input" class="drop-input" accept=".pdf">
+    </div>
+    <div class="file-list" id="compress-file-list"></div>
+    <button class="btn-execute" id="btn-compress-run" style="display: none;">Compress PDF File</button>
+  </div>
+
+  <script src="pdf.js"></script>
+</body>
+</html>
