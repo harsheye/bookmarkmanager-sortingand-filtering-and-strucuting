@@ -9,14 +9,24 @@
     "activeTab",
     "scripting",
     "cookies",
-    "history"
+    "history",
+    "downloads",
+    "tabs",
+    "clipboardRead",
+    "clipboardWrite",
+    "notifications",
+    "contextMenus",
+    "alarms"
   ],
   "host_permissions": [
     "<all_urls>"
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Smart Bookmark Organizer"
+    "default_title": "Smart Command Palette"
+  },
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
   },
   "background": {
     "service_worker": "background.js"
@@ -28,6 +38,7 @@
       ],
       "js": [
         "rules.js",
+        "db.js",
         "content.js"
       ]
     }
@@ -38,7 +49,7 @@
         "default": "Alt+A",
         "mac": "Alt+A"
       },
-      "description": "Toggle the Bookmark Command Center overlay"
+      "description": "Toggle the Productivity Command Palette overlay"
     }
   },
   "icons": {

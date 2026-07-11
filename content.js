@@ -1,1787 +1,3084 @@
-// Content Script: Floating Bookmark Command Center Overlay
-
+// Smart Command Palette: Browser-wide Productivity Platform
 let ccRoot = null;
 let ccShadow = null;
 let ccBackdrop = null;
 let ccSearchInput = null;
-let ccSuggestions = null;
 let ccResultsList = null;
 let ccEmptyState = null;
 let ccBreadcrumbs = null;
-let historySearchEnabled = true;
+let ccSubmenu = null;
+let ccAudioMeter = null;
 
-// State Variables
-let currentFolderId = "0"; // Start at Bookmark System Root
-let folderHistory = [];
-let cachedTree = null;
-let allFlattenedBookmarks = [];
-let visibleItems = [];
+// Command Mode UI elements
+let ccBackBtn = null;
+let ccCommandTagContainer = null;
+
+// Registry and States
 let selectedIndex = -1;
-let selectedSuggestionIndex = -1;
+let visibleItems = [];
 let activeQuery = "";
+let isSubmenuOpen = false;
+let isAudioBoosterActive = false;
+let audioMeterInterval = null;
+let clipboardHistoryCache = [];
+let commandStats = {}; // { id: { frequency: 0, lastUsed: 0 } }
+let currentSearchRequestId = 0;
+let activeSuggestion = "";
 
-// Cache on script load
-loadBookmarksTreeAndCache();
+// Command Mode State
+let currentCommandMode = null; // 'image', 'pdf', 'note', 'boost', 'timer', 'translate'
+let commandModeParams = {};    // sub-state parameters (e.g., resizing size)
 
-// Auto-apply saved sound level
-try {
-  let hostname = new URL(window.location.href).hostname;
-  chrome.storage.local.get([`sound_level_host_${hostname}`], (res) => {
-    let savedLevel = res[`sound_level_host_${hostname}`];
-    if (savedLevel !== undefined && savedLevel !== 100) {
-      applySoundLevel(savedLevel);
-    }
-  });
-} catch(e) {}
+// Audio Boost Nodes
+let audioContext = null;
+let gainNode = null;
+let compressorNode = null;
+let analyserNode = null;
+let mediaSources = new Map();
 
-function applySoundLevel(level) {
-  if (!window._sbContext) {
-    window._sbContext = new (window.AudioContext || window.webkitAudioContext)();
-    window._sbGainNode = window._sbContext.createGain();
-    window._sbGainNode.connect(window._sbContext.destination);
-    
-    const attachMedia = (media) => {
-      if (!media._sbConnected) {
-        try {
-          const wasPlaying = !media.paused;
-          const source = window._sbContext.createMediaElementSource(media);
-          source.connect(window._sbGainNode);
-          media._sbConnected = true;
-          
-          if (wasPlaying) {
-            // Kick chromium's audio graph for already playing media
-            const p = media.play();
-            if (p && p.catch) p.catch(() => {});
-          }
-        } catch(e) {}
-      }
-    };
-    
-    document.querySelectorAll('video, audio').forEach(attachMedia);
-    
-    new MutationObserver(mutations => {
-      mutations.forEach(mutation => {
-        mutation.addedNodes.forEach(node => {
-          if (node.tagName === 'VIDEO' || node.tagName === 'AUDIO') attachMedia(node);
-          else if (node.querySelectorAll) node.querySelectorAll('video, audio').forEach(attachMedia);
-        });
-      });
-    }).observe(document.body, { childList: true, subtree: true });
+// --- DB INTERFACE IMPORT FALLBACK ---
+const DB = typeof CommandPaletteDB !== 'undefined' ? CommandPaletteDB : {
+  async get(store, id) { return null; },
+  async getAll(store) { return []; },
+  async put(store, data) { return null; },
+  async delete(store, id) { return true; },
+  async addClipboardItem(c, t) { return null; },
+  async getClipboardHistory() { return []; },
+  async getNotes() { return []; }
+};
+
+// --- INITIALIZE ON LOAD ---
+document.addEventListener("DOMContentLoaded", () => {
+  preloadStats();
+});
+
+// Global copy listener for Clipboard History
+document.addEventListener("copy", (e) => {
+  const selection = window.getSelection().toString();
+  if (selection) {
+    let type = "text";
+    if (selection.startsWith("http://") || selection.startsWith("https://")) type = "link";
+    else if (selection.includes("{") || selection.includes("function") || selection.includes("class ")) type = "code";
+    DB.addClipboardItem(selection, type).catch(() => {});
   }
+});
+
+// Setup key listener with capture phase to prevent page hotkey conflicts
+window.addEventListener("keydown", (e) => {
+  const isA = e.key.toLowerCase() === "a" || e.code === "KeyA";
+  const isP = e.key.toLowerCase() === "p" || e.code === "KeyP";
   
-  if (window._sbContext.state === 'suspended') {
-    window._sbContext.resume().catch(() => {});
+  const toggleAltA = e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey && isA;
+  const toggleCtrlShiftP = e.ctrlKey && e.shiftKey && !e.altKey && isP;
+  
+  if (toggleAltA || toggleCtrlShiftP) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    toggleCommandPalette();
+    return;
   }
-  window._sbGainNode.gain.value = level / 100;
-}
 
-function loadBookmarksTreeAndCache() {
-  chrome.storage.local.get(['categories_config', 'learned_domains'], (result) => {
-    if (result.categories_config) {
-      Object.keys(result.categories_config).forEach(catId => {
-        const cat = BookmarkRules.categories.find(c => c.id === catId);
-        if (cat) cat.enabled = result.categories_config[catId];
-      });
+  // If palette is active, block all inputs outside of it
+  if (ccBackdrop && ccBackdrop.classList.contains("active")) {
+    const path = e.composedPath();
+    if (!path.includes(ccRoot)) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
     }
-    if (result.learned_domains) {
-      Object.keys(result.learned_domains).forEach(catId => {
-        const cat = BookmarkRules.categories.find(c => c.id === catId);
-        if (cat) {
-          const uniqueDomains = new Set([...cat.domains, ...result.learned_domains[catId]]);
-          cat.domains = Array.from(uniqueDomains);
-        }
-      });
-    }
-
-    chrome.runtime.sendMessage({ action: "get_bookmarks_tree" }, (tree) => {
-      if (tree) {
-        cachedTree = tree;
-        flattenBookmarks(tree);
-      }
-    });
-  });
-}
-
-// Commands List
-const CC_COMMANDS = [
-  { cmd: "/help", desc: "Show command center guide" },
-  { cmd: "/manager", desc: "Open Smart Bookmark Manager dashboard" },
-  { cmd: "/no ", desc: "Save/append notes: /no <name> <text>" },
-  { cmd: "/notes", desc: "List and view all saved notes" },
-  { cmd: "/t ", desc: "Filter by title: /t <query>" },
-  { cmd: "/u ", desc: "Filter by URL: /u <query>" },
-  { cmd: "/c ", desc: "Filter by category: /c <category>" },
-  { cmd: "/d ", desc: "Filter by domain: /d <domain>" },
-  { cmd: "/sort ", desc: "Sort list: /sort [name, date, url]" },
-  { cmd: "/sound ", desc: "Boost volume of active tab: /sound [level, +, -]" },
-  { cmd: "/wizard", desc: "Open Smart Sorter wizard page" },
-  { cmd: "/undo", desc: "Restore original bookmarks" },
-  { cmd: "/cook -get", desc: "Save current website cookies to a profile" },
-  { cmd: "/cook -paste", desc: "Restore a cookie profile for this website" }
-];
+  }
+}, true);
 
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "ping") {
     sendResponse({ status: "pong" });
   } else if (message.action === "toggle_command_center") {
-    toggleCommandCenter();
+    toggleCommandPalette();
     sendResponse({ success: true });
   }
   return true;
 });
 
-// Listen to keyboard shortcut directly in the tab: Alt+A
-document.addEventListener("keydown", (e) => {
-  const key = e.key ? e.key.toLowerCase() : "";
-  const isA = key === "a" || key === "å" || e.code === "KeyA" || e.keyCode === 65;
-  const hasAltOnly = e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey;
-  
-  if (isA && hasAltOnly) {
-    e.preventDefault();
-    // Exits full screen if active
-    const fullscreenEl = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
-    if (fullscreenEl) {
-      const exitFS = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
-      if (exitFS) {
-        exitFS.call(document).then(() => {
-          toggleCommandCenter();
-        }).catch(() => {
-          toggleCommandCenter();
-        });
-      } else {
-        toggleCommandCenter();
-      }
-    } else {
-      toggleCommandCenter();
-    }
+// Load stats for scoring
+function preloadStats() {
+  DB.getAll("commands").then(stats => {
+    stats.forEach(s => {
+      commandStats[s.id] = s;
+    });
+  }).catch(() => {});
+}
+
+// Typo Autocorrect for media queries
+function autoCorrectMediaName(str) {
+  let cleaned = str.trim().replace(/\s+/g, " ");
+  const corrections = {
+    "whjats": "whats",
+    "retunrs": "returns",
+    "movei": "movie",
+    "tomb rider": "tomb raider",
+    "judg returns": "judge returns",
+    "the judge retuns": "the judge returns",
+    "squid gmae": "squid game"
+  };
+  Object.keys(corrections).forEach(typo => {
+    const regex = new RegExp("\\b" + typo + "\\b", "gi");
+    cleaned = cleaned.replace(regex, corrections[typo]);
+  });
+  return cleaned;
+}
+
+function getCommandArg(query) {
+  const clean = query.trim();
+  const firstSpace = clean.indexOf(" ");
+  if (firstSpace === -1) return "";
+  return clean.substring(firstSpace + 1).trim();
+}
+
+// -------------------------------------------------------------
+// CORE REGISTRY
+// -------------------------------------------------------------
+const CommandRegistry = {
+  commands: new Map(),
+  register(cmd) {
+    this.commands.set(cmd.id, cmd);
+  },
+  getAll() {
+    return Array.from(this.commands.values());
   }
-});
+};
 
-// Global key redirection: Autofocus search input if user starts typing while Command Center is active
-document.addEventListener("keydown", (e) => {
-  if (ccBackdrop && ccBackdrop.classList.contains("active")) {
-    const shadowActive = ccShadow ? ccShadow.activeElement : null;
-    if (shadowActive !== ccSearchInput && document.activeElement !== ccRoot) {
-      const excludedKeys = ["Escape", "Tab", "Enter", "Shift", "Control", "Alt", "Meta", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
-      if (!excludedKeys.includes(e.key)) {
-        ccSearchInput.focus();
-      }
-    }
-  }
-});
-
-
-
-function toggleCommandCenter() {
+// -------------------------------------------------------------
+// COMMAND PALETTE UI TOGGLE
+// -------------------------------------------------------------
+function toggleCommandPalette() {
   if (!ccRoot) {
-    createCommandCenter();
+    createCommandPalette();
   }
-
   const isActive = ccBackdrop.classList.contains("active");
   if (isActive) {
-    closeCommandCenter();
+    closeCommandPalette();
   } else {
-    openCommandCenter();
+    openCommandPalette();
   }
 }
 
-function openCommandCenter() {
+function openCommandPalette() {
   ccRoot.style.pointerEvents = "auto";
   ccBackdrop.classList.add("active");
   ccSearchInput.value = "";
-  folderHistory = [];
-  currentFolderId = "0";
-  selectedIndex = -1;
+  selectedIndex = 0;
   activeQuery = "";
+  isSubmenuOpen = false;
+  ccSubmenu.classList.remove("active");
+  exitCommandMode(false); // reset command mode
   
-  // Force layout reflow so styles are updated immediately before focusing
-  ccBackdrop.offsetHeight;
-
-  // Blur active element on the host page to unlock browser focus constraints
   if (document.activeElement && typeof document.activeElement.blur === "function") {
     document.activeElement.blur();
   }
-
-  // Focus input instantly
+  
   ccSearchInput.focus();
   requestAnimationFrame(() => ccSearchInput.focus());
-  setTimeout(() => ccSearchInput.focus(), 25);
-  setTimeout(() => ccSearchInput.focus(), 100);
+  setTimeout(() => ccSearchInput.focus(), 50);
 
-  // Load current folder from cache instantly
-  loadFolder(currentFolderId);
-  
-  // Silently refresh the bookmarks tree cache in background
-  loadBookmarksTreeAndCache();
+  // Sync recent clipboard clips
+  DB.getClipboardHistory(10).then(clips => {
+    clipboardHistoryCache = clips;
+  });
+
+  renderSearchResults("");
 }
 
-function closeCommandCenter() {
+function closeCommandPalette() {
   if (ccBackdrop) {
     ccBackdrop.classList.remove("active");
     ccRoot.style.pointerEvents = "none";
     ccSearchInput.blur();
-    hideSuggestions();
+    isSubmenuOpen = false;
+    ccSubmenu.classList.remove("active");
+    clearInterval(audioMeterInterval);
   }
 }
 
-function flattenBookmarks(tree) {
-  const flattened = [];
-  function traverse(node) {
-    if (node.url) {
-      flattened.push(node);
-    }
-    if (node.children) {
-      node.children.forEach(traverse);
-    }
-  }
-  if (tree && tree[0] && tree[0].children) {
-    tree[0].children.forEach(traverse);
-  }
-  allFlattenedBookmarks = flattened;
-}
+// -------------------------------------------------------------
+// COMMAND MODE TRIGGERS
+// -------------------------------------------------------------
+const CommandModeMetadata = {
+  image_tools: { name: "Image Tools", icon: "🖼", placeholder: "Choose image subcommand..." },
+  pdf_tools: { name: "PDF Tools", icon: "📄", placeholder: "Choose PDF subcommand..." },
+  note_tools: { name: "Notes", icon: "📝", placeholder: "Create or search notes..." },
+  boost_tools: { name: "Volume Boost", icon: "🔊", placeholder: "Select boost level..." },
+  timer_tools: { name: "Timer", icon: "⏱", placeholder: "Set timer interval..." },
+  translate_tools: { name: "Translate", icon: "🗣", placeholder: "Select target language..." },
+  help_tools: { name: "Help & Guide", icon: "💡", placeholder: "Browse guide..." },
+  bookmark_tools: { name: "Bookmarks", icon: "🔖", placeholder: "Search bookmarks..." },
+  download_tools: { name: "Downloads", icon: "📥", placeholder: "Search downloads..." },
+  history_tools: { name: "History", icon: "📜", placeholder: "Search history..." },
+  tab_tools: { name: "Tabs", icon: "📑", placeholder: "Search active tabs..." }
+};
 
-function createCommandCenter() {
-  ccRoot = document.createElement("div");
-  ccRoot.id = "smart-bookmark-command-center-root";
-  ccRoot.style.cssText = "position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:2147483647; pointer-events:none;";
-  document.body.appendChild(ccRoot);
- 
-  ccShadow = ccRoot.attachShadow({ mode: "open" });
- 
-  chrome.storage.local.get(['organizer_user_settings'], (result) => {
-    const settings = result.organizer_user_settings || {};
-    const theme = settings.ccTheme || 'black'; // 'black' or 'white'
-    const blur = settings.ccBlur !== undefined ? settings.ccBlur : 15;
-    historySearchEnabled = settings.ccHistory !== false;
+function enterCommandMode(modeId) {
+  currentCommandMode = modeId;
+  commandModeParams = {};
+  selectedIndex = 0;
 
-    const style = document.createElement("style");
-    style.textContent = `
-      @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
-      @import url('https://cdn-uicons.flaticon.com/2.6.0/uicons-regular-rounded/css/uicons-regular-rounded.css');
-      @import url('https://cdn-uicons.flaticon.com/2.6.0/uicons-solid-rounded/css/uicons-solid-rounded.css');
-      @import url('https://cdn-uicons.flaticon.com/2.6.0/uicons-bold-rounded/css/uicons-bold-rounded.css');
-      
-      :host {
-        all: initial;
-      }
-      .cc-backdrop {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        background: rgba(0, 0, 0, 0.45);
-        backdrop-filter: blur(${blur}px);
-        -webkit-backdrop-filter: blur(${blur}px);
-        z-index: 2147483647;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-        font-family: 'Outfit', -apple-system, sans-serif;
-        color: ${theme === 'white' ? '#1f2937' : '#f3f4f6'};
-      }
-      .cc-backdrop.active {
-        opacity: 1;
-        pointer-events: auto;
-      }
-      .cc-modal {
-        width: 620px;
-        background: ${theme === 'white' ? 'rgba(255, 255, 255, 0.88)' : 'rgba(10, 10, 12, 0.72)'};
-        border: 1px solid ${theme === 'white' ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)'};
-        border-radius: 16px;
-        box-shadow: 0 25px 60px rgba(0, 0, 0, 0.65);
-        backdrop-filter: blur(25px);
-        -webkit-backdrop-filter: blur(25px);
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-        max-height: 600px;
-        transform: translateY(-20px) scale(0.97);
-        transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
-      }
-      .cc-backdrop.active .cc-modal {
-        transform: translateY(0) scale(1);
-      }
-      .cc-search-wrapper {
-        display: flex;
-        align-items: center;
-        padding: 14px 18px;
-        border-bottom: 1px solid ${theme === 'white' ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.06)'};
-        gap: 12px;
-      }
-      .cc-search-icon {
-        font-size: 16px;
-        color: ${theme === 'white' ? 'rgba(0,0,0,0.4)' : 'rgba(255, 255, 255, 0.4)'};
-        display: flex;
-        align-items: center;
-      }
-      .cc-search-input {
-        flex-grow: 1;
-        background: transparent;
-        border: none;
-        outline: none;
-        color: ${theme === 'white' ? '#1f2937' : 'white'};
-        font-size: 15px;
-        font-family: inherit;
-        resize: none;
-        height: 22px;
-        line-height: 22px;
-        overflow-y: hidden;
-        box-sizing: border-box;
-      }
-      .cc-search-hint {
-        font-size: 11px;
-        background: ${theme === 'white' ? 'rgba(0,0,0,0.06)' : 'rgba(255, 255, 255, 0.08)'};
-        padding: 3px 8px;
-        border-radius: 4px;
-        border: 1px solid ${theme === 'white' ? 'rgba(0,0,0,0.02)' : 'rgba(255, 255, 255, 0.05)'};
-        color: ${theme === 'white' ? '#4b5563' : '#9ca3af'};
-      }
-      .cc-suggestions {
-        background: ${theme === 'white' ? 'rgba(0,0,0,0.02)' : 'rgba(0, 0, 0, 0.2)'};
-        max-height: 180px;
-        overflow-y: auto;
-        border-bottom: 1px solid ${theme === 'white' ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.06)'};
-      }
-      .cc-suggestion-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 10px 18px;
-        cursor: pointer;
-        transition: background 0.15s;
-      }
-      .cc-suggestion-item:hover, .cc-suggestion-item.selected {
-        background: rgba(99, 102, 241, 0.15);
-      }
-      .cc-sug-cmd {
-        color: #8b5cf6;
-        font-weight: 600;
-        font-size: 13.5px;
-      }
-      .cc-sug-desc {
-        color: ${theme === 'white' ? '#6b7280' : '#9ca3af'};
-        font-size: 13px;
-      }
-      .cc-results-container {
-        flex-grow: 1;
-        overflow-y: auto;
-        max-height: 400px;
-        background: ${theme === 'white' ? 'rgba(0,0,0,0.01)' : 'rgba(0, 0, 0, 0.1)'};
-      }
-      .cc-results-list {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-        gap: 10px;
-        padding: 12px;
-      }
-      .cc-item {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        justify-content: space-between;
-        padding: 12px;
-        border-radius: 12px;
-        background: ${theme === 'white' ? 'rgba(0, 0, 0, 0.02)' : 'rgba(255, 255, 255, 0.02)'};
-        border: 1px solid ${theme === 'white' ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.05)'};
-        cursor: pointer;
-        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        height: 90px;
-        box-sizing: border-box;
-        margin-bottom: 0px;
-      }
-      .cc-item:hover, .cc-item.selected {
-        background: rgba(99, 102, 241, 0.15) !important;
-        border-color: #8b5cf6 !important;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-      }
-      .cc-item-left {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        overflow: hidden;
-        max-width: 100%;
-        width: 100%;
-      }
-      .cc-item-icon {
-        font-size: 16px;
-        flex-shrink: 0;
-      }
-      .cc-favicon {
-        width: 16px;
-        height: 16px;
-        border-radius: 3px;
-        flex-shrink: 0;
-      }
-      .cc-item-title {
-        font-size: 13px;
-        font-weight: 600;
-        color: ${theme === 'white' ? '#1f2937' : '#e2e8f0'};
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .cc-item-right {
-        font-size: 11px;
-        color: #9ca3af;
-        flex-shrink: 0;
-        text-overflow: ellipsis;
-        overflow: hidden;
-        white-space: nowrap;
-        max-width: 100%;
-        width: 100%;
-        margin-top: auto;
-        text-align: left;
-      }
-      .cc-empty-state {
-        padding: 30px;
-        text-align: center;
-        color: #9ca3af;
-        font-size: 14.5px;
-      }
-      .cc-footer {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 10px 18px;
-        background: ${theme === 'white' ? 'rgba(0, 0, 0, 0.03)' : 'rgba(0, 0, 0, 0.3)'};
-        border-top: 1px solid ${theme === 'white' ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.05)'};
-        font-size: 12px;
-        color: #9ca3af;
-      }
-      .cc-breadcrumbs {
-        font-weight: 600;
-        color: var(--color-primary);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-width: 50%;
-      }
-      .cc-shortcuts {
-        display: flex;
-        gap: 12px;
-      }
-      .cc-shortcuts span {
-        background: ${theme === 'white' ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.06)'};
-        padding: 2px 6px;
-        border-radius: 4px;
-        border: 1px solid ${theme === 'white' ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.04)'};
-      }
-      ::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-      }
-      ::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.12);
-        border-radius: 3px;
-      }
-    `;
-    ccShadow.appendChild(style);
-
-    // Add layout HTML
-    ccBackdrop = document.createElement("div");
-    ccBackdrop.className = "cc-backdrop";
-
-    ccBackdrop.innerHTML = `
-      <div class="cc-modal">
-        <div class="cc-search-wrapper">
-          <span class="cc-search-icon" style="display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,0.4);"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M23.707,22.293l-5.969-5.969a10.016,10.016,0,1,0-1.414,1.414l5.969,5.969a10.025,10.025,0,0,0,1.414-1.414ZM10,18a8,8,0,1,1,8-8A8.009,8.009,0,0,1,10,18Z"/></svg></span>
-          <textarea class="cc-search-input" placeholder="Search title/url or type / for commands..." autofocus autocomplete="off" rows="1"></textarea>
-          <span class="cc-search-hint">Alt+A</span>
-        </div>
-        <div class="cc-suggestions hidden"></div>
-        <div class="cc-results-container">
-          <div class="cc-results-list"></div>
-          <div class="cc-empty-state hidden">No items found.</div>
-        </div>
-        <div class="cc-footer">
-          <div class="cc-breadcrumbs">Library</div>
-          <div class="cc-shortcuts">
-            <span>↑↓ Navigate</span>
-            <span>↵ Open/Enter</span>
-            <span>⌫ Back</span>
-            <span>Esc Close</span>
-          </div>
-        </div>
+  const metadata = CommandModeMetadata[modeId];
+  if (metadata) {
+    ccBackBtn.classList.remove("hidden");
+    ccCommandTagContainer.innerHTML = `
+      <div class="cc-command-pill">
+        <span>${metadata.icon}</span>
+        <span>${metadata.name}</span>
       </div>
     `;
+    ccSearchInput.value = "";
+    ccSearchInput.style.color = "#ffffff";
+    ccSearchInput.placeholder = metadata.placeholder;
+  }
+  
+  // Clear autocomplete suggestion
+  activeSuggestion = "";
+  const shadowEl = ccBackdrop ? ccBackdrop.querySelector(".cc-autocomplete-shadow") : null;
+  if (shadowEl) shadowEl.innerHTML = "";
 
-    ccShadow.appendChild(ccBackdrop);
+  ccSearchInput.focus();
+  renderSearchResults("");
+}
 
-    // Bind references
-    ccSearchInput = ccBackdrop.querySelector(".cc-search-input");
-    ccSuggestions = ccBackdrop.querySelector(".cc-suggestions");
-    ccResultsList = ccBackdrop.querySelector(".cc-results-list");
-    ccEmptyState = ccBackdrop.querySelector(".cc-empty-state");
-    ccBreadcrumbs = ccBackdrop.querySelector(".cc-breadcrumbs");
+function exitCommandMode(refresh = true) {
+  currentCommandMode = null;
+  commandModeParams = {};
+  selectedIndex = 0;
 
-    // Setup Event Listeners inside Shadow DOM
-    ccBackdrop.addEventListener("click", (e) => {
-      if (e.target === ccBackdrop) {
-        closeCommandCenter();
-      }
-    });
+  if (ccBackBtn) ccBackBtn.classList.add("hidden");
+  if (ccCommandTagContainer) ccCommandTagContainer.innerHTML = "";
+  if (ccSearchInput) {
+    ccSearchInput.placeholder = "Search...";
+    ccSearchInput.value = "";
+    ccSearchInput.style.color = "#ffffff";
+  }
 
-    // Refocus search input when clicking anywhere inside the modal (except input itself)
-    const modalContainer = ccBackdrop.querySelector(".cc-modal");
-    if (modalContainer) {
-      modalContainer.addEventListener("click", (e) => {
-        if (e.target !== ccSearchInput) {
-          ccSearchInput.focus();
+  // Clear autocomplete suggestion
+  activeSuggestion = "";
+  const shadowEl = ccBackdrop ? ccBackdrop.querySelector(".cc-autocomplete-shadow") : null;
+  if (shadowEl) shadowEl.innerHTML = "";
+
+  if (refresh) {
+    ccSearchInput.focus();
+    renderSearchResults("");
+  }
+}
+
+// -------------------------------------------------------------
+// CREATE PALETTE ELEMENT (SHADOW DOM)
+// -------------------------------------------------------------
+function createCommandPalette() {
+  ccRoot = document.createElement("div");
+  ccRoot.id = "smart-command-palette-root";
+  ccRoot.style.cssText = "position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:2147483647; pointer-events:none;";
+  document.body.appendChild(ccRoot);
+
+  ccShadow = ccRoot.attachShadow({ mode: "open" });
+
+  const style = document.createElement("style");
+  style.textContent = `
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
+    
+    :host {
+      all: initial;
+    }
+    /* Sleek custom scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+    .cc-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(4, 5, 8, 0.45);
+      backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
+      z-index: 2147483647;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.16s ease-out;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #f3f4f6;
+    }
+    .cc-backdrop.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .cc-modal {
+      width: 600px;
+      height: 380px;
+      background: #0e111a; /* Solid dark blue-slate */
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transform: scale(0.96);
+      transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+    }
+    .cc-backdrop.active .cc-modal {
+      transform: scale(1);
+    }
+    .cc-header {
+      display: flex;
+      align-items: center;
+      padding: 14px 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      gap: 10px;
+    }
+    .cc-back-btn {
+      cursor: pointer;
+      font-size: 18px;
+      font-weight: 500;
+      color: #9ca3af;
+      padding: 0 8px;
+      display: flex;
+      align-items: center;
+      border-radius: 4px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .cc-back-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #ffffff;
+    }
+    .cc-back-btn.hidden {
+      display: none;
+    }
+    .cc-command-tag-container {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .cc-command-pill {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(139, 92, 246, 0.12);
+      border: 1px solid rgba(139, 92, 246, 0.25);
+      color: #a78bfa;
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      gap: 6px;
+    }
+    .cc-logo {
+      color: #9ca3af;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .cc-search-input {
+      flex-grow: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #ffffff;
+      font-size: 15px;
+      font-family: inherit;
+      height: 24px;
+      line-height: 24px;
+    }
+    .cc-search-input::placeholder {
+      color: #4b5563;
+    }
+    .cc-close {
+      cursor: pointer;
+      color: rgba(255, 255, 255, 0.3);
+      font-size: 14px;
+      transition: color 0.15s;
+    }
+    .cc-close:hover {
+      color: #ef4444;
+    }
+    .cc-content-pane {
+      display: flex;
+      flex-grow: 1;
+      height: calc(100% - 90px);
+      position: relative;
+    }
+    .cc-results-container {
+      flex-grow: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .cc-group-header {
+      font-size: 11px;
+      font-weight: 600;
+      color: #5f6e85;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 8px 18px 4px 18px;
+    }
+    .cc-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 18px;
+      background: transparent;
+      cursor: pointer;
+      transition: background 0.1s ease;
+    }
+    .cc-item.selected {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .cc-item-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      overflow: hidden;
+    }
+    .cc-item-icon {
+      color: #6b7280;
+      display: flex;
+      align-items: center;
+      width: 16px;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .cc-item.selected .cc-item-icon {
+      color: #9ca3af;
+    }
+    .cc-item-title-wrap {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .cc-item-title {
+      font-size: 13.5px;
+      font-weight: 500;
+      color: #d1d5db;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cc-item.selected .cc-item-title {
+      color: #ffffff;
+    }
+    .cc-item-subtitle {
+      font-size: 11px;
+      color: #4b5563;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cc-item-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .cc-kbd-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      color: rgba(255, 255, 255, 0.4);
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-size: 10px;
+      font-family: inherit;
+    }
+    .cc-badge {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.04);
+      color: rgba(255, 255, 255, 0.4);
+    }
+    
+    .cc-empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: #4b5563;
+      font-size: 13px;
+      gap: 4px;
+    }
+    .hidden {
+      display: none !important;
+    }
+    .cc-submenu {
+      width: 0px;
+      height: 100%;
+      background: #0b0d14;
+      border-left: 0px solid rgba(255, 255, 255, 0.06);
+      transition: all 0.18s ease;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .cc-submenu.active {
+      width: 220px;
+      border-left: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .cc-submenu-title {
+      padding: 14px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #5f6e85;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .cc-submenu-list {
+      flex-grow: 1;
+      overflow-y: auto;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .cc-submenu-item {
+      display: flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      cursor: pointer;
+      color: #9ca3af;
+      gap: 8px;
+    }
+    .cc-submenu-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: #ffffff;
+    }
+    .cc-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      background: #090b10;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 10.5px;
+      color: #4b5563;
+    }
+    .cc-breadcrumbs {
+      font-weight: 500;
+      color: #6b7280;
+      display: flex;
+      align-items: center;
+    }
+    .cc-breadcrumb-badge {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 1px 6px;
+      border-radius: 4px;
+      color: #e2e8f0;
+      margin-left: 6px;
+      font-weight: 600;
+      font-size: 10px;
+    }
+    .cc-shortcuts {
+      display: flex;
+      gap: 12px;
+    }
+    .cc-shortcuts span {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: #9ca3af;
+    }
+    
+    .cc-audio-meter-panel {
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 8px;
+      margin: 8px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .cc-meter-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #9ca3af;
+    }
+    .cc-meter-bar-outer {
+      height: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .cc-meter-bar-inner {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #10b981, #f59e0b);
+      transition: width 0.1s;
+    }
+    .cc-dropzone {
+      border: 1px dashed rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 18px;
+      text-align: center;
+      color: #6b7280;
+      cursor: pointer;
+      margin: 8px 18px;
+    }
+    .cc-dropzone.active {
+      border-color: #8b5cf6;
+      background: rgba(139, 92, 246, 0.03);
+    }
+    .cc-screenshot-crop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0,0,0,0.3);
+      z-index: 2147483645;
+      cursor: crosshair;
+    }
+    .cc-canvas-draw-overlay {
+      position: fixed;
+      top: 8%;
+      left: 8%;
+      width: 84%;
+      height: 84%;
+      background: #0e111a;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.8);
+      z-index: 2147483646;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .cc-input-container {
+      position: relative;
+      flex-grow: 1;
+      display: flex;
+      align-items: center;
+    }
+    .cc-autocomplete-shadow {
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: rgba(255, 255, 255, 0.25);
+      font-size: 15px;
+      font-family: inherit;
+      pointer-events: none;
+      white-space: pre;
+      line-height: 24px;
+      height: 24px;
+      font-weight: 400;
+    }
+  `;
+  ccShadow.appendChild(style);
+
+  ccBackdrop = document.createElement("div");
+  ccBackdrop.className = "cc-backdrop";
+
+  ccBackdrop.innerHTML = `
+    <div class="cc-modal">
+      <div class="cc-header">
+        <div class="cc-back-btn hidden">‹</div>
+        <div class="cc-command-tag-container"></div>
+        <span class="cc-logo">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        </span>
+        <div class="cc-input-container">
+          <span class="cc-autocomplete-shadow"></span>
+          <input class="cc-search-input" placeholder="Search..." autocomplete="off">
+        </div>
+        <span class="cc-close">✕</span>
+      </div>
+      <div class="cc-content-pane">
+        <div class="cc-results-container">
+          <div class="cc-group-header">Recent searches</div>
+          <div class="cc-results-list"></div>
+          <div class="cc-empty-state hidden">
+            <span>No results found</span>
+          </div>
+        </div>
+        <div class="cc-submenu">
+          <div class="cc-submenu-title">Actions</div>
+          <div class="cc-submenu-list"></div>
+        </div>
+      </div>
+      <div class="cc-footer">
+        <div class="cc-breadcrumbs">Command Palette</div>
+        <div class="cc-shortcuts">
+          <span>↑↓ Navigate</span>
+          <span>↵ Run</span>
+          <span>Alt+Enter New Tab</span>
+          <span>Alt+K Actions</span>
+          <span>Esc Close</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  ccShadow.appendChild(ccBackdrop);
+
+  // Bind UI Elements
+  ccSearchInput = ccBackdrop.querySelector(".cc-search-input");
+  ccResultsList = ccBackdrop.querySelector(".cc-results-container");
+  ccEmptyState = ccBackdrop.querySelector(".cc-empty-state");
+  ccBreadcrumbs = ccBackdrop.querySelector(".cc-breadcrumbs");
+  ccSubmenu = ccBackdrop.querySelector(".cc-submenu");
+  ccBackBtn = ccBackdrop.querySelector(".cc-back-btn");
+  ccCommandTagContainer = ccBackdrop.querySelector(".cc-command-tag-container");
+
+  setupUIEventListeners();
+}
+
+// -------------------------------------------------------------
+// EVENT BINDINGS
+// -------------------------------------------------------------
+function setupUIEventListeners() {
+  // Stop key propagation from leaking to page
+  ccBackdrop.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+  });
+
+  // Backdrop close click
+  ccBackdrop.addEventListener("click", (e) => {
+    if (e.target === ccBackdrop) closeCommandPalette();
+  });
+
+  // Close icon click
+  ccBackdrop.querySelector(".cc-close").addEventListener("click", closeCommandPalette);
+
+  // Back button click
+  ccBackBtn.addEventListener("click", () => {
+    exitCommandMode();
+  });
+
+  // Search input events
+  ccSearchInput.addEventListener("input", (e) => {
+    const val = e.target.value;
+    if (val.startsWith("/")) {
+      ccSearchInput.style.color = "#60a5fa";
+    } else {
+      ccSearchInput.style.color = "#ffffff";
+    }
+    handleSearchChange(val);
+  });
+
+  ccSearchInput.addEventListener("keydown", (e) => {
+    if ((e.key === "Tab" || e.key === "ArrowRight") && activeSuggestion) {
+      if (ccSearchInput.selectionStart === ccSearchInput.value.length) {
+        e.preventDefault();
+        ccSearchInput.value = activeSuggestion;
+        if (activeSuggestion.startsWith("/")) {
+          ccSearchInput.style.color = "#60a5fa";
         }
+        handleSearchChange(activeSuggestion);
+        return;
+      }
+    }
+
+    if (e.key === "Backspace" && !ccSearchInput.value) {
+      if (currentCommandMode) {
+        e.preventDefault();
+        if (commandModeParams.step === "view_content") {
+          delete commandModeParams.step;
+          renderSearchResults("");
+        } else if (commandModeParams.selectedNote) {
+          delete commandModeParams.selectedNote;
+          renderSearchResults("");
+        } else if (commandModeParams.targetLang) {
+          delete commandModeParams.targetLang;
+          ccSearchInput.placeholder = "Select target language...";
+          renderSearchResults("");
+        } else {
+          exitCommandMode();
+        }
+        return;
+      }
+    }
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      moveSelection(1);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      moveSelection(-1);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (e.ctrlKey || e.altKey) {
+        executeMainAction(true); // new tab
+      } else {
+        executeMainAction(false); // standard run
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      if (isSubmenuOpen) {
+        closeSubmenu();
+      } else {
+        closeCommandPalette();
+      }
+    } else if (e.key.toLowerCase() === "k" && (e.ctrlKey || e.altKey)) {
+      e.preventDefault();
+      toggleSubmenu();
+    } else if (e.key === "Delete") {
+      e.preventDefault();
+      triggerDeleteAction();
+    }
+  });
+}
+
+function closeSubmenu() {
+  isSubmenuOpen = false;
+  ccSubmenu.classList.remove("active");
+  ccSearchInput.focus();
+}
+
+function toggleSubmenu() {
+  if (visibleItems.length === 0) return;
+  isSubmenuOpen = !isSubmenuOpen;
+  if (isSubmenuOpen) {
+    ccSubmenu.classList.add("active");
+    renderSubmenuActions();
+  } else {
+    ccSubmenu.classList.remove("active");
+    ccSearchInput.focus();
+  }
+}
+
+// -------------------------------------------------------------
+// FUZZY SEARCH ENGINE & ROUTER
+// -------------------------------------------------------------
+async function handleSearchChange(query) {
+  activeQuery = query;
+  selectedIndex = 0;
+  closeSubmenu();
+
+  // "Auto-trigger command mode" if user types aliases directly and hits Space
+  const cleanQ = query.trim().toLowerCase();
+  
+  if (!currentCommandMode) {
+    if (cleanQ === "/image") {
+      enterCommandMode("image_tools");
+      return;
+    } else if (cleanQ === "/pdf") {
+      enterCommandMode("pdf_tools");
+      return;
+    } else if (cleanQ === "/note") {
+      enterCommandMode("note_tools");
+      return;
+    } else if (cleanQ === "/boost") {
+      enterCommandMode("boost_tools");
+      return;
+    } else if (cleanQ === "/timer") {
+      enterCommandMode("timer_tools");
+      return;
+    } else if (cleanQ === "/translate") {
+      enterCommandMode("translate_tools");
+      return;
+    } else if (cleanQ === "/help") {
+      enterCommandMode("help_tools");
+      return;
+    } else if (cleanQ === "/wizard") {
+      chrome.runtime.sendMessage({ action: "open_dashboard", view: "wizard" });
+      closeCommandPalette();
+      return;
+    } else if (cleanQ === "/bookmarks") {
+      enterCommandMode("bookmark_tools");
+      return;
+    } else if (cleanQ === "/downloads") {
+      enterCommandMode("download_tools");
+      return;
+    } else if (cleanQ === "/history") {
+      enterCommandMode("history_tools");
+      return;
+    } else if (cleanQ === "/tabs") {
+      enterCommandMode("tab_tools");
+      return;
+    }
+  }
+
+  await renderSearchResults(activeQuery);
+}
+
+// Define dynamic vector icons
+const Icons = {
+  search: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>`,
+  folder: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`,
+  file: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>`,
+  globe: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z"></path></svg>`,
+  hash: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line><line x1="10" y1="3" x2="8" y2="21"></line><line x1="16" y1="3" x2="14" y2="21"></line></svg>`,
+  tag: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>`,
+  download: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`,
+  clock: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`,
+  volume: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`,
+  crop: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"></path><path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"></path></svg>`
+};
+
+async function renderSearchResults(query) {
+  const requestId = ++currentSearchRequestId;
+  const startedInMode = currentCommandMode;
+  
+  let scored = [];
+  const qClean = query.trim().toLowerCase();
+
+  // --- CASE A: COMMAND SUB-MENU PARAMETERS MODE ---
+  if (currentCommandMode) {
+    scored = await getCommandModeCandidates(currentCommandMode, qClean);
+  } else {
+    // --- CASE B: ROOT GENERAL SEARCH ---
+    let candidates = CommandRegistry.getAll().map(cmd => ({
+      id: cmd.id,
+      title: cmd.name,
+      subtitle: cmd.description,
+      icon: cmd.icon || Icons.search,
+      type: "command",
+      aliases: cmd.aliases || [],
+      execute: cmd.execute,
+      pinned: cmd.pinned || false,
+      favorite: cmd.favorite || false
+    }));
+    
+    // Prefix command check: e.g. "youtube kdrama" or "/youtube kdrama"
+    for (const cmd of CommandRegistry.getAll()) {
+      if (cmd.aliases) {
+        for (const alias of cmd.aliases) {
+          const prefix = alias + " ";
+          const slashPrefix = "/" + alias + " ";
+          if (qClean.startsWith(prefix) || qClean.startsWith(slashPrefix)) {
+            const arg = query.substring(qClean.startsWith(slashPrefix) ? slashPrefix.length : prefix.length).trim();
+            candidates.unshift({
+              id: cmd.id + "_active",
+              title: `${cmd.name} for "${arg}"`,
+              subtitle: `Run: ${cmd.description}`,
+              icon: cmd.icon || Icons.globe,
+              type: "command",
+              execute: () => {
+                activeQuery = alias + " " + arg; // override query so execute gets correct arg
+                cmd.execute();
+              },
+              score: 9999,
+              isPrefixMatch: true
+            });
+          }
+        }
+      }
+    }
+
+    // Add Clipboard History Clips if query contains '/clipboard'
+    if (qClean.startsWith("/clipboard") || qClean === "clipboard") {
+      clipboardHistoryCache.forEach((clip, i) => {
+        candidates.push({
+          id: "clip_" + clip.id,
+          title: clip.content,
+          subtitle: `Clipboard History • ${new Date(clip.timestamp).toLocaleTimeString()}`,
+          icon: Icons.file,
+          type: "clipboard",
+          clipData: clip,
+          favorite: clip.favorite,
+          pinned: clip.pinned
+        });
       });
     }
 
-    // Ensure input is focused when transition completes
-    ccBackdrop.addEventListener("transitionend", (e) => {
-      if (ccBackdrop.classList.contains("active") && e.propertyName === "opacity") {
-        ccSearchInput.focus();
-      }
-    });
-
-    ccSearchInput.addEventListener("input", (e) => {
-      ccSearchInput.style.height = "auto";
-      ccSearchInput.style.height = Math.min(100, ccSearchInput.scrollHeight) + "px";
-      handleCCSearch(e.target.value);
-    });
-
-    ccSearchInput.addEventListener("keydown", (e) => {
-      const key = e.key ? e.key.toLowerCase() : "";
-      const isA = key === "a" || key === "å" || e.code === "KeyA" || e.keyCode === 65;
-      const hasAltOnly = e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey;
-      
-      if (isA && hasAltOnly) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        closeCommandCenter();
-        return;
-      }
-      
-      if (e.key === "Enter") {
-        if (!e.shiftKey) {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          handleCCKeydown(e); // executes Enter selection
-        } else {
-          // Shift+Enter inserts newline: allow it, and it will resize textarea via input listener!
-          e.stopPropagation();
+    // Calculator check
+    const mathRegex = /^[0-9+\-*/().\s^|sqrt|pow|sin|cos|tan|log|pi|e]+$/i;
+    const containsMathOperator = /[\+\-\*\/\^]/.test(query) || /sqrt|pow/i.test(query);
+    if (query.length > 2 && mathRegex.test(query) && containsMathOperator) {
+      try {
+        const cleanExpr = query.replace(/\^/g, "**")
+                               .replace(/sqrt/gi, "Math.sqrt")
+                               .replace(/pow/gi, "Math.pow")
+                               .replace(/sin/gi, "Math.sin")
+                               .replace(/cos/gi, "Math.cos")
+                               .replace(/tan/gi, "Math.tan")
+                               .replace(/log/gi, "Math.log")
+                               .replace(/pi/gi, "Math.PI")
+                               .replace(/e/gi, "Math.E");
+        const evalResult = new Function(`return ${cleanExpr}`)();
+        if (typeof evalResult === 'number' && !isNaN(evalResult)) {
+          candidates.unshift({
+            id: "calculator_result",
+            title: `Result: ${evalResult}`,
+            subtitle: `Calculator output for "${query}"`,
+            icon: Icons.search,
+            type: "command",
+            execute: () => {
+              navigator.clipboard.writeText(evalResult.toString());
+              showToast("Copied calculator result to clipboard!", "success");
+              closeCommandPalette();
+            }
+          });
         }
-        return;
-      }
-
-      e.stopPropagation();
-      handleCCKeydown(e);
-    });
-
-    ccSearchInput.addEventListener("keypress", (e) => {
-      e.stopPropagation();
-    });
-
-    ccSearchInput.addEventListener("keyup", (e) => {
-      e.stopPropagation();
-    });
-  });
-}
-
-// -------------------------------------------------------------
-// NAVIGATION & BOOKMARKS LOADING
-// -------------------------------------------------------------
-function loadFolder(folderId) {
-  currentFolderId = folderId;
-  selectedIndex = -1;
-  
-  chrome.runtime.sendMessage({ action: "get_folder_contents", id: folderId }, (nodes) => {
-    if (nodes && nodes.children) {
-      visibleItems = nodes.children;
-    } else if (nodes && nodes.id === "0") {
-      // Chrome Root: Children are normally Bookmark Bar (1) & Other Bookmarks (2)
-      visibleItems = [
-        { id: "1", title: "Bookmark Bar" },
-        { id: "2", title: "Other Bookmarks" }
-      ];
-    } else {
-      visibleItems = [];
+      } catch(e) {}
     }
 
-    renderItemsList(visibleItems);
-    updateCrumbsPath(folderId);
+    // Query native Bookmarks & History
+    let bookmarkResults = [];
+    let historyResults = [];
+    let tabResults = [];
+    let downloadResults = [];
+    let notesResults = [];
+
+    // Query local notes from DB
+    const notes = await DB.getNotes();
+    notes.forEach(note => {
+      notesResults.push({
+        id: "note_" + note.id,
+        title: note.title,
+        subtitle: `Notes • ${note.content.substring(0, 50)}`,
+        icon: Icons.file,
+        type: "note",
+        noteData: note,
+        pinned: note.pinned,
+        favorite: note.favorite
+      });
+    });
+
+    if (query.length > 0) {
+      const qLower = query.toLowerCase();
+
+      // Query Tabs
+      const tabsList = await new Promise(res => chrome.runtime.sendMessage({ action: "get_tabs" }, res));
+      
+      // Safety Check after Async Call
+      if (requestId !== currentSearchRequestId || currentCommandMode !== startedInMode) return;
+      
+      if (tabsList && Array.isArray(tabsList)) {
+        tabsList.forEach(t => {
+          if (t.title?.toLowerCase().includes(qLower) || t.url?.toLowerCase().includes(qLower)) {
+            tabResults.push({
+              id: "tab_" + t.id,
+              title: t.title || "Tab",
+              subtitle: `Active Tab • ${t.url}`,
+              icon: Icons.globe,
+              type: "tab",
+              tabData: t
+            });
+          }
+        });
+      }
+
+      // Query Downloads
+      const downloadsList = await new Promise(res => chrome.runtime.sendMessage({ action: "get_downloads", query: query }, res));
+      
+      // Safety Check after Async Call
+      if (requestId !== currentSearchRequestId || currentCommandMode !== startedInMode) return;
+      
+      if (downloadsList && Array.isArray(downloadsList)) {
+        downloadsList.forEach(d => {
+          downloadResults.push({
+            id: "download_" + d.id,
+            title: d.filename.split(/[\\/]/).pop() || "Downloaded File",
+            subtitle: `Downloads • ${d.url}`,
+            icon: Icons.download,
+            type: "download",
+            downloadData: d
+          });
+        });
+      }
+
+      // Query Bookmarks from Chrome
+      const bkList = await new Promise(res => chrome.runtime.sendMessage({ action: "get_bookmarks_tree" }, res));
+      
+      // Safety Check after Async Call
+      if (requestId !== currentSearchRequestId || currentCommandMode !== startedInMode) return;
+      
+      function traverseSearch(node) {
+        if (node.url && (node.title?.toLowerCase().includes(qLower) || node.url?.toLowerCase().includes(qLower))) {
+          bookmarkResults.push({
+            id: "bm_" + node.id,
+            title: node.title || node.url,
+            subtitle: `Bookmark • ${node.url}`,
+            icon: Icons.tag,
+            type: "bookmark",
+            bmData: node
+          });
+        }
+        if (node.children) node.children.forEach(traverseSearch);
+      }
+      if (bkList && bkList[0]) traverseSearch(bkList[0]);
+
+      // Query History from Chrome
+      const histList = await new Promise(res => chrome.runtime.sendMessage({ action: "search_history", query: query }, res));
+      
+      // Safety Check after Async Call
+      if (requestId !== currentSearchRequestId || currentCommandMode !== startedInMode) return;
+      
+      if (histList && Array.isArray(histList)) {
+        histList.forEach(h => {
+          historyResults.push({
+            id: h.id,
+            title: h.title || h.url,
+            subtitle: `History • ${h.url}`,
+            icon: Icons.clock,
+            type: "history",
+            histData: h
+          });
+        });
+      }
+    }
+
+    // Combine Candidates
+    const allCandidates = [
+      ...candidates,
+      ...notesResults,
+      ...tabResults,
+      ...downloadResults,
+      ...bookmarkResults,
+      ...historyResults
+    ];
+
+    // Score & Rank
+    scored = allCandidates.map(item => {
+      if (item.isPrefixMatch) {
+        return item;
+      }
+      let score = 0;
+      const titleLower = item.title.toLowerCase();
+      const subLower = (item.subtitle || "").toLowerCase();
+
+      if (qClean) {
+        if (titleLower === qClean) score += 100;
+        else if (titleLower.startsWith(qClean)) score += 80;
+        else if (titleLower.includes(qClean)) score += 50;
+        else if (subLower.includes(qClean)) score += 20;
+
+        if (item.aliases && item.aliases.some(a => a.toLowerCase().includes(qClean))) {
+          score += 60;
+        }
+      } else {
+        score += 1;
+      }
+
+      // Command Stats boosting
+      const stats = commandStats[item.id];
+      if (stats) {
+        score += Math.min(20, stats.frequency * 2);
+      }
+
+      return { ...item, score };
+    });
+
+    if (qClean) {
+      scored = scored.filter(item => item.score > 0 || item.isPrefixMatch);
+    }
+
+    // Sort: Pinned > Favorite > Score
+    scored.sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      if (a.favorite && !b.favorite) return -1;
+      if (!a.favorite && b.favorite) return 1;
+      return b.score - a.score;
+    });
+  }
+
+  // Safety Check before Rendering
+  if (requestId !== currentSearchRequestId || currentCommandMode !== startedInMode) return;
+
+  visibleItems = scored.slice(0, 30);
+  renderResultsUI();
+  updateAutocompleteShadow(query);
+}
+
+function updateAutocompleteShadow(query) {
+  const shadowEl = ccBackdrop ? ccBackdrop.querySelector(".cc-autocomplete-shadow") : null;
+  if (!shadowEl) return;
+  
+  activeSuggestion = "";
+  shadowEl.innerHTML = "";
+  
+  if (!query) return;
+
+  const qLower = query.toLowerCase();
+
+  // Find matches from CommandRegistry aliases first
+  for (const cmd of CommandRegistry.getAll()) {
+    if (cmd.aliases) {
+      for (const alias of cmd.aliases) {
+        const slashAlias = "/" + alias;
+        if (slashAlias.startsWith(qLower) && slashAlias !== qLower) {
+          activeSuggestion = query + slashAlias.substring(query.length);
+          break;
+        } else if (alias.startsWith(qLower) && alias !== qLower) {
+          activeSuggestion = query + alias.substring(query.length);
+          break;
+        }
+      }
+    }
+    if (activeSuggestion) break;
+  }
+
+  // If no alias match, check top visible item title
+  if (!activeSuggestion && visibleItems[0]) {
+    const topTitle = visibleItems[0].title.toLowerCase();
+    const topClean = topTitle.startsWith("/") ? topTitle : "/" + topTitle;
+    
+    if (topTitle.startsWith(qLower) && topTitle !== qLower) {
+      activeSuggestion = query + visibleItems[0].title.substring(query.length);
+    } else if (topClean.startsWith(qLower) && topClean !== qLower) {
+      activeSuggestion = query + (visibleItems[0].title.startsWith("/") ? "" : "/") + visibleItems[0].title.substring(qLower.startsWith("/") ? query.length : query.length + 1);
+    }
+  }
+
+  if (activeSuggestion) {
+    shadowEl.innerHTML = `<span style="color:transparent">${query}</span><span>${activeSuggestion.substring(query.length)}</span>`;
+  }
+}
+
+// -------------------------------------------------------------
+// GET CANDIDATES FOR COMMAND MODES
+// -------------------------------------------------------------
+async function getCommandModeCandidates(modeId, filter) {
+  let list = [];
+
+  try {
+    switch (modeId) {
+    case "image_tools":
+      if (commandModeParams.step === "resize") {
+        list = [
+          { id: "img_res_800", title: "Scale to 800px Width", subtitle: "Maintains proportional height", icon: Icons.crop, type: "subaction", run: () => runImageResizer(800) },
+          { id: "img_res_1200", title: "Scale to 1200px Width", subtitle: "Proportional scaling", icon: Icons.crop, type: "subaction", run: () => runImageResizer(1200) },
+          { id: "img_res_1080p", title: "Full HD (1920x1080)", subtitle: "Crops/stretches to standard display", icon: Icons.crop, type: "subaction", run: () => runImageResizer(1920, 1080) },
+          { id: "img_res_50", title: "Scale down by 50%", subtitle: "Halves image resolution", icon: Icons.crop, type: "subaction", run: () => runImageResizer(0.5) }
+        ];
+      } else {
+        list = [
+          { id: "cmd_clip_dl", title: "Download Clipboard Image", subtitle: "Extract and download any copied image file", icon: Icons.download, type: "subaction", run: () => executeDirectCommand("clipboard_download") },
+          { id: "cmd_clip_resize", title: "Resize Clipboard Image...", subtitle: "Select dimensions and scaling properties", icon: Icons.crop, type: "subaction", run: () => { commandModeParams.step = "resize"; renderSearchResults(""); } },
+          { id: "cmd_clip_webp", title: "Convert to WebP format", subtitle: "Re-save copied image as WebP", icon: Icons.globe, type: "subaction", run: () => executeDirectCommand("clipboard_image_convert", "webp") },
+          { id: "cmd_clip_png", title: "Convert to PNG format", subtitle: "Re-save copied image as PNG", icon: Icons.file, type: "subaction", run: () => executeDirectCommand("clipboard_image_convert", "png") },
+          { id: "cmd_clip_jpg", title: "Convert to JPG format", subtitle: "Re-save copied image as JPG", icon: Icons.tag, type: "subaction", run: () => executeDirectCommand("clipboard_image_convert", "jpg") }
+        ];
+      }
+      break;
+
+    case "pdf_tools":
+      list = [
+        { id: "cmd_pdf_compress", title: "Compress PDF Document", subtitle: "Reduces size using native streams", icon: Icons.file, type: "subaction", run: () => executeDirectCommand("pdf_compressor") },
+        { id: "cmd_pdf_merge", title: "Merge PDF Documents (Bulk Join)", subtitle: "Merges multiple local PDF files", icon: Icons.folder, type: "subaction", run: () => executeDirectCommand("pdf_merge") }
+      ];
+      break;
+
+    case "note_tools":
+      if (commandModeParams.step === "view_content") {
+        const noteTitle = commandModeParams.selectedNote;
+        const note = await DB.get("notes", noteTitle);
+        const content = note ? note.content : "(empty)";
+        list = [
+          { id: "note_view_back", title: "‹ Back to Note Actions", subtitle: "Return to note options list", icon: Icons.crop, type: "subaction", run: () => { delete commandModeParams.step; renderSearchResults(""); } },
+          { id: "note_text_display", title: noteTitle, subtitle: content, icon: Icons.file, type: "static_text" }
+        ];
+      } else if (commandModeParams.selectedNote) {
+        const noteTitle = commandModeParams.selectedNote;
+        list = [
+          { id: "note_act_append", title: `Append text to "${noteTitle}"`, subtitle: "Type content in search input and run", icon: Icons.file, type: "subaction", run: () => appendNoteFromInput(noteTitle) },
+          { id: "note_act_view", title: `View Note content`, subtitle: "View note content directly inside palette", icon: Icons.search, type: "subaction", run: () => viewNoteContent(noteTitle) },
+          { id: "note_act_del", title: `Delete Note`, subtitle: "Permanently erase this note", icon: Icons.close, type: "subaction", run: () => deleteNoteFromMode(noteTitle) }
+        ];
+      } else {
+        list = [
+          { id: "note_act_new", title: "🆕 Create New Note", subtitle: "Creates note using query as title", icon: Icons.file, type: "subaction", run: () => createNoteFromInput() }
+        ];
+        const notes = await DB.getNotes();
+        notes.forEach(n => {
+          list.push({
+            id: "note_select_" + n.id,
+            title: `📝 Note: ${n.title}`,
+            subtitle: `Contains: ${n.content.substring(0, 40)}...`,
+            icon: Icons.file,
+            type: "subaction",
+            run: () => {
+              commandModeParams.selectedNote = n.title;
+              renderSearchResults("");
+            }
+          });
+        });
+      }
+      break;
+
+    case "boost_tools":
+      list = [
+        { id: "boost_lvl_100", title: "Boost to 100% (Default)", subtitle: "Standard audio level", icon: Icons.volume, type: "subaction", run: () => runAudioBoost(100) },
+        { id: "boost_lvl_150", title: "Boost to 150%", subtitle: "Adds clean volume boost", icon: Icons.volume, type: "subaction", run: () => runAudioBoost(150) },
+        { id: "boost_lvl_200", title: "Boost to 200%", subtitle: "Ideal for quiet media", icon: Icons.volume, type: "subaction", run: () => runAudioBoost(200) },
+        { id: "boost_lvl_250", title: "Boost to 250%", subtitle: "Loud volume", icon: Icons.volume, type: "subaction", run: () => runAudioBoost(250) },
+        { id: "boost_lvl_300", title: "Boost to 300% (Maximum)", subtitle: "Safety compressor active", icon: Icons.volume, type: "subaction", run: () => runAudioBoost(300) }
+      ];
+      break;
+
+    case "timer_tools":
+      list = [
+        { id: "timer_int_5", title: "5 Minute Timer", subtitle: "Set custom timer", icon: Icons.clock, type: "subaction", run: () => runTimer(5, "5 Min Timer") },
+        { id: "timer_int_10", title: "10 Minute Timer", subtitle: "Set custom timer", icon: Icons.clock, type: "subaction", run: () => runTimer(10, "10 Min Timer") },
+        { id: "timer_int_25", title: "25 Minute Pomodoro", subtitle: "Focused session timer", icon: Icons.clock, type: "subaction", run: () => runTimer(25, "Pomodoro Session") },
+        { id: "timer_int_60", title: "1 Hour Timer", subtitle: "Long interval countdown", icon: Icons.clock, type: "subaction", run: () => runTimer(60, "1 Hour Timer") },
+        { id: "timer_int_cust", title: "Custom Timer", subtitle: "Type minutes inside search input and select", icon: Icons.clock, type: "subaction", run: () => runCustomTimer() }
+      ];
+      break;
+
+    case "translate_tools":
+      if (commandModeParams.targetLang) {
+        list = [
+          { id: "trans_exec", title: `Translate text to ${commandModeParams.targetLang.toUpperCase()}`, subtitle: "Type phrase in search input and execute", icon: Icons.globe, type: "subaction", run: () => runTranslateText() }
+        ];
+      } else {
+        const langs = ["French", "Spanish", "Japanese", "German", "Chinese", "Hindi", "Russian"];
+        langs.forEach(l => {
+          list.push({
+            id: "trans_lang_" + l.toLowerCase(),
+            title: `🗣 Translate to ${l}`,
+            subtitle: "Select language",
+            icon: Icons.globe,
+            type: "subaction",
+            run: () => {
+              commandModeParams.targetLang = l.toLowerCase();
+              ccSearchInput.placeholder = `Type text to translate to ${l}...`;
+              renderSearchResults("");
+            }
+          });
+        });
+      }
+      break;
+
+    case "help_tools":
+      const guideText = `SMART COMMAND PALETTE GUIDE
+      
+Keyboard Shortcuts:
+• Alt+A           : Open / Close Palette
+• Ctrl+Shift+P    : Alternative Open hotkey
+• Up / Down Arrow : Navigate results list
+• Enter           : Execute / Run action
+• Alt+Enter       : Open in new browser tab
+• Alt+K           : Open sliding Action Sheet
+• Backspace       : Exit sub-command modes
+• Esc             : Close palette
+
+Prefix Commands (type directly in search):
+• note          : Enter Note Manager
+• boost         : Set Audio Booster gain (100% - 300%)
+• pdf           : Compress or merge PDF documents
+• image         : Resize, convert, or download clipboard images
+• timer         : Start countdown or Pomodoro (e.g. timer 25)
+• translate     : Translate text inline (e.g. translate hello to french)
+• collections   : Browse custom workspace collections
+• /youtube <q>  : Search YouTube media
+• /twitch <q>   : Search Twitch streaming media
+• /mkvdrama <q> : Search MKV Drama series
+• /bollyflix <q>: Search Bollyflix catalog
+• /katmovies <q>: Search KatMovieHD catalog`;
+
+      list = [
+        { id: "help_view_back", title: "‹ Back to Search", subtitle: "Return to general search results", icon: Icons.crop, type: "subaction", run: () => exitCommandMode() },
+        { id: "help_text_display", title: "Command Palette Guide", subtitle: guideText, icon: "💡", type: "static_text" }
+      ];
+      break;
+
+    case "bookmark_tools":
+      {
+        const bkList = await new Promise(res => chrome.runtime.sendMessage({ action: "get_bookmarks_tree" }, res));
+        let bookmarks = [];
+        function traverse(node) {
+          if (node.url) {
+            bookmarks.push({
+              id: "bm_" + node.id,
+              title: node.title || node.url,
+              subtitle: node.url,
+              icon: Icons.tag,
+              type: "bookmark",
+              bmData: node
+            });
+          }
+          if (node.children) node.children.forEach(traverse);
+        }
+        if (bkList && bkList[0]) traverse(bkList[0]);
+        if (filter) {
+          bookmarks = bookmarks.filter(b => b.title.toLowerCase().includes(filter) || b.subtitle.toLowerCase().includes(filter));
+        }
+        list = bookmarks;
+      }
+      break;
+
+    case "download_tools":
+      {
+        const downloadsList = await new Promise(res => chrome.runtime.sendMessage({ action: "get_downloads", query: filter || "" }, res));
+        if (downloadsList && Array.isArray(downloadsList)) {
+          list = downloadsList.map(d => ({
+            id: "download_" + d.id,
+            title: d.filename.split(/[\\/]/).pop() || "Downloaded File",
+            subtitle: d.url,
+            icon: Icons.download,
+            type: "download",
+            downloadData: d
+          }));
+        }
+      }
+      break;
+
+    case "history_tools":
+      {
+        const histList = await new Promise(res => chrome.runtime.sendMessage({ action: "search_history", query: filter || "" }, res));
+        if (histList && Array.isArray(histList)) {
+          list = histList.map(h => ({
+            id: h.id,
+            title: h.title || h.url,
+            subtitle: h.url,
+            icon: Icons.clock,
+            type: "history",
+            histData: h
+          }));
+        }
+      }
+      break;
+
+    case "tab_tools":
+      {
+        const tabsList = await new Promise(res => chrome.runtime.sendMessage({ action: "get_tabs" }, res));
+        if (tabsList && Array.isArray(tabsList)) {
+          let tabs = tabsList.map(t => ({
+            id: "tab_" + t.id,
+            title: t.title || "Tab",
+            subtitle: t.url,
+            icon: Icons.globe,
+            type: "tab",
+            tabData: t
+          }));
+          if (filter) {
+            tabs = tabs.filter(t => t.title.toLowerCase().includes(filter) || t.subtitle.toLowerCase().includes(filter));
+          }
+          list = tabs;
+        }
+      }
+      break;
+    }
+  } catch (err) {
+    console.error("Error in getCommandModeCandidates:", err);
+  }
+
+  // Filter command candidates list
+  if (filter) {
+    list = list.filter(item => 
+      item.title.toLowerCase().includes(filter) || 
+      item.subtitle.toLowerCase().includes(filter)
+    );
+  }
+
+  return list;
+}
+
+// -------------------------------------------------------------
+// EXECUTE ACTION WORKFLOWS FOR SUB-MODES
+// -------------------------------------------------------------
+function executeDirectCommand(commandId, args = "") {
+  const cmdObj = CommandRegistry.commands.get(commandId);
+  if (cmdObj) {
+    if (args) {
+      activeQuery = `${commandId} ${args}`;
+    } else {
+      activeQuery = commandId;
+    }
+    cmdObj.execute();
+  }
+}
+
+// Image Resizer action trigger
+async function runImageResizer(dim1, dim2 = null) {
+  try {
+    const items = await navigator.clipboard.read();
+    for (const item of items) {
+      for (const type of item.types) {
+        if (type.startsWith("image/")) {
+          const blob = await item.getType(type);
+          const img = new Image();
+          img.onload = () => {
+            let w = dim1;
+            let h = dim2;
+            if (dim1 < 1) { // scale multiplier (e.g. 0.5)
+              w = Math.round(img.width * dim1);
+              h = Math.round(img.height * dim1);
+            } else if (!dim2) { // width only proportional
+              h = Math.round(img.height * (w / img.width));
+            }
+            
+            const canvas = document.createElement("canvas");
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, w, h);
+            canvas.toBlob((resizedBlob) => {
+              const url = URL.createObjectURL(resizedBlob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `resized_image.png`;
+              a.click();
+              showToast("Resized image downloaded!", "success");
+              exitCommandMode();
+              closeCommandPalette();
+            }, "image/png");
+          };
+          img.src = URL.createObjectURL(blob);
+          return;
+        }
+      }
+    }
+    showToast("No image found on clipboard!", "error");
+  } catch(e) {
+    showToast("Clipboard access blocked!", "error");
+  }
+}
+
+// Audio Boost levels
+function runAudioBoost(level) {
+  enableAudioBooster(level);
+}
+
+// Timer triggers
+function runTimer(mins, label) {
+  chrome.runtime.sendMessage({
+    action: "set_timer",
+    minutes: mins,
+    label: label
+  }, () => {
+    showToast(`Timer set for ${mins} minutes!`, "success");
+    exitCommandMode();
+    closeCommandPalette();
   });
 }
 
-function updateCrumbsPath(folderId) {
-  if (folderId === "0") {
-    ccBreadcrumbs.textContent = "Library";
+function runCustomTimer() {
+  const val = parseFloat(ccSearchInput.value);
+  if (isNaN(val) || val <= 0) {
+    showToast("Type minutes in search input first!", "error");
     return;
   }
-  
-  // Recursively fetch path
-  let path = "Library";
-  
-  function findPath(node, targetId, currentPath = "Library") {
-    if (node.id === targetId) {
-      path = currentPath + (node.title ? ` / ${node.title}` : "");
-      return true;
-    }
-    if (node.children) {
-      for (const child of node.children) {
-        const title = child.title || (child.id === "1" ? "Bookmark Bar" : child.id === "2" ? "Other Bookmarks" : "Folder");
-        if (findPath(child, targetId, currentPath + ` / ${title}`)) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
-  if (cachedTree) {
-    findPath(cachedTree[0], folderId);
-  }
-
-  ccBreadcrumbs.textContent = path;
+  runTimer(val, "Timer");
 }
 
-function renderItemsList(items) {
-  ccResultsList.innerHTML = "";
-  
-  if (items.length === 0) {
+// Translation runner
+async function runTranslateText() {
+  const text = ccSearchInput.value.trim();
+  const lang = commandModeParams.targetLang;
+  if (!text) {
+    showToast("Type text in search input first!", "error");
+    return;
+  }
+
+  try {
+    showToast("Translating...", "success");
+    const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|${lang.substring(0, 2)}`);
+    const data = await res.json();
+    const translated = data.responseData?.translatedText || text;
+    showToast(`Translated: "${translated}"`, "success");
+    exitCommandMode();
+    closeCommandPalette();
+  } catch(e) {
+    showToast("Translation service error", "error");
+  }
+}
+
+// Notes triggers inside sub-mode
+async function createNoteFromInput() {
+  const title = ccSearchInput.value.trim();
+  if (!title) {
+    showToast("Type note title in search bar first!", "error");
+    return;
+  }
+  const noteObj = {
+    id: title,
+    title: title,
+    content: "",
+    versions: [],
+    tags: [],
+    pinned: false,
+    favorite: false,
+    lastModified: Date.now()
+  };
+  await DB.put("notes", noteObj);
+  showToast(`Note "${title}" created!`, "success");
+  commandModeParams.selectedNote = title;
+  renderSearchResults("");
+}
+
+async function appendNoteFromInput(title) {
+  const text = ccSearchInput.value.trim();
+  if (!text) {
+    showToast("Type content in search bar first!", "error");
+    return;
+  }
+  const existing = await DB.get("notes", title);
+  if (existing) {
+    existing.versions.unshift({ content: existing.content, timestamp: Date.now() });
+    existing.content = existing.content ? existing.content + "\n" + text : text;
+    existing.lastModified = Date.now();
+    await DB.put("notes", existing);
+    showToast(`Appended to note "${title}"!`, "success");
+    exitCommandMode();
+    closeCommandPalette();
+  }
+}
+
+async function viewNoteContent(title) {
+  commandModeParams.step = "view_content";
+  renderSearchResults("");
+}
+
+async function deleteNoteFromMode(title) {
+  await DB.delete("notes", title);
+  showToast("Note deleted!", "success");
+  delete commandModeParams.selectedNote;
+  renderSearchResults("");
+}
+
+// -------------------------------------------------------------
+// RENDER GENERAL RESULTS UI
+// -------------------------------------------------------------
+function renderResultsUI() {
+  const listEl = ccResultsList.querySelector(".cc-results-list");
+  const headerEl = ccResultsList.querySelector(".cc-group-header");
+  listEl.innerHTML = "";
+
+  if (currentCommandMode) {
+    const metadata = CommandModeMetadata[currentCommandMode];
+    headerEl.textContent = `${metadata.name} Actions`;
+  } else if (activeQuery) {
+    headerEl.textContent = "Search results";
+  } else {
+    headerEl.textContent = "Recent searches";
+  }
+
+  if (visibleItems.length === 0) {
     ccEmptyState.classList.remove("hidden");
     return;
   }
-  
   ccEmptyState.classList.add("hidden");
+
+  visibleItems.forEach((item, idx) => {
+    const itemEl = document.createElement("div");
+    itemEl.className = `cc-item ${idx === selectedIndex ? "selected" : ""}`;
+
+    if (item.type === "static_text") {
+      itemEl.innerHTML = `
+        <div class="cc-item-left" style="flex-direction:column; align-items:flex-start; width:100%; gap:8px;">
+          <div style="font-weight:600; font-size:13px; color:#8b5cf6; display:flex; align-items:center; gap:8px;">
+            <span>${item.icon || "📝"}</span>
+            <span>${item.title}</span>
+          </div>
+          <div style="white-space:pre-wrap; font-family:monospace; font-size:12px; color:#a3b3cc; max-height:220px; overflow-y:auto; width:100%; line-height:1.5; padding:8px; background:rgba(255,255,255,0.02); border-radius:6px; border:1px solid rgba(255,255,255,0.04); box-sizing:border-box;">${item.subtitle}</div>
+        </div>
+      `;
+      itemEl.style.cursor = "default";
+    } else {
+      let iconHtml = `<span class="cc-item-icon">${Icons.search}</span>`;
+      if (typeof item.icon === "string") {
+        iconHtml = `<span class="cc-item-icon">${item.icon}</span>`;
+      }
+
+      // Show website favicons for bookmarks, tabs, and history entries
+      if ((item.type === "bookmark" || item.type === "tab" || item.type === "history") && (item.bmData || item.tabData || item.histData)) {
+        const url = (item.bmData?.url || item.tabData?.url || item.histData?.url);
+        if (url) {
+          const d = BookmarkRules.getDomain(url);
+          iconHtml = `<img class="cc-item-icon" src="https://www.google.com/s2/favicons?sz=32&domain=${d}" onerror="this.src='https://www.google.com/s2/favicons?sz=32&domain=google.com'" style="width:14px; height:14px; border-radius:3px;">`;
+        }
+      }
+
+      let rightBadgeHtml = "";
+      if (item.pinned) rightBadgeHtml += `<span style="font-size:11px; margin-right:4px;">📌</span>`;
+      if (item.favorite) rightBadgeHtml += `<span style="font-size:11px; margin-right:4px;">⭐</span>`;
+
+      let kbdText = "";
+      if (item.type === "tab") kbdText = "↵ Switch";
+      else if (item.type === "bookmark") kbdText = "↵ Open";
+      else if (item.type === "command") kbdText = "↵ Select";
+      else if (item.type === "subaction") kbdText = "↵ Run";
+      else if (item.type === "note") kbdText = "↵ Select";
+      else if (item.type === "download") kbdText = "↵ Open";
+      else kbdText = "↵ Go";
+
+      itemEl.innerHTML = `
+        <div class="cc-item-left">
+          ${iconHtml}
+          <div class="cc-item-title-wrap">
+            <span class="cc-item-title">${item.title}</span>
+            <span class="cc-item-subtitle">${item.subtitle || ""}</span>
+          </div>
+        </div>
+        <div class="cc-item-right">
+          ${rightBadgeHtml}
+          <span class="cc-kbd-badge">${kbdText}</span>
+        </div>
+      `;
+
+      itemEl.addEventListener("click", () => {
+        selectedIndex = idx;
+        executeMainAction(false);
+      });
+    }
+
+    listEl.appendChild(itemEl);
+  });
+
+  if (visibleItems[selectedIndex]) {
+    ccBreadcrumbs.innerHTML = `Command Palette › <span class="cc-breadcrumb-badge">${visibleItems[selectedIndex].title}</span>`;
+    if (isSubmenuOpen) {
+      renderSubmenuActions();
+    }
+  }
+}
+
+function moveSelection(direction) {
+  const items = ccResultsList.querySelectorAll(".cc-item");
+  if (items.length === 0) return;
+
+  selectedIndex = (selectedIndex + direction + items.length) % items.length;
 
   items.forEach((item, idx) => {
-    const div = document.createElement("div");
-    div.className = `cc-item ${idx === selectedIndex ? "selected" : ""}`;
-    
-    let leftHtml = "";
-    let rightHtml = "";
-
-    if (item.url) {
-      // Bookmark or History Link
-      const domain = BookmarkRules.getDomain(item.url);
-      const faviconUrl = `https://www.google.com/s2/favicons?sz=32&domain=${domain}`;
-      leftHtml = `
-        <img class="cc-favicon" src="${faviconUrl}" onerror="this.src='../icons/icon16.png'">
-        <span class="cc-item-title">${item.title || item.url}</span>
-      `;
-      if (item.isHistory) {
-        rightHtml = `
-          <span class="cc-item-right" title="${item.url}" style="color:#f43f5e; font-weight:600; display:flex; align-items:center; gap:6px;">
-            <i class="fi fi-rr-clock-three" style="font-size:12px; display:flex; align-items:center;"></i>
-            History &bull; ${domain}
-          </span>
-        `;
-      } else {
-        rightHtml = `<span class="cc-item-right" title="${item.url}">${domain}</span>`;
-      }
-    } else if (item.isNote || item.isCreateNoteAction || item.isStaticHelp) {
-      // Note Card
-      leftHtml = `
-        <span class="cc-item-icon" style="color:#10b981; display:flex; align-items:center;"><i class="fi fi-rr-document" style="font-size:14px;"></i></span>
-        <span class="cc-item-title" style="font-weight:600; color:inherit;">${item.title}</span>
-      `;
-      rightHtml = `<span class="cc-item-right" style="color:#10b981; font-family:monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${item.contentSnippet || ''}">${item.contentSnippet || ''}</span>`;
+    if (idx === selectedIndex) {
+      item.classList.add("selected");
+      item.scrollIntoView({ block: "nearest" });
     } else {
-      // Folder Directory
-      leftHtml = `
-        <span class="cc-item-icon" style="color:#a855f7; display:flex; align-items:center;"><i class="fi fi-rr-folder" style="font-size:14px;"></i></span>
-        <span class="cc-item-title" style="font-weight:600; color:inherit;">${item.title}</span>
-      `;
-      rightHtml = `<span class="cc-item-right" style="color:#a855f7; font-weight:600; font-style:italic;">Folder</span>`;
+      item.classList.remove("selected");
     }
-
-    div.innerHTML = `
-      <div class="cc-item-left">${leftHtml}</div>
-      ${rightHtml}
-    `;
-
-    div.addEventListener("click", () => {
-      selectedIndex = idx;
-      executeSelection();
-    });
-
-    ccResultsList.appendChild(div);
   });
+
+  if (visibleItems[selectedIndex]) {
+    ccBreadcrumbs.innerHTML = `Command Palette › <span class="cc-breadcrumb-badge">${visibleItems[selectedIndex].title}</span>`;
+    if (isSubmenuOpen) {
+      renderSubmenuActions();
+    }
+  }
 }
 
 // -------------------------------------------------------------
-// KEYBOARD & INPUT ENGINE
+// EXECUTE CORE ACTIONS
 // -------------------------------------------------------------
-function handleCCSearch(val) {
-  val = val.trim();
-  activeQuery = val;
-  selectedIndex = -1;
-
-  if (!val) {
-    hideSuggestions();
-    loadFolder(currentFolderId);
-    return;
-  }
-
-  if (/^\/no(\s|$)/i.test(val) || /^\/notes(\s|$)/i.test(val)) {
-    hideSuggestions();
-    renderNotesSuggestions(val);
-    return;
-  }
-
-  if (val.startsWith("/")) {
-    renderCCSuggestions(val);
-    executeCCCommand(val, false);
-  } else {
-    hideSuggestions();
-    
-    // Check for scoped domain search (e.g. "github.com pull request")
-    const parts = val.split(" ");
-    if (parts.length > 1 && parts[0].includes(".") && parts[0].length > 3) {
-      const scopeDomain = parts[0].toLowerCase();
-      const scopeQuery = parts.slice(1).join(" ").trim().toLowerCase();
-      
-      visibleItems = allFlattenedBookmarks.filter(bm => {
-        const domain = BookmarkRules.getDomain(bm.url);
-        if (domain && domain.toLowerCase().includes(scopeDomain)) {
-          if (!scopeQuery) return true; // just filter by domain if query is empty
-          return (bm.title && bm.title.toLowerCase().includes(scopeQuery)) ||
-                 (bm.url && bm.url.toLowerCase().includes(scopeQuery));
-        }
-        return false;
-      });
-      
-      if (visibleItems.length === 0) {
-        // Fallback: query history
-        chrome.runtime.sendMessage({ action: "search_history", query: val }, (historyResults) => {
-          if (activeQuery !== val) return;
-          visibleItems = historyResults || [];
-          renderItemsList(visibleItems);
-          ccBreadcrumbs.textContent = `Search results (History): "${val}"`;
-        });
-      } else {
-        renderItemsList(visibleItems);
-        ccBreadcrumbs.textContent = `Scoped search [${scopeDomain}]: "${scopeQuery}"`;
-      }
-    } else {
-      // Normal global filter search
-      const query = val.toLowerCase();
-      visibleItems = allFlattenedBookmarks.filter(bm => 
-        (bm.title && bm.title.toLowerCase().includes(query)) ||
-        (bm.url && bm.url.toLowerCase().includes(query))
-      );
-      
-      if (visibleItems.length === 0 && historySearchEnabled) {
-        // Fallback: query history
-        chrome.runtime.sendMessage({ action: "search_history", query: val }, (historyResults) => {
-          if (activeQuery !== val) return;
-          visibleItems = historyResults || [];
-          renderItemsList(visibleItems);
-          ccBreadcrumbs.textContent = `Search results (History): "${val}"`;
-        });
-      } else {
-        renderItemsList(visibleItems);
-        ccBreadcrumbs.textContent = `Search results: "${val}"`;
-      }
-    }
-  }
-}
-
-function handleCCKeydown(e) {
-  // Handle TAB key for autocompletion
-  if (e.key === "Tab") {
-    e.preventDefault(); // Stop standard focus cycling
-
-    // Scenario A: Autocomplete command suggestions
-    if (!ccSuggestions.classList.contains("hidden")) {
-      const sugItems = ccSuggestions.querySelectorAll(".cc-suggestion-item");
-      if (sugItems.length > 0) {
-        if (selectedSuggestionIndex < 0) selectedSuggestionIndex = 0;
-        const cmd = sugItems[selectedSuggestionIndex].querySelector(".cc-sug-cmd").textContent;
-        ccSearchInput.value = cmd;
-        hideSuggestions();
-        handleCCSearch(cmd);
-      }
-      return;
-    }
-
-    // Scenario B: Autocomplete highlighted results (domain or title)
-    if (visibleItems.length > 0) {
-      if (selectedIndex < 0) selectedIndex = 0; // Default to first item
-      const item = visibleItems[selectedIndex];
-      if (item.url) {
-        const domain = BookmarkRules.getDomain(item.url);
-        if (domain) {
-          ccSearchInput.value = domain;
-          handleCCSearch(domain);
-        }
-      } else {
-        ccSearchInput.value = item.title;
-        handleCCSearch(item.title);
-      }
-    }
-    return;
-  }
-
-  // 1. Suggestions Menu Navigation
-  if (!ccSuggestions.classList.contains("hidden")) {
-    const sugItems = ccSuggestions.querySelectorAll(".cc-suggestion-item");
-    if (sugItems.length > 0) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        selectedSuggestionIndex = (selectedSuggestionIndex + 1) % sugItems.length;
-        highlightSuggestion(sugItems);
-        return;
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        selectedSuggestionIndex = (selectedSuggestionIndex - 1 + sugItems.length) % sugItems.length;
-        highlightSuggestion(sugItems);
-        return;
-      } else if (e.key === "Enter") {
-        if (selectedSuggestionIndex >= 0 && selectedSuggestionIndex < sugItems.length) {
-          e.preventDefault();
-          const cmd = sugItems[selectedSuggestionIndex].querySelector(".cc-sug-cmd").textContent;
-          
-          if (ccSearchInput.value.trim().toLowerCase() === cmd.trim().toLowerCase()) {
-            hideSuggestions();
-            executeSelection();
-            return;
-          }
-
-          ccSearchInput.value = cmd;
-          hideSuggestions();
-          handleCCSearch(cmd);
-          
-          if (!cmd.endsWith(" ")) {
-            executeSelection();
-          }
-          return;
-        }
-      }
-    }
-  }
-
-  // 2. Results List Navigation
-  const items = ccResultsList.querySelectorAll(".cc-item");
-  if (e.key === "ArrowDown") {
-    e.preventDefault();
-    if (items.length > 0) {
-      selectedIndex = (selectedIndex + 1) % items.length;
-      updateHighlight(items);
-    }
-  } else if (e.key === "ArrowUp") {
-    e.preventDefault();
-    if (items.length > 0) {
-      selectedIndex = (selectedIndex - 1 + items.length) % items.length;
-      updateHighlight(items);
-    }
-  } else if (e.key === "Enter") {
-    e.preventDefault();
-    executeSelection();
-  } else if (e.key === "Backspace" && !ccSearchInput.value) {
-    // Go up folder
-    if (folderHistory.length > 0) {
-      e.preventDefault();
-      const parentId = folderHistory.pop();
-      loadFolder(parentId);
-    }
-  } else if (e.key === "Escape") {
-    closeCommandCenter();
-  }
-}
-
-function updateHighlight(items) {
-  items.forEach(item => item.classList.remove("selected"));
-  const activeItem = items[selectedIndex];
-  if (activeItem) {
-    activeItem.classList.add("selected");
-    activeItem.scrollIntoView({ block: "nearest" });
-  }
-}
-
-function highlightSuggestion(sugItems) {
-  sugItems.forEach(item => item.classList.remove("selected"));
-  const activeItem = sugItems[selectedSuggestionIndex];
-  if (activeItem) {
-    activeItem.classList.add("selected");
-    activeItem.scrollIntoView({ block: "nearest" });
-  }
-}
-
-function executeSelection() {
-  if (selectedIndex < 0 || selectedIndex >= visibleItems.length) {
-    const query = ccSearchInput.value.trim();
-    if (/^\/no(\s|$)/i.test(query) || /^\/notes(\s|$)/i.test(query)) {
-      executeNotesCommand(query);
-      return;
-    }
-    if (query.startsWith("/")) {
-      executeCCCommand(query, true);
-      return;
-    }
-
-    // No matching bookmark item is selected: treat the search input text as a direct URL or spaced web query
-    const queryTerm = ccSearchInput.value.trim();
-    if (queryTerm) {
-      const hasSpace = /\s/.test(queryTerm);
-      const isDirectUrl = !hasSpace && (
-        /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/i.test(queryTerm)
-      );
-      
-      let targetUrl = queryTerm;
-      if (isDirectUrl) {
-        if (!/^https?:\/\//i.test(queryTerm)) {
-          targetUrl = "https://" + queryTerm;
-        }
-      } else {
-        // Spaced search query or general term: open Google Search
-        targetUrl = "https://www.google.com/search?q=" + encodeURIComponent(queryTerm);
-      }
-      
-      window.open(targetUrl, "_blank");
-      closeCommandCenter();
-    }
-    return;
-  }
-  
+async function executeMainAction(inNewTab = false) {
   const item = visibleItems[selectedIndex];
+  if (!item) return;
 
-  if (item.isCookieProfile) {
-    restoreProfileLocally(item.cookieData.cookies, item.cookieData.profileName);
+  // Command mode subaction triggers
+  if (item.type === "subaction" && typeof item.run === "function") {
+    item.run();
     return;
   }
 
-  if (item.isNote) {
-    if (item.textToAppend) {
-      appendNoteContent(item.noteName, item.textToAppend);
+  // Auto-route command mode entries when selected and pressed Enter
+  if (item.type === "command") {
+    if (item.id === "quick_note") { enterCommandMode("note_tools"); return; }
+    else if (item.id === "audio_booster") { enterCommandMode("boost_tools"); return; }
+    else if (item.id === "pomodoro_timer") { enterCommandMode("timer_tools"); return; }
+    else if (item.id === "translate_utility") { enterCommandMode("translate_tools"); return; }
+    else if (item.id === "pdf_merge" || item.id === "pdf_compressor") { enterCommandMode("pdf_tools"); return; }
+    else if (item.id === "clipboard_image_resize" || item.id === "clipboard_image_convert" || item.id === "clipboard_download") { enterCommandMode("image_tools"); return; }
+    else if (item.id === "search_bookmarks") { enterCommandMode("bookmark_tools"); return; }
+    else if (item.id === "search_downloads") { enterCommandMode("download_tools"); return; }
+    else if (item.id === "search_history") { enterCommandMode("history_tools"); return; }
+    else if (item.id === "search_active_tabs") { enterCommandMode("tab_tools"); return; }
+  }
+
+  // Track stats
+  const itemId = item.id;
+  if (!commandStats[itemId]) {
+    commandStats[itemId] = { id: itemId, frequency: 0, lastUsed: 0 };
+  }
+  commandStats[itemId].frequency++;
+  commandStats[itemId].lastUsed = Date.now();
+  await DB.put("commands", commandStats[itemId]);
+
+  if (item.type === "command" && typeof item.execute === "function") {
+    item.execute();
+    return;
+  }
+
+  if (item.type === "bookmark" && item.bmData) {
+    if (inNewTab) {
+      window.open(item.bmData.url, "_blank");
     } else {
-      showToast(`Note "${item.noteName}":\n${item.noteContent}`, "success");
-      ccSearchInput.value = `/no ${item.noteName} `;
-      ccSearchInput.focus();
-      handleCCSearch(ccSearchInput.value);
+      window.location.href = item.bmData.url;
     }
+    closeCommandPalette();
     return;
   }
 
-  if (item.isCreateNoteAction) {
-    createOrUpdateNote(item.noteName, item.noteContent || "");
+  if (item.type === "history" && item.histData) {
+    if (inNewTab) {
+      window.open(item.histData.url, "_blank");
+    } else {
+      window.location.href = item.histData.url;
+    }
+    closeCommandPalette();
     return;
   }
 
-  if (item.url) {
-    // Open Bookmark
-    window.open(item.url, "_blank");
-    closeCommandCenter();
-  } else {
-    // Navigate into Folder
-    folderHistory.push(currentFolderId);
-    loadFolder(item.id);
-    ccSearchInput.value = "";
-    hideSuggestions();
-  }
-}
-
-// -------------------------------------------------------------
-// PREFIX COMMAND PARSER
-// -------------------------------------------------------------
-function renderCCSuggestions(val) {
-  ccSuggestions.innerHTML = "";
-  const cmdQuery = val.split(" ")[0].toLowerCase();
-  
-  const matches = CC_COMMANDS.filter(c => c.cmd.startsWith(cmdQuery));
-  if (matches.length === 0) {
-    hideSuggestions();
-    return;
-  }
-
-  ccSuggestions.classList.remove("hidden");
-  selectedSuggestionIndex = -1;
-
-  matches.forEach((c, idx) => {
-    const div = document.createElement("div");
-    div.className = `cc-suggestion-item ${idx === selectedSuggestionIndex ? "selected" : ""}`;
-    div.innerHTML = `
-      <span class="cc-sug-cmd">${c.cmd}</span>
-      <span class="cc-sug-desc">${c.desc}</span>
-    `;
-    div.addEventListener("click", () => {
-      ccSearchInput.value = c.cmd;
-      ccSearchInput.focus();
-      hideSuggestions();
-      handleCCSearch(c.cmd);
+  if (item.type === "tab" && item.tabData) {
+    chrome.runtime.sendMessage({
+      action: "activate_tab",
+      id: item.tabData.id,
+      windowId: item.tabData.windowId
     });
-    ccSuggestions.appendChild(div);
+    closeCommandPalette();
+    return;
+  }
+
+  if (item.type === "download" && item.downloadData) {
+    chrome.runtime.sendMessage({ action: "open_download", id: item.downloadData.id });
+    closeCommandPalette();
+    return;
+  }
+
+  if (item.type === "note" && item.noteData) {
+    enterCommandMode("note_tools");
+    commandModeParams.selectedNote = item.noteData.title;
+    renderSearchResults("");
+    return;
+  }
+
+  if (item.type === "clipboard" && item.clipData) {
+    navigator.clipboard.writeText(item.clipData.content);
+    showToast("Copied clip to clipboard!", "success");
+    closeCommandPalette();
+    return;
+  }
+}
+
+// -------------------------------------------------------------
+// CONTEXT ACTIONS SUB-MENU (Ctrl+K)
+// -------------------------------------------------------------
+function renderSubmenuActions() {
+  const item = visibleItems[selectedIndex];
+  const listEl = ccSubmenu.querySelector(".cc-submenu-list");
+  listEl.innerHTML = "";
+
+  if (!item) return;
+
+  const actions = [];
+
+  // General Actions
+  actions.push({
+    label: "Open / Run",
+    icon: "↵",
+    run: () => executeMainAction(false)
   });
-}
+  actions.push({
+    label: "Open in New Tab",
+    icon: "Alt+↵",
+    run: () => executeMainAction(true)
+  });
 
-function hideSuggestions() {
-  ccSuggestions.classList.add("hidden");
-  ccSuggestions.innerHTML = "";
-}
-
-function executeCCCommand(val, isEnter = false) {
-  const parts = val.split(" ");
-  const cmd = parts[0].toLowerCase();
-  const query = parts.slice(1).join(" ").trim().toLowerCase();
-
-  let results = [];
-  let title = `Filter: ${cmd}`;
-
-  switch (cmd) {
-    case "/help":
-      if (!isEnter) return;
-      showCCHelp();
-      break;
-
-    case "/sound":
-      if (!query && !isEnter) return;
-      if (query && query !== '+' && query !== '-' && !isEnter) return;
-
-      let currentSoundLevel = window._sbGainNode ? window._sbGainNode.gain.value * 100 : 100;
-      
-      if (!query) {
-        currentSoundLevel = 100; // Reset to 100 if no argument provided
-      } else if (query === '+') {
-        currentSoundLevel += 25;
-      } else if (query === '-') {
-        currentSoundLevel = Math.max(0, currentSoundLevel - 25);
+  // Favorite toggle
+  actions.push({
+    label: item.favorite ? "Unfavorite" : "Favorite / Star",
+    icon: "⭐",
+    run: async () => {
+      item.favorite = !item.favorite;
+      if (item.type === "note") {
+        const note = item.noteData;
+        note.favorite = item.favorite;
+        await DB.put("notes", note);
       } else {
-        const parsed = parseInt(query, 10);
-        if (!isNaN(parsed) && parsed >= 0) {
-          currentSoundLevel = parsed;
-        }
+        await DB.put("favorites", { id: item.id, favorite: item.favorite });
       }
-      
-      applySoundLevel(currentSoundLevel);
-      
-      chrome.runtime.sendMessage({ action: "save_sound_level", level: currentSoundLevel });
-      
-      showToast(`Sound level set to ${currentSoundLevel}%`);
-      ccSearchInput.value = "";
-      closeCommandCenter();
-      return;
+      showToast(item.favorite ? "Added to favorites" : "Removed from favorites", "success");
+      renderSearchResults(activeQuery);
+      closeSubmenu();
+    }
+  });
 
-    case "/t":
-      if (!query) return;
-      results = allFlattenedBookmarks.filter(bm => bm.title && bm.title.toLowerCase().includes(query));
-      title = `Title matches: "${query}"`;
-      break;
-
-    case "/u":
-      if (!query) return;
-      results = allFlattenedBookmarks.filter(bm => bm.url && bm.url.toLowerCase().includes(query));
-      title = `URL matches: "${query}"`;
-      break;
-
-    case "/c":
-      if (!query) return;
-      const categories = BookmarkRules.categories;
-      results = allFlattenedBookmarks.filter(bm => {
-        const catId = BookmarkRules.classify(bm.title, bm.url, categories);
-        if (catId) {
-          const subId = BookmarkRules.classifySubcategory(catId, bm.title, bm.url);
-          return catId.toLowerCase() === query || subId.toLowerCase() === query;
-        }
-        return false;
-      });
-      title = `Category: "${query}"`;
-      break;
-
-    case "/d":
-      if (!query) return;
-      results = allFlattenedBookmarks.filter(bm => {
-        const d = BookmarkRules.getDomain(bm.url);
-        return d && d.includes(query);
-      });
-      title = `Domain: "${query}"`;
-      break;
-
-    case "/sort":
-      if (!query) return;
-      results = [...visibleItems];
-      if (query === "name") {
-        results.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
-      } else if (query === "date") {
-        results.sort((a, b) => (b.dateAdded || 0) - (a.dateAdded || 0));
-      } else if (query === "url") {
-        results.sort((a, b) => (a.url || "").localeCompare(b.url || ""));
+  // Pin toggle
+  actions.push({
+    label: item.pinned ? "Unpin" : "Pin to Top",
+    icon: "📌",
+    run: async () => {
+      item.pinned = !item.pinned;
+      if (item.type === "note") {
+        const note = item.noteData;
+        note.pinned = item.pinned;
+        await DB.put("notes", note);
+      } else {
+        await DB.put("favorites", { id: item.id, pinned: item.pinned });
       }
-      title = `Sorted by ${query}`;
-      break;
+      showToast(item.pinned ? "Pinned command" : "Unpinned command", "success");
+      renderSearchResults(activeQuery);
+      closeSubmenu();
+    }
+  });
 
-    case "/wizard":
-      if (!isEnter) return;
-      ccSearchInput.value = "";
-      chrome.runtime.sendMessage({ action: "open_dashboard" });
-      closeCommandCenter();
-      return;
-
-    case "/manager":
-      if (!isEnter) return;
-      ccSearchInput.value = "";
-      chrome.runtime.sendMessage({ action: "open_dashboard" });
-      closeCommandCenter();
-      return;
-
-    case "/notes":
-      if (!isEnter) return;
-      ccSearchInput.value = "";
-      chrome.runtime.sendMessage({ action: "open_dashboard", view: "notes" });
-      closeCommandCenter();
-      return;
-
-    case "/undo":
-      if (!isEnter) return;
-      ccSearchInput.value = "";
-      alert("Undo requested. Opening dashboard to recover bookmarks tree.");
-      chrome.runtime.sendMessage({ action: "open_dashboard" });
-      closeCommandCenter();
-      return;
-
-    case "/cook":
-      if (!isEnter) return;
-      ccSearchInput.value = "";
-      handleCookCommand(query);
-      return;
+  // Bookmarks details/actions
+  if (item.type === "bookmark" && item.bmData) {
+    actions.push({
+      label: "Copy Bookmark URL",
+      icon: "📋",
+      run: () => {
+        navigator.clipboard.writeText(item.bmData.url);
+        showToast("URL copied!", "success");
+        closeCommandPalette();
+      }
+    });
+    actions.push({
+      label: "Delete Bookmark",
+      icon: "🗑",
+      run: () => {
+        chrome.runtime.sendMessage({ action: "delete_bookmark", id: item.bmData.id, isFolder: false }, () => {
+          showToast("Bookmark deleted!", "success");
+          renderSearchResults(activeQuery);
+          closeSubmenu();
+        });
+      }
+    });
   }
 
-  if (cmd !== "/help" && cmd !== "/wizard" && cmd !== "/undo" && cmd !== "/notes" && cmd !== "/cook") {
-    visibleItems = results;
-    renderItemsList(results);
-    ccBreadcrumbs.textContent = title;
+  // Notes details/actions
+  if (item.type === "note" && item.noteData) {
+    actions.push({
+      label: "Edit Note Title",
+      icon: "✏",
+      run: async () => {
+        const newTitle = prompt("Edit note title:", item.noteData.title);
+        if (newTitle) {
+          const oldNote = item.noteData;
+          await DB.delete("notes", oldNote.id);
+          oldNote.id = newTitle;
+          oldNote.title = newTitle;
+          await DB.put("notes", oldNote);
+          showToast("Note renamed!", "success");
+          renderSearchResults(activeQuery);
+        }
+        closeSubmenu();
+      }
+    });
+    actions.push({
+      label: "Delete Note",
+      icon: "🗑",
+      run: async () => {
+        await DB.delete("notes", item.noteData.id);
+        showToast("Note deleted!", "success");
+        renderSearchResults(activeQuery);
+        closeSubmenu();
+      }
+    });
   }
-}
 
-function showCCHelp() {
-  ccResultsList.innerHTML = "";
-  ccEmptyState.classList.add("hidden");
+  // Tabs details/actions
+  if (item.type === "tab" && item.tabData) {
+    actions.push({
+      label: "Close Tab",
+      icon: "✕",
+      run: () => {
+        chrome.runtime.sendMessage({ action: "close_tab", id: item.tabData.id }, () => {
+          showToast("Closed tab!", "success");
+          renderSearchResults(activeQuery);
+          closeSubmenu();
+        });
+      }
+    });
+    actions.push({
+      label: "Duplicate Tab",
+      icon: "⎘",
+      run: () => {
+        chrome.runtime.sendMessage({ action: "duplicate_tab", id: item.tabData.id }, () => {
+          showToast("Tab duplicated!", "success");
+          renderSearchResults(activeQuery);
+          closeSubmenu();
+        });
+      }
+    });
+    actions.push({
+      label: item.tabData.pinned ? "Unpin Tab" : "Pin Tab",
+      icon: "📌",
+      run: () => {
+        chrome.runtime.sendMessage({ action: "set_tab_pinned", id: item.tabData.id, pinned: !item.tabData.pinned }, () => {
+          showToast(item.tabData.pinned ? "Tab unpinned!" : "Tab pinned!", "success");
+          renderSearchResults(activeQuery);
+          closeSubmenu();
+        });
+      }
+    });
+    actions.push({
+      label: item.tabData.mutedInfo?.muted ? "Unmute Tab" : "Mute Tab",
+      icon: "🔇",
+      run: () => {
+        chrome.runtime.sendMessage({ action: "set_tab_muted", id: item.tabData.id, muted: !item.tabData.mutedInfo?.muted }, () => {
+          showToast(item.tabData.mutedInfo?.muted ? "Tab unmuted!" : "Tab muted!", "success");
+          renderSearchResults(activeQuery);
+          closeSubmenu();
+        });
+      }
+    });
+  }
 
-  const helpItems = [
-    { title: "/help", desc: "Show command center guide" },
-    { title: "/manager", desc: "Open the bookmark manager dashboard" },
-    { title: "/notes", desc: "Open the notes manager page" },
-    { title: "/no <note> <text>", desc: "Save / append content to a specific note" },
-    { title: "/no -g <text>", desc: "Directly append content to the General note" },
-    { title: "/no -se <query>", desc: "Search through all your saved notes" },
-    { title: "/no -se -<note> <query>", desc: "Search only inside a specific note" },
-    { title: "/t <query>", desc: "Filter bookmarks by title matches" },
-    { title: "/u <query>", desc: "Filter bookmarks by URL matches" },
-    { title: "/c <cat>", desc: "Filter bookmarks by category (movies, study, software, etc.)" },
-    { title: "/d <domain>", desc: "Filter bookmarks by domain" },
-    { title: "/sort <type>", desc: "Sort items by name, date, or url" },
-    { title: "/wizard", desc: "Open the smart sorter wizard page" },
-    { title: "/undo", desc: "Restore original backup of bookmarks" },
-    { title: "/cook -get", desc: "Save current website cookies to a profile" },
-    { title: "/cook -paste", desc: "Restore a cookie profile for this website" }
-  ];
+  // Downloads details/actions
+  if (item.type === "download" && item.downloadData) {
+    actions.push({
+      label: "Open Downloaded File",
+      icon: "↵",
+      run: () => {
+        chrome.runtime.sendMessage({ action: "open_download", id: item.downloadData.id });
+        closeSubmenu();
+      }
+    });
+    actions.push({
+      label: "Clear from Downloads History",
+      icon: "🗑",
+      run: () => {
+        chrome.runtime.sendMessage({ action: "delete_download", id: item.downloadData.id }, () => {
+          showToast("Cleared download record!", "success");
+          renderSearchResults(activeQuery);
+          closeSubmenu();
+        });
+      }
+    });
+  }
 
-  helpItems.forEach(item => {
-    const div = document.createElement("div");
-    div.className = "cc-item";
-    div.innerHTML = `
-      <div class="cc-item-left">
-        <span class="cc-item-icon">💡</span>
-        <span class="cc-item-title" style="font-family:monospace; color:#a5b4fc;">${item.title}</span>
-      </div>
-      <span class="cc-item-right" style="color:#9ca3af;">${item.desc}</span>
+  // History details/actions
+  if (item.type === "history" && item.histData) {
+    actions.push({
+      label: "Copy History URL",
+      icon: "📋",
+      run: () => {
+        navigator.clipboard.writeText(item.histData.url);
+        showToast("URL copied!", "success");
+        closeSubmenu();
+      }
+    });
+    actions.push({
+      label: "Delete from Browser History",
+      icon: "🗑",
+      run: () => {
+        chrome.runtime.sendMessage({ action: "delete_history_url", url: item.histData.url }, () => {
+          showToast("Deleted history record!", "success");
+          renderSearchResults(activeQuery);
+          closeSubmenu();
+        });
+      }
+    });
+  }
+
+  // Clipboard details/actions
+  if (item.type === "clipboard" && item.clipData) {
+    actions.push({
+      label: "Delete Clip from History",
+      icon: "🗑",
+      run: async () => {
+        await DB.delete("clipboard", item.clipData.id);
+        showToast("Deleted clip!", "success");
+        const clips = await DB.getClipboardHistory(10);
+        clipboardHistoryCache = clips;
+        renderSearchResults(activeQuery);
+        closeSubmenu();
+      }
+    });
+  }
+
+  // Render list
+  actions.forEach(act => {
+    const actEl = document.createElement("div");
+    actEl.className = "cc-submenu-item";
+    actEl.innerHTML = `
+      <span style="font-weight:600; color:#8b5cf6;">${act.icon}</span>
+      <span>${act.label}</span>
     `;
-    ccResultsList.appendChild(div);
+    actEl.addEventListener("click", () => {
+      act.run();
+    });
+    listEl.appendChild(actEl);
   });
-
-  ccBreadcrumbs.textContent = "Commands Guide";
 }
 
-// -------------------------------------------------------------
-// NOTES COMMAND ENGINE & TOASTS
-// -------------------------------------------------------------
-function renderNotesSuggestions(val) {
-  let queryStr = "";
-  let isNotesCmd = false;
-  
-  if (/^\/notes(\s|$)/i.test(val)) {
-    queryStr = val.substring(6).trim();
-    isNotesCmd = true;
-  } else {
-    queryStr = val.substring(3).trim();
-  }
-  
-  const parts = queryStr.split(/\s+/);
-  const firstParam = parts[0] ? parts[0].toLowerCase() : "";
-  
-  chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
-    const notes = result.bookmark_organizer_notes || {};
-    const notesList = Object.keys(notes);
-    
-    const getContentStr = (noteObj) => {
-      if (typeof noteObj === 'string') return noteObj;
-      if (noteObj && typeof noteObj.content === 'string') return noteObj.content;
-      return "";
-    };
+function triggerDeleteAction() {
+  const item = visibleItems[selectedIndex];
+  if (!item) return;
 
-    if (isNotesCmd) {
-      if (firstParam === "-se") {
-        const query = parts.slice(1).join(" ").trim().toLowerCase();
-        ccBreadcrumbs.textContent = `Search notes: "${query}"`;
-        
-        const matches = notesList.filter(name => {
-          const content = getContentStr(notes[name]);
-          return name.toLowerCase().includes(query) || content.toLowerCase().includes(query);
-        }).map(name => {
-          const content = getContentStr(notes[name]);
-          return {
-            id: "note_" + name,
-            title: `📝 Note: ${name}`,
-            url: "",
-            contentSnippet: content.substring(0, 40) + (content.length > 40 ? "..." : ""),
-            isNote: true,
-            noteName: name,
-            noteContent: content
-          };
-        });
-        
-        visibleItems = matches;
-        renderItemsList(visibleItems);
-      } else {
-        ccBreadcrumbs.textContent = "Saved Notes";
-        visibleItems = notesList.map(name => {
-          const content = getContentStr(notes[name]);
-          return {
-            id: "note_" + name,
-            title: `📝 Note: ${name}`,
-            url: "",
-            contentSnippet: content.substring(0, 40) + (content.length > 40 ? "..." : ""),
-            isNote: true,
-            noteName: name,
-            noteContent: content
-          };
-        });
-        
-        if (visibleItems.length === 0) {
-          visibleItems = [{
-            id: "no_notes",
-            title: "No notes saved yet",
-            contentSnippet: "Type /no <note_name> <text> to create one!",
-            isStaticHelp: true
-          }];
-        }
-        renderItemsList(visibleItems);
-      }
-      return;
-    }
-
-    // Handle /no -g (General note)
-    if (firstParam === "-g") {
-      const textToAppend = queryStr.substring(2).trim();
-      const noteExists = notes["General"] !== undefined;
-      const content = getContentStr(notes["General"]);
-      if (noteExists) {
-        ccBreadcrumbs.textContent = `Note: General`;
-        visibleItems = [{
-          id: "note_General",
-          title: `📝 Note: General`,
-          contentSnippet: textToAppend ? `Append to General: "${textToAppend}"` : content,
-          isNote: true,
-          noteName: "General",
-          noteContent: content,
-          textToAppend: textToAppend
-        }];
-      } else {
-        ccBreadcrumbs.textContent = `New note: General`;
-        visibleItems = [{
-          id: "create_note_General",
-          title: `🆕 Create Note: "General"`,
-          contentSnippet: textToAppend || "Save empty note",
-          isCreateNoteAction: true,
-          noteName: "General",
-          noteContent: textToAppend
-        }];
-      }
-      renderItemsList(visibleItems);
-      return;
-    }
-
-    // Handle /no -se
-    if (firstParam === "-se") {
-      const secondParam = parts[1] || "";
-      if (secondParam.startsWith("-") && secondParam.length > 1) {
-        const noteName = secondParam.substring(1);
-        const query = parts.slice(2).join(" ").trim().toLowerCase();
-        ccBreadcrumbs.textContent = `Search in Note "${noteName}": "${query}"`;
-        
-        const note = notes[noteName];
-        if (note === undefined) {
-          visibleItems = [{
-            id: "no_note_match",
-            title: `Note "${noteName}" not found`,
-            contentSnippet: "Check note name spelling.",
-            isStaticHelp: true
-          }];
-        } else {
-          const content = getContentStr(note);
-          const lines = content.split("\n");
-          const matchingLines = lines.filter(l => l.toLowerCase().includes(query));
-          
-          if (matchingLines.length > 0) {
-            visibleItems = matchingLines.slice(0, 5).map((l, lIdx) => ({
-              id: `note_line_${noteName}_${lIdx}`,
-              title: `🔍 Match: "${l.trim()}"`,
-              contentSnippet: `Note: ${noteName}`,
-              isNote: true,
-              noteName: noteName,
-              noteContent: content
-            }));
-          } else {
-            visibleItems = [{
-              id: "no_lines_match",
-              title: `No match found in "${noteName}"`,
-              contentSnippet: `Content does not contain "${query}"`,
-              isStaticHelp: true
-            }];
-          }
-        }
-      } else {
-        const query = parts.slice(1).join(" ").trim().toLowerCase();
-        ccBreadcrumbs.textContent = `Search notes: "${query}"`;
-        
-        const matches = notesList.filter(name => {
-          const content = getContentStr(notes[name]);
-          return name.toLowerCase().includes(query) || content.toLowerCase().includes(query);
-        }).map(name => {
-          const content = getContentStr(notes[name]);
-          return {
-            id: "note_" + name,
-            title: `📝 Note: ${name}`,
-            url: "",
-            contentSnippet: content.substring(0, 40) + (content.length > 40 ? "..." : ""),
-            isNote: true,
-            noteName: name,
-            noteContent: content
-          };
-        });
-        
-        visibleItems = matches;
-      }
-      renderItemsList(visibleItems);
-      return;
-    }
-
-    if (firstParam === "new") {
-      const noteName = parts[1] || "";
-      const noteContent = parts.slice(2).join(" ").trim();
-      ccBreadcrumbs.textContent = `Create new note: "${noteName || 'untitled'}"`;
-      
-      visibleItems = [{
-        id: "create_new_note",
-        title: `🆕 Create Note: "${noteName || 'untitled'}"`,
-        contentSnippet: noteContent || "Type content...",
-        isCreateNoteAction: true,
-        noteName: noteName,
-        noteContent: noteContent
-      }];
-      renderItemsList(visibleItems);
-      return;
-    }
-
-    // Default note name matching
-    const noteName = parts[0] || "";
-    const textToAppend = parts.slice(1).join(" ").trim();
-    
-    if (!noteName) {
-      visibleItems = notesList.map(name => {
-        const content = getContentStr(notes[name]);
-        return {
-          id: "note_" + name,
-          title: `📝 Note: ${name}`,
-          contentSnippet: content.substring(0, 40) + (content.length > 40 ? "..." : ""),
-          isNote: true,
-          noteName: name,
-          noteContent: content
-        };
+  if (item.type === "note" && item.noteData) {
+    DB.delete("notes", item.noteData.id).then(() => {
+      showToast("Note deleted!", "success");
+      renderSearchResults(activeQuery);
+    });
+  } else if (item.type === "clipboard" && item.clipData) {
+    DB.delete("clipboard", item.clipData.id).then(() => {
+      showToast("Clip deleted!", "success");
+      DB.getClipboardHistory(10).then(clips => {
+        clipboardHistoryCache = clips;
+        renderSearchResults(activeQuery);
       });
-      
-      if (visibleItems.length === 0) {
-        visibleItems = [{
-          id: "no_notes",
-          title: "No notes saved yet",
-          contentSnippet: "Type /no <note_name> <text> to create one!",
-          isStaticHelp: true
-        }];
-      }
-    } else {
-      const noteExists = notes[noteName] !== undefined;
-      const content = getContentStr(notes[noteName]);
-      if (noteExists) {
-        ccBreadcrumbs.textContent = `Note: ${noteName}`;
-        visibleItems = [{
-          id: "note_" + noteName,
-          title: `📝 Note: ${noteName}`,
-          contentSnippet: textToAppend ? `Append: "${textToAppend}"` : content,
-          isNote: true,
-          noteName: noteName,
-          noteContent: content,
-          textToAppend: textToAppend
-        }];
-      } else {
-        ccBreadcrumbs.textContent = `New note: ${noteName}`;
-        visibleItems = [{
-          id: "create_note_" + noteName,
-          title: `🆕 Create Note: "${noteName}"`,
-          contentSnippet: textToAppend || "Save empty note",
-          isCreateNoteAction: true,
-          noteName: noteName,
-          noteContent: textToAppend
-        }];
-      }
-    }
-    renderItemsList(visibleItems);
-  });
+    });
+  }
 }
 
-function executeNotesCommand(query) {
-  let queryStr = "";
-  let isNotesCmd = false;
-  
-  if (/^\/notes(\s|$)/i.test(query)) {
-    queryStr = query.substring(6).trim();
-    isNotesCmd = true;
-  } else {
-    queryStr = query.substring(3).trim();
-  }
-  
-  const parts = queryStr.split(/\s+/);
-  const firstParam = parts[0] ? parts[0].toLowerCase() : "";
+// -------------------------------------------------------------
+// MODULE REGISTRY DEFINITIONS
+// -------------------------------------------------------------
 
-  const getContentStr = (noteObj) => {
-    if (typeof noteObj === 'string') return noteObj;
-    if (noteObj && typeof noteObj.content === 'string') return noteObj.content;
-    return "";
+// Bookmarks Search Command
+CommandRegistry.register({
+  id: "search_bookmarks",
+  name: "Bookmarks",
+  aliases: ["bookmarks", "bm"],
+  description: "Enter Bookmarks command mode to browse and search.",
+  icon: Icons.tag,
+  execute: () => {
+    enterCommandMode("bookmark_tools");
+  }
+});
+
+// Downloads Browse Command
+CommandRegistry.register({
+  id: "search_downloads",
+  name: "Downloads",
+  aliases: ["downloads", "dl"],
+  description: "Enter Downloads command mode to browse and search.",
+  icon: Icons.download,
+  execute: () => {
+    enterCommandMode("download_tools");
+  }
+});
+
+// History Search Command
+CommandRegistry.register({
+  id: "search_history",
+  name: "History",
+  aliases: ["history", "hist"],
+  description: "Enter History command mode to browse and search.",
+  icon: Icons.clock,
+  execute: () => {
+    enterCommandMode("history_tools");
+  }
+});
+
+// Search Active Tabs Command
+CommandRegistry.register({
+  id: "search_active_tabs",
+  name: "Tabs",
+  aliases: ["tabs", "tab", "switchtab"],
+  description: "Enter Active Tabs command mode to browse, search, and switch tabs.",
+  icon: Icons.globe,
+  execute: () => {
+    enterCommandMode("tab_tools");
+  }
+});
+
+// Clipboard History Command
+CommandRegistry.register({
+  id: "search_clipboard",
+  name: "View Clipboard History",
+  aliases: ["clipboard", "clip"],
+  description: "Browse and search your copied clipboard items.",
+  icon: Icons.file,
+  execute: () => {
+    ccSearchInput.value = "/clipboard";
+    handleSearchChange("/clipboard");
+  }
+});
+
+// Tab Management Commands
+CommandRegistry.register({
+  id: "close_current_tab",
+  name: "Close Current Tab",
+  aliases: ["close", "closetab"],
+  description: "Close the currently active browser tab.",
+  icon: Icons.close,
+  execute: () => {
+    chrome.runtime.sendMessage({ action: "get_tabs" }, (tabs) => {
+      const active = tabs.find(t => t.active);
+      if (active) {
+        chrome.runtime.sendMessage({ action: "close_tab", id: active.id }, () => {
+          showToast("Closed active tab!", "success");
+          closeCommandPalette();
+        });
+      }
+    });
+  }
+});
+
+CommandRegistry.register({
+  id: "duplicate_current_tab",
+  name: "Duplicate Tab",
+  aliases: ["duplicate", "duptab"],
+  description: "Duplicate the currently active browser tab.",
+  icon: Icons.file,
+  execute: () => {
+    chrome.runtime.sendMessage({ action: "get_tabs" }, (tabs) => {
+      const active = tabs.find(t => t.active);
+      if (active) {
+        chrome.runtime.sendMessage({ action: "duplicate_tab", id: active.id }, () => {
+          showToast("Tab duplicated!", "success");
+          closeCommandPalette();
+        });
+      }
+    });
+  }
+});
+
+CommandRegistry.register({
+  id: "pin_current_tab",
+  name: "Pin / Unpin Tab",
+  aliases: ["pin", "pintab"],
+  description: "Toggle pinning of the current tab.",
+  icon: Icons.tag,
+  execute: () => {
+    chrome.runtime.sendMessage({ action: "get_tabs" }, (tabs) => {
+      const active = tabs.find(t => t.active);
+      if (active) {
+        chrome.runtime.sendMessage({ action: "set_tab_pinned", id: active.id, pinned: !active.pinned }, () => {
+          showToast(active.pinned ? "Tab unpinned!" : "Tab pinned!", "success");
+          closeCommandPalette();
+        });
+      }
+    });
+  }
+});
+
+CommandRegistry.register({
+  id: "mute_current_tab",
+  name: "Mute / Unmute Tab",
+  aliases: ["mute", "mutetab"],
+  description: "Toggle muting audio on the current tab.",
+  icon: Icons.volume,
+  execute: () => {
+    chrome.runtime.sendMessage({ action: "get_tabs" }, (tabs) => {
+      const active = tabs.find(t => t.active);
+      if (active) {
+        const isMuted = active.mutedInfo?.muted;
+        chrome.runtime.sendMessage({ action: "set_tab_muted", id: active.id, muted: !isMuted }, () => {
+          showToast(isMuted ? "Tab unmuted!" : "Tab muted!", "success");
+          closeCommandPalette();
+        });
+      }
+    });
+  }
+});
+
+// Website Shortcuts
+const websites = [
+  { id: "gmail", name: "Open Gmail", url: "https://mail.google.com" },
+  { id: "youtube", name: "Open YouTube", url: "https://www.youtube.com" },
+  { id: "github", name: "Open GitHub", url: "https://github.com" },
+  { id: "reddit", name: "Open Reddit", url: "https://www.reddit.com" },
+  { id: "chatgpt", name: "Open ChatGPT", url: "https://chatgpt.com" },
+  { id: "netflix", name: "Open Netflix", url: "https://www.netflix.com" },
+  { id: "spotify", name: "Open Spotify", url: "https://open.spotify.com" }
+];
+
+websites.forEach(site => {
+  CommandRegistry.register({
+    id: `web_${site.id}`,
+    name: site.name,
+    aliases: [site.id],
+    description: `Instantly open ${site.url}`,
+    icon: Icons.globe,
+    execute: () => {
+      window.open(site.url, "_blank");
+      closeCommandPalette();
+    }
+  });
+});
+
+// Collections Module Commands
+CommandRegistry.register({
+  id: "view_collections",
+  name: "View Collections / Spaces",
+  aliases: ["collections", "spaces"],
+  description: "Browse your created collections and spaces.",
+  icon: Icons.folder,
+  execute: async () => {
+    const colls = await DB.getAll("collections");
+    if (colls.length === 0) {
+      showToast("No collections created yet. Type: addcollection <name> to create one!", "error");
+      return;
+    }
+    visibleItems = colls.map(c => ({
+      id: "coll_" + c.id,
+      title: `Collection: ${c.name}`,
+      subtitle: `${c.items.length} items stored`,
+      icon: Icons.folder,
+      type: "command",
+      execute: () => {
+        c.items.forEach(item => {
+          if (item.url) window.open(item.url, "_blank");
+        });
+        showToast(`Opened ${c.items.length} items from ${c.name}!`, "success");
+        closeCommandPalette();
+      }
+    }));
+    renderResultsUI();
+  }
+});
+
+CommandRegistry.register({
+  id: "add_to_collection",
+  name: "Add Current Tab to Collection",
+  aliases: ["addcollection", "addspace"],
+  description: "Add active page to a space: addcollection <name>",
+  icon: Icons.tag,
+  execute: async () => {
+    const parts = activeQuery.split(" ");
+    const name = parts.slice(1).join(" ").trim();
+    if (!name) {
+      showToast("Usage: addcollection <name>", "error");
+      return;
+    }
+
+    const currentTitle = document.title;
+    const currentUrl = window.location.href;
+
+    const existing = await DB.get("collections", name);
+    let collObj = { id: name, name: name, items: [] };
+    if (existing) collObj = existing;
+
+    collObj.items.push({ title: currentTitle, url: currentUrl, type: "tab" });
+    await DB.put("collections", collObj);
+    showToast(`Added "${currentTitle}" to collection "${name}"!`, "success");
+    closeCommandPalette();
+  }
+});
+
+// Translation Utility
+CommandRegistry.register({
+  id: "translate_utility",
+  name: "Translate Text",
+  aliases: ["translate", "lang"],
+  description: "Translate phrases inline. Usage: translate hello to french",
+  icon: Icons.globe,
+  execute: async () => {
+    const parts = activeQuery.split(" to ");
+    const phrasePart = parts[0].substring(9).trim(); // skip 'translate'
+    const targetLang = (parts[1] || "spanish").trim().toLowerCase();
+    if (!phrasePart) {
+      showToast("Usage: translate <text> to <language>", "error");
+      return;
+    }
+
+    try {
+      showToast("Translating...", "success");
+      const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(phrasePart)}&langpair=en|${targetLang.substring(0, 2)}`);
+      const data = await res.json();
+      const translated = data.responseData?.translatedText || phrasePart;
+      showToast(`Translated: "${translated}"`, "success");
+    } catch(e) {
+      showToast(`Could not translate. Text: "${phrasePart}" to ${targetLang}`, "error");
+    }
+  }
+});
+
+// Notes Module Command `/note <title> <content>`
+CommandRegistry.register({
+  id: "quick_note",
+  name: "Save Quick Note",
+  aliases: ["note", "notes", "todo"],
+  description: "Create or append a note immediately: note <title> <content>",
+  icon: Icons.file,
+  execute: async () => {
+    enterCommandMode("note_tools");
+  }
+});
+
+// Sound Booster Module Command `/boost <percentage>`
+CommandRegistry.register({
+  id: "audio_booster",
+  name: "Sound Booster",
+  aliases: ["boost", "volume", "sound"],
+  description: "Boost sound on active tab up to 300%. boost <100-300>",
+  icon: Icons.volume,
+  execute: () => {
+    enterCommandMode("boost_tools");
+  }
+});
+
+// Screenshot Module Commands
+CommandRegistry.register({
+  id: "screenshot_visible",
+  name: "Capture Visible Viewport",
+  aliases: ["screenshot", "capture"],
+  description: "Capture the visible webpage area and copy/save it.",
+  icon: Icons.crop,
+  execute: () => {
+    closeCommandPalette();
+    setTimeout(() => {
+      chrome.runtime.sendMessage({ action: "capture_visible" }, (res) => {
+        if (res && res.dataUrl) {
+          triggerClipboardImageDownload(res.dataUrl, "viewport_screenshot.png");
+        } else {
+          showToast("Failed to capture screen", "error");
+        }
+      });
+    }, 200);
+  }
+});
+
+CommandRegistry.register({
+  id: "screenshot_region",
+  name: "Capture Screen Region",
+  aliases: ["region", "crop"],
+  description: "Select and crop a specific region of the webpage.",
+  icon: Icons.crop,
+  execute: () => {
+    closeCommandPalette();
+    setTimeout(startRegionScreenshot, 250);
+  }
+});
+
+// Clipboard Media Module Commands
+CommandRegistry.register({
+  id: "clipboard_download",
+  name: "Download Clipboard Image",
+  aliases: ["clipimg", "saveimg"],
+  description: "Retrieve any copied image from your clipboard and download it.",
+  icon: Icons.download,
+  execute: async () => {
+    enterCommandMode("image_tools");
+  }
+});
+
+CommandRegistry.register({
+  id: "clipboard_image_resize",
+  name: "Resize Clipboard Image",
+  aliases: ["resize", "scale"],
+  description: "Scale clipboard image. Usage: resize <width> <height>",
+  icon: Icons.crop,
+  execute: async () => {
+    enterCommandMode("image_tools");
+  }
+});
+
+CommandRegistry.register({
+  id: "clipboard_image_convert",
+  name: "Convert Clipboard Image Format",
+  aliases: ["convert", "png", "jpg", "webp"],
+  description: "Convert clipboard image format. Usage: convert <png|jpg|webp>",
+  icon: Icons.globe,
+  execute: async () => {
+    enterCommandMode("image_tools");
+  }
+});
+
+CommandRegistry.register({
+  id: "pdf_compressor",
+  name: "Compress PDF Document",
+  aliases: ["compresspdf", "shrinkpdf"],
+  description: "Compress or downscale PDF files. Drag & Drop or paste PDF.",
+  icon: Icons.file,
+  execute: () => {
+    enterCommandMode("pdf_tools");
+  }
+});
+
+CommandRegistry.register({
+  id: "pdf_merge",
+  name: "Merge PDF Documents (Bulk Join)",
+  aliases: ["mergepdf", "joinpdf"],
+  description: "Combine multiple PDF documents into a single PDF.",
+  icon: Icons.folder,
+  execute: () => {
+    enterCommandMode("pdf_tools");
+  }
+});
+
+// Utilities Module
+CommandRegistry.register({
+  id: "pomodoro_timer",
+  name: "Start Pomodoro / Timer",
+  aliases: ["timer", "pomo", "alarm"],
+  description: "Start custom timer in minutes. Usage: timer <minutes> <label>",
+  icon: Icons.clock,
+  execute: () => {
+    enterCommandMode("timer_tools");
+  }
+});
+
+CommandRegistry.register({
+  id: "unit_converter",
+  name: "Unit Converter",
+  aliases: ["convertunit", "units"],
+  description: "Quickly convert currency, temperature, sizes. Usage: 10km, 50usd, 120f, 8gb",
+  icon: Icons.hash,
+  execute: () => {
+    const query = activeQuery.toLowerCase();
+    const match = query.match(/^(\d+(?:\.\d+)?)\s*(km|mi|f|c|gb|mb|usd|eur|inr)$/i);
+    if (!match) {
+      showToast("Usage: type like '10km', '120f', '8gb', '50usd' directly in search.", "error");
+      return;
+    }
+    const val = parseFloat(match[1]);
+    const unit = match[2];
+    let result = "";
+
+    if (unit === "km") result = `${val} km = ${(val * 0.621371).toFixed(2)} mi`;
+    else if (unit === "mi") result = `${val} mi = ${(val / 0.621371).toFixed(2)} km`;
+    else if (unit === "f") result = `${val}°F = ${(((val - 32) * 5) / 9).toFixed(1)}°C`;
+    else if (unit === "c") result = `${val}°C = ${((val * 9) / 5 + 32).toFixed(1)}°F`;
+    else if (unit === "gb") result = `${val} GB = ${val * 1024} MB = ${(val / 1024).toFixed(3)} TB`;
+    else if (unit === "mb") result = `${val} MB = ${(val / 1024).toFixed(3)} GB`;
+    else if (unit === "usd") result = `${val} USD = ${(val * 0.92).toFixed(2)} EUR = ${(val * 83.5).toFixed(1)} INR`;
+    else if (unit === "eur") result = `${val} EUR = ${(val * 1.09).toFixed(2)} USD = ${(val * 90.8).toFixed(1)} INR`;
+    else if (unit === "inr") result = `${val} INR = ${(val / 83.5).toFixed(2)} USD = ${(val / 90.8).toFixed(2)} EUR`;
+
+    showToast(result, "success");
+  }
+});
+
+// Media & Search Commands
+CommandRegistry.register({
+  id: "search_youtube",
+  name: "Search YouTube",
+  aliases: ["youtube", "yt"],
+  description: "Search media on YouTube: youtube <query>",
+  icon: Icons.globe,
+  execute: () => {
+    const query = getCommandArg(activeQuery);
+    if (!query) {
+      showToast("Usage: youtube <query>", "error");
+      return;
+    }
+    const cleanQuery = autoCorrectMediaName(query);
+    window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(cleanQuery)}`, "_blank");
+    closeCommandPalette();
+  }
+});
+
+CommandRegistry.register({
+  id: "search_twitch",
+  name: "Search Twitch",
+  aliases: ["twitch"],
+  description: "Search streams on Twitch: twitch <query>",
+  icon: Icons.globe,
+  execute: () => {
+    const query = getCommandArg(activeQuery);
+    if (!query) {
+      showToast("Usage: twitch <query>", "error");
+      return;
+    }
+    const cleanQuery = autoCorrectMediaName(query);
+    window.open(`https://www.twitch.tv/search?term=${encodeURIComponent(cleanQuery)}`, "_blank");
+    closeCommandPalette();
+  }
+});
+
+CommandRegistry.register({
+  id: "search_mkvdrama",
+  name: "Search MKVDrama",
+  aliases: ["mkvdrama", "kdrama"],
+  description: "Search Asian dramas on MKVDrama: mkvdrama <query>",
+  icon: Icons.globe,
+  execute: () => {
+    const query = getCommandArg(activeQuery);
+    if (!query) {
+      showToast("Usage: mkvdrama <query>", "error");
+      return;
+    }
+    const cleanQuery = autoCorrectMediaName(query);
+    window.open(`https://mkvdrama.net/?s=${encodeURIComponent(cleanQuery)}`, "_blank");
+    closeCommandPalette();
+  }
+});
+
+CommandRegistry.register({
+  id: "search_bollyflix",
+  name: "Search Bollyflix",
+  aliases: ["bollyflix"],
+  description: "Search Bollywood movies on Bollyflix: bollyflix <query>",
+  icon: Icons.globe,
+  execute: () => {
+    const query = getCommandArg(activeQuery);
+    if (!query) {
+      showToast("Usage: bollyflix <query>", "error");
+      return;
+    }
+    const cleanQuery = autoCorrectMediaName(query);
+    window.open(`https://bollyflix.at/search/${encodeURIComponent(cleanQuery)}`, "_blank");
+    closeCommandPalette();
+  }
+});
+
+CommandRegistry.register({
+  id: "search_katmovies",
+  name: "Search KatMovieHD",
+  aliases: ["katmovies", "katmoviehd"],
+  description: "Search movies on KatMovieHD: katmovies <query>",
+  icon: Icons.globe,
+  execute: () => {
+    const query = getCommandArg(activeQuery);
+    if (!query) {
+      showToast("Usage: katmovies <query>", "error");
+      return;
+    }
+    const cleanQuery = autoCorrectMediaName(query);
+    window.open(`https://new.katmoviehd.top/?s=${encodeURIComponent(cleanQuery)}`, "_blank");
+    closeCommandPalette();
+  }
+});
+
+CommandRegistry.register({
+  id: "help_command",
+  name: "Palette Help & Shortcuts",
+  aliases: ["help", "guide"],
+  description: "View shortcuts and help details.",
+  icon: Icons.search,
+  execute: () => {
+    enterCommandMode("help_tools");
+  }
+});
+
+CommandRegistry.register({
+  id: "wizard_command",
+  name: "Open Sorter Wizard",
+  aliases: ["wizard", "sortwizard"],
+  description: "Launch the Smart Sorter organization page.",
+  icon: Icons.folder,
+  execute: () => {
+    chrome.runtime.sendMessage({ action: "open_dashboard", view: "wizard" });
+    closeCommandPalette();
+  }
+});
+
+// -------------------------------------------------------------
+// ADVANCED SOUND BOOSTER ENGINE (WEB AUDIO GRAPH)
+// -------------------------------------------------------------
+function enableAudioBooster(gainValue) {
+  try {
+    if (!audioContext) {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      gainNode = audioContext.createGain();
+      
+      compressorNode = audioContext.createDynamicsCompressor();
+      compressorNode.threshold.setValueAtTime(-12, audioContext.currentTime);
+      compressorNode.knee.setValueAtTime(10, audioContext.currentTime);
+      compressorNode.ratio.setValueAtTime(12, audioContext.currentTime);
+      compressorNode.attack.setValueAtTime(0.003, audioContext.currentTime);
+      compressorNode.release.setValueAtTime(0.08, audioContext.currentTime);
+
+      analyserNode = audioContext.createAnalyser();
+      analyserNode.fftSize = 64;
+
+      gainNode.connect(compressorNode);
+      compressorNode.connect(analyserNode);
+      analyserNode.connect(audioContext.destination);
+
+      hookMediaElements();
+      
+      new MutationObserver(mutations => {
+        mutations.forEach(m => {
+          m.addedNodes.forEach(node => {
+            if (node.tagName === 'VIDEO' || node.tagName === 'AUDIO') hookElement(node);
+            else if (node.querySelectorAll) node.querySelectorAll('video, audio').forEach(hookElement);
+          });
+        });
+      }).observe(document.body, { childList: true, subtree: true });
+    }
+
+    if (audioContext.state === 'suspended') {
+      audioContext.resume();
+    }
+
+    gainNode.gain.setValueAtTime(gainValue / 100, audioContext.currentTime);
+    isAudioBoosterActive = true;
+    showToast(`Volume boosted to ${gainValue}%!`, "success");
+    closeCommandPalette();
+    
+    const hostname = window.location.hostname;
+    chrome.runtime.sendMessage({ action: "save_sound_level", level: gainValue });
+    DB.put("audioProfiles", { hostname, currentBoost: gainValue, enabled: true });
+
+  } catch (err) {
+    showToast("Error activating Audio Booster", "error");
+    console.error(err);
+  }
+}
+
+function hookMediaElements() {
+  document.querySelectorAll('video, audio').forEach(hookElement);
+}
+
+function hookElement(media) {
+  if (media._connectedToBooster) return;
+  try {
+    const source = audioContext.createMediaElementSource(media);
+    source.connect(gainNode);
+    media._connectedToBooster = true;
+  } catch(e) {}
+}
+
+// Volume Peak monitoring
+function startAudioVisualizer() {
+  if (!analyserNode) return;
+  const dataArray = new Uint8Array(analyserNode.frequencyBinCount);
+  
+  let panel = ccBackdrop.querySelector(".cc-audio-meter-panel");
+  if (!panel) {
+    panel = document.createElement("div");
+    panel.className = "cc-audio-meter-panel";
+    panel.innerHTML = `
+      <div class="cc-meter-row">
+        <span>Live Audio Boost</span>
+        <span class="cc-meter-value">100%</span>
+      </div>
+      <div class="cc-meter-bar-outer">
+        <div class="cc-meter-bar-inner"></div>
+      </div>
+    `;
+    ccBackdrop.querySelector(".cc-modal").appendChild(panel);
+  }
+
+  const valueEl = panel.querySelector(".cc-meter-value");
+  const barEl = panel.querySelector(".cc-meter-bar-inner");
+
+  clearInterval(audioMeterInterval);
+  audioMeterInterval = setInterval(() => {
+    analyserNode.getByteFrequencyData(dataArray);
+    let max = 0;
+    for (let i = 0; i < dataArray.length; i++) {
+      if (dataArray[i] > max) max = dataArray[i];
+    }
+    const level = Math.round((max / 255) * 100);
+    const boostStr = gainNode ? Math.round(gainNode.gain.value * 100) : 100;
+    valueEl.textContent = `${boostStr}% | Meter: ${level}%`;
+    barEl.style.width = `${level}%`;
+    if (level > 85) {
+      barEl.style.background = "#ef4444";
+    } else {
+      barEl.style.background = "linear-gradient(90deg, #10b981, #f59e0b)";
+    }
+  }, 100);
+}
+
+// -------------------------------------------------------------
+// SCREENSHOT REGION DRAG SELECTION
+// -------------------------------------------------------------
+function startRegionScreenshot() {
+  const overlay = document.createElement("div");
+  overlay.className = "cc-screenshot-crop";
+  document.body.appendChild(overlay);
+
+  const selection = document.createElement("div");
+  selection.style.cssText = "position:absolute; border:2px dashed #8b5cf6; background:rgba(139,92,246,0.15); pointer-events:none; display:none;";
+  overlay.appendChild(selection);
+
+  let startX = 0, startY = 0;
+  let isDragging = false;
+
+  const onMouseDown = (e) => {
+    startX = e.clientX;
+    startY = e.clientY;
+    isDragging = true;
+    selection.style.left = startX + "px";
+    selection.style.top = startY + "px";
+    selection.style.width = "0px";
+    selection.style.height = "0px";
+    selection.style.display = "block";
   };
 
-  if (isNotesCmd) {
-    if (firstParam === "-se") return;
-    const noteName = parts[0] || "";
-    if (noteName) {
-      chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
-        const notes = result.bookmark_organizer_notes || {};
-        const note = notes[noteName];
-        const content = getContentStr(note);
-        if (notes[noteName] !== undefined) {
-          showToast(`Note "${noteName}":\n${content}`, "success");
-          closeCommandCenter();
+  const onMouseMove = (e) => {
+    if (!isDragging) return;
+    const currentX = e.clientX;
+    const currentY = e.clientY;
+    const left = Math.min(startX, currentX);
+    const top = Math.min(startY, currentY);
+    const width = Math.abs(startX - currentX);
+    const height = Math.abs(startY - currentY);
+
+    selection.style.left = left + "px";
+    selection.style.top = top + "px";
+    selection.style.width = width + "px";
+    selection.style.height = height + "px";
+  };
+
+  const onMouseUp = (e) => {
+    if (!isDragging) return;
+    isDragging = false;
+    const rect = selection.getBoundingClientRect();
+    overlay.remove();
+
+    if (rect.width < 5 || rect.height < 5) return;
+
+    setTimeout(() => {
+      chrome.runtime.sendMessage({ action: "capture_visible" }, (res) => {
+        if (res && res.dataUrl) {
+          cropScreenshot(res.dataUrl, rect);
         } else {
-          showToast(`Note "${noteName}" does not exist.`, "error");
+          showToast("Failed to crop image", "error");
         }
       });
-    } else {
-      chrome.runtime.sendMessage({ action: "open_dashboard", view: "notes" });
-      closeCommandCenter();
+    }, 150);
+  };
+
+  overlay.addEventListener("mousedown", onMouseDown);
+  overlay.addEventListener("mousemove", onMouseMove);
+  overlay.addEventListener("mouseup", onMouseUp);
+}
+
+function cropScreenshot(dataUrl, rect) {
+  const canvas = document.createElement("canvas");
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+  const ctx = canvas.getContext("2d");
+
+  const img = new Image();
+  img.onload = () => {
+    ctx.drawImage(
+      img,
+      rect.left * dpr,
+      rect.top * dpr,
+      rect.width * dpr,
+      rect.height * dpr,
+      0,
+      0,
+      rect.width,
+      rect.height
+    );
+    canvas.toBlob((blob) => {
+      openAnnotationCanvas(blob);
+    }, "image/png");
+  };
+  img.src = dataUrl;
+}
+
+// Annotation Draw Tool
+function openAnnotationCanvas(imageBlob) {
+  const overlay = document.createElement("div");
+  overlay.className = "cc-canvas-draw-overlay";
+  overlay.innerHTML = `
+    <div style="padding:14px; background:#0b0d14; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.08);">
+      <span style="font-weight:600; color:#9ca3af; font-size:13px;">Annotate Screenshot</span>
+      <div style="display:flex; gap:8px;">
+        <button class="cc-btn-save" style="background:#10b981; border:none; color:white; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">Copy & Save</button>
+        <button class="cc-btn-close" style="background:#ef4444; border:none; color:white; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">Cancel</button>
+      </div>
+    </div>
+    <div style="flex-grow:1; display:flex; justify-content:center; align-items:center; overflow:auto; padding:16px; background:#07080c;">
+      <canvas class="cc-draw-canvas" style="box-shadow:0 10px 30px rgba(0,0,0,0.6); background:#ffffff;"></canvas>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const canvas = overlay.querySelector(".cc-draw-canvas");
+  const ctx = canvas.getContext("2d");
+  const img = new Image();
+  
+  img.onload = () => {
+    canvas.width = img.width;
+    canvas.height = img.height;
+    ctx.drawImage(img, 0, 0);
+
+    let drawing = false;
+    ctx.strokeStyle = "#ef4444";
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+
+    canvas.addEventListener("mousedown", (e) => { drawing = true; draw(e); });
+    canvas.addEventListener("mousemove", draw);
+    canvas.addEventListener("mouseup", () => { drawing = false; ctx.beginPath(); });
+
+    function draw(e) {
+      if (!drawing) return;
+      const bounds = canvas.getBoundingClientRect();
+      const x = e.clientX - bounds.left;
+      const y = e.clientY - bounds.top;
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x, y);
     }
-    return;
+  };
+  img.src = URL.createObjectURL(imageBlob);
+
+  overlay.querySelector(".cc-btn-save").addEventListener("click", () => {
+    canvas.toBlob((blob) => {
+      try {
+        navigator.clipboard.write([
+          new ClipboardItem({ "image/png": blob })
+        ]).then(() => {
+          showToast("Annotated image copied!", "success");
+        });
+      } catch(e) {}
+      triggerClipboardImageDownload(canvas.toDataURL(), "annotated_screenshot.png");
+      overlay.remove();
+    }, "image/png");
+  });
+
+  overlay.querySelector(".cc-btn-close").addEventListener("click", () => {
+    overlay.remove();
+  });
+}
+
+function triggerClipboardImageDownload(dataUrl, filename) {
+  const a = document.createElement("a");
+  a.href = dataUrl;
+  a.download = filename;
+  a.click();
+  showToast("Image saved!", "success");
+}
+
+// -------------------------------------------------------------
+// PDF MERGE & COMPRESSION FILE DROP OVERLAYS
+// -------------------------------------------------------------
+function showDropzoneOverlay(mode) {
+  let overlay = ccBackdrop.querySelector(".cc-dropzone-wrapper");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.className = "cc-dropzone-wrapper";
+    ccBackdrop.querySelector(".cc-modal").appendChild(overlay);
   }
 
-  // Handle /no -g (General note shortcut)
-  if (firstParam === "-g") {
-    const textToAppend = queryStr.substring(2).trim(); // Skip "-g"
-    chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
-      const notes = result.bookmark_organizer_notes || {};
-      const noteExists = notes["General"] !== undefined;
-      if (noteExists) {
-        if (textToAppend) {
-          appendNoteContent("General", textToAppend);
-        } else {
-          const content = getContentStr(notes["General"]);
-          showToast(`Note "General":\n${content}`, "success");
-          closeCommandCenter();
+  const dropLabel = mode === "merge" ? "Merge PDFs (Drop multiple PDF files)" : "Compress PDF (Drop a PDF file)";
+  overlay.innerHTML = `
+    <div class="cc-dropzone">
+      <div style="font-size:24px;">📄</div>
+      <div style="font-weight:600; margin-top:8px; font-size:13px; color:#d1d5db;">${dropLabel}</div>
+      <div style="font-size:11px; opacity:0.6; margin-top:2px;">or click to select files</div>
+      <input type="file" class="cc-file-input" style="display:none;" ${mode === 'merge' ? 'multiple' : ''} accept=".pdf">
+      <div class="cc-file-list" style="margin-top:10px; font-size:11px; text-align:left; max-height:80px; overflow-y:auto; color:#9ca3af;"></div>
+      <button class="cc-btn-execute-pdf" style="background:#8b5cf6; border:none; color:white; padding:6px 12px; border-radius:6px; margin-top:10px; cursor:pointer; font-weight:600; font-size:12px; display:none;">
+        Run ${mode === 'merge' ? 'PDF Joiner' : 'Compressor'}
+      </button>
+    </div>
+  `;
+
+  const input = overlay.querySelector(".cc-file-input");
+  const zone = overlay.querySelector(".cc-dropzone");
+  const list = overlay.querySelector(".cc-file-list");
+  const btn = overlay.querySelector(".cc-btn-execute-pdf");
+  let selectedFiles = [];
+
+  zone.addEventListener("click", () => input.click());
+  zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("active"); });
+  zone.addEventListener("dragleave", () => zone.classList.remove("active"));
+  zone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    zone.classList.remove("active");
+    handleSelectedFiles(e.dataTransfer.files);
+  });
+
+  input.addEventListener("change", (e) => {
+    handleSelectedFiles(e.target.files);
+  });
+
+  function handleSelectedFiles(files) {
+    selectedFiles = Array.from(files).filter(f => f.type === "application/pdf" || f.name.endsWith(".pdf"));
+    list.innerHTML = selectedFiles.map(f => `<div>• ${f.name} (${(f.size / 1024 / 1024).toFixed(2)} MB)</div>`).join("");
+    if (selectedFiles.length > 0) {
+      btn.style.display = "inline-block";
+    }
+  }
+
+  btn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    if (selectedFiles.length === 0) return;
+
+    btn.textContent = "Processing PDF...";
+    btn.disabled = true;
+
+    try {
+      if (typeof window.PDFLib === "undefined") {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = "https://unpkg.com/pdf-lib/dist/pdf-lib.min.js";
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+      }
+
+      const { PDFDocument } = window.PDFLib;
+
+      if (mode === "merge") {
+        const mergedPdf = await PDFDocument.create();
+        for (const file of selectedFiles) {
+          const buffer = await file.arrayBuffer();
+          const doc = await PDFDocument.load(buffer);
+          const pages = await mergedPdf.copyPages(doc, doc.getPageIndices());
+          pages.forEach(p => mergedPdf.addPage(p));
         }
+        const mergedBytes = await mergedPdf.save();
+        downloadBytes(mergedBytes, "merged_document.pdf");
+        showToast("PDFs merged successfully!", "success");
       } else {
-        createOrUpdateNote("General", textToAppend || "");
+        const file = selectedFiles[0];
+        const buffer = await file.arrayBuffer();
+        const doc = await PDFDocument.load(buffer);
+        const compressedBytes = await doc.save({ useObjectStreams: true });
+        downloadBytes(compressedBytes, "compressed_document.pdf");
+        showToast("PDF compressed!", "success");
       }
-    });
-    return;
-  }
-
-  // Handle /no -se (Search query)
-  if (firstParam === "-se") {
-    const secondParam = parts[1] || "";
-    if (secondParam.startsWith("-") && secondParam.length > 1) {
-      const noteName = secondParam.substring(1);
-      const searchVal = parts.slice(2).join(" ").trim();
-      chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
-        const notes = result.bookmark_organizer_notes || {};
-        const note = notes[noteName];
-        if (note === undefined) {
-          showToast(`Note "${noteName}" does not exist.`, "error");
-          return;
-        }
-        const content = getContentStr(note);
-        if (content.toLowerCase().includes(searchVal.toLowerCase())) {
-          showToast(`Note "${noteName}" matches search.`, "success");
-        } else {
-          showToast(`No match inside Note "${noteName}".`, "error");
-        }
-      });
-    }
-    return;
-  }
-
-  if (firstParam === "new") {
-    const noteName = parts[1] || "";
-    const noteContent = parts.slice(2).join(" ").trim();
-    if (!noteName) {
-      showToast("Note name cannot be empty!", "error");
-      return;
-    }
-    createOrUpdateNote(noteName, noteContent);
-    return;
-  }
-
-  const noteName = parts[0] || "";
-  const textToAppend = parts.slice(1).join(" ").trim();
-
-  if (!noteName) {
-    chrome.runtime.sendMessage({ action: "open_dashboard", view: "notes" });
-    closeCommandCenter();
-    return;
-  }
-
-  chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
-    const notes = result.bookmark_organizer_notes || {};
-    if (notes[noteName] !== undefined) {
-      if (textToAppend) {
-        appendNoteContent(noteName, textToAppend);
-      } else {
-        const content = getContentStr(notes[noteName]);
-        showToast(`Note "${noteName}":\n${content}`, "success");
-        closeCommandCenter();
-      }
-    } else {
-      createOrUpdateNote(noteName, textToAppend || "");
+      overlay.remove();
+      closeCommandPalette();
+    } catch(err) {
+      showToast("Error processing PDF files", "error");
+      console.error(err);
+      btn.textContent = "Failed. Try again";
+      btn.disabled = false;
     }
   });
 }
 
-function createOrUpdateNote(name, content) {
-  chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
-    const notes = result.bookmark_organizer_notes || {};
-    const oldNote = notes[name];
-    
-    let noteObj = { content: "", versions: [] };
-    if (typeof oldNote === 'string') {
-      noteObj = { content: oldNote, versions: [] };
-    } else if (oldNote) {
-      noteObj = oldNote;
-    }
-    
-    if (noteObj.content && noteObj.content !== content) {
-      noteObj.versions.unshift({
-        content: noteObj.content,
-        timestamp: Date.now()
-      });
-      if (noteObj.versions.length > 15) {
-        noteObj.versions.pop();
-      }
-    }
-    
-    noteObj.content = content;
-    notes[name] = noteObj;
-    
-    chrome.storage.local.set({ 'bookmark_organizer_notes': notes }, () => {
-      showToast(`Note "${name}" saved!`, "success");
-      closeCommandCenter();
-    });
-  });
+function downloadBytes(bytes, filename) {
+  const blob = new Blob([bytes], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
 }
 
-function appendNoteContent(name, text) {
-  chrome.storage.local.get(['bookmark_organizer_notes'], (result) => {
-    const notes = result.bookmark_organizer_notes || {};
-    const oldNote = notes[name];
-    
-    let noteObj = { content: "", versions: [] };
-    if (typeof oldNote === 'string') {
-      noteObj = { content: oldNote, versions: [] };
-    } else if (oldNote) {
-      noteObj = oldNote;
-    }
-    
-    const oldContent = noteObj.content || "";
-    const newContent = oldContent ? oldContent + "\n" + text : text;
-    
-    if (oldContent) {
-      noteObj.versions.unshift({
-        content: oldContent,
-        timestamp: Date.now()
-      });
-      if (noteObj.versions.length > 15) {
-        noteObj.versions.pop();
-      }
-    }
-    
-    noteObj.content = newContent;
-    notes[name] = noteObj;
-    
-    chrome.storage.local.set({ 'bookmark_organizer_notes': notes }, () => {
-      showToast(`Appended to note "${name}"!`, "success");
-      closeCommandCenter();
-    });
-  });
-}
-
-function showToast(message, type = 'success') {
-  const container = document.body;
-  const toast = document.createElement('div');
-  toast.className = `custom-toast toast-${type}`;
+// -------------------------------------------------------------
+// TOAST NOTIFICATIONS
+// -------------------------------------------------------------
+function showToast(message, type = "success") {
+  const toast = document.createElement("div");
   toast.style.cssText = `
     position: fixed;
-    bottom: 24px;
-    right: 24px;
-    background: ${type === 'success' ? 'rgba(16, 185, 129, 0.22)' : 'rgba(244, 63, 94, 0.22)'};
-    border: 1px solid ${type === 'success' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(244, 63, 94, 0.4)'};
-    border-left: 5px solid ${type === 'success' ? '#10b981' : '#f43f5e'};
+    bottom: 20px;
+    right: 20px;
+    background: ${type === "success" ? "rgba(16, 185, 129, 0.2)" : "rgba(244, 63, 94, 0.2)"};
+    border: 1px solid ${type === "success" ? "rgba(16, 185, 129, 0.3)" : "rgba(244, 63, 94, 0.3)"};
+    border-left: 4px solid ${type === "success" ? "#10b981" : "#f43f5e"};
     color: white;
-    padding: 14px 22px;
-    border-radius: 12px;
-    font-family: system-ui, -apple-system, sans-serif;
-    font-size: 13.5px;
-    font-weight: 600;
-    box-shadow: 0 10px 30px ${type === 'success' ? 'rgba(16, 185, 129, 0.22)' : 'rgba(244, 63, 94, 0.22)'};
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+    padding: 12px 18px;
+    border-radius: 8px;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     z-index: 2147483647;
-    transform: translateY(100px);
     opacity: 0;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transform: translateY(15px);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   `;
-  
-  const iconSvg = type === 'success' 
-    ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:flex; align-items:center; flex-shrink:0;"><polyline points="20 6 9 17 4 12"></polyline></svg>`
-    : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#f43f5e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:flex; align-items:center; flex-shrink:0;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
-
-  toast.innerHTML = `
-    ${iconSvg}
-    <span>${message}</span>
-  `;
-  container.appendChild(toast);
+  toast.textContent = message;
+  document.body.appendChild(toast);
   
   setTimeout(() => {
-    toast.style.transform = 'translateY(0)';
-    toast.style.opacity = '1';
+    toast.style.opacity = "1";
+    toast.style.transform = "translateY(0)";
   }, 50);
-  
+
   setTimeout(() => {
-    toast.style.transform = 'translateY(100px)';
-    toast.style.opacity = '0';
-    setTimeout(() => toast.remove(), 400);
-  }, 3500);
-}
-
-async function handleCookCommand(query) {
-  if (!query || query === "-get") {
-    closeCommandCenter();
-    const profileName = prompt("Enter a name for this cookie profile (e.g., Personal, Work):");
-    if (!profileName) return;
-
-    chrome.runtime.sendMessage({ action: "get_cookies", domain: window.location.hostname, url: window.location.href }, (response) => {
-      if (!response || !response.cookies || response.cookies.length === 0) {
-        alert("No cookies found for this website.");
-        return;
-      }
-
-      const payload = {
-        id: "profile_" + Date.now(),
-        hostname: window.location.hostname,
-        url: window.location.origin,
-        title: document.title,
-        profileName: profileName,
-        createdAt: Date.now(),
-        cookies: response.cookies.map(c => ({
-          name: c.name,
-          value: c.value,
-          domain: c.domain,
-          path: c.path,
-          secure: c.secure,
-          httpOnly: c.httpOnly,
-          sameSite: c.sameSite === "unspecified" ? undefined : c.sameSite,
-          expirationDate: c.expirationDate,
-          hostOnly: c.hostOnly,
-          session: c.session
-        }))
-      };
-
-      chrome.storage.local.get(['cookie_profiles'], (res) => {
-        const profiles = res.cookie_profiles || [];
-        profiles.push(payload);
-        chrome.storage.local.set({ cookie_profiles: profiles }, () => {
-          showToast(`Successfully saved cookie profile: ${profileName}`);
-        });
-      });
-    });
-  } else if (query === "-paste") {
-    chrome.storage.local.get(['cookie_profiles'], (res) => {
-      const profiles = res.cookie_profiles || [];
-      const currentHost = window.location.hostname;
-      const matchingProfiles = profiles.filter(p => p.hostname === currentHost);
-
-      if (matchingProfiles.length === 0) {
-        showToast(`No cookie profiles found for ${currentHost}`);
-        return;
-      }
-
-      const items = matchingProfiles.map(p => ({
-        title: p.profileName,
-        url: `Saved: ${new Date(p.createdAt).toLocaleString()}`,
-        isCookieProfile: true,
-        cookieData: p
-      }));
-
-      visibleItems = items;
-      renderItemsList(items);
-      ccBreadcrumbs.textContent = `Select a profile to restore for ${currentHost}`;
-    });
-  }
-}
-
-function restoreProfileLocally(cookies, profileName) {
-  try {
-    // 1. Clear current cookies
-    chrome.runtime.sendMessage({ action: "clear_cookies", domain: window.location.hostname, url: window.location.href }, (clearRes) => {
-      if (!clearRes || !clearRes.success) {
-        alert("Failed to clear current cookies.");
-        return;
-      }
-      
-      // 2. Set new cookies
-      let pending = cookies.length;
-      if (pending === 0) {
-        alert(`Profile '${profileName}' restored (empty). Reloading page...`);
-        window.location.reload();
-        return;
-      }
-
-      cookies.forEach(cookie => {
-        chrome.runtime.sendMessage({ 
-          action: "set_cookie", 
-          domain: window.location.hostname,
-          cookie: cookie
-        }, () => {
-          pending--;
-          if (pending === 0) {
-            alert(`Profile '${profileName}' restored successfully! Reloading page...`);
-            window.location.reload();
-          }
-        });
-      });
-    });
-  } catch (err) {
-    alert("Error restoring profile: " + err.message);
-  }
+    toast.style.opacity = "0";
+    toast.style.transform = "translateY(15px)";
+    setTimeout(() => toast.remove(), 250);
+  }, 2800);
 }

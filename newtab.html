@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>New Tab</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #06070b; /* Deep space slate background */
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+</head>
+<body>
+  <!-- Load extension scripts -->
+  <script src="rules.js"></script>
+  <script src="db.js"></script>
+  <script src="content.js"></script>
+  <script>
+    // Automatically open the palette on tab load
+    window.addEventListener("DOMContentLoaded", () => {
+      setTimeout(() => {
+        if (typeof toggleCommandPalette === "function") {
+          toggleCommandPalette();
+          
+          // Hide close button so it feels like a native tab launcher page
+          const rootEl = document.getElementById("smart-command-palette-root");
+          if (rootEl && rootEl.shadowRoot) {
+            const closeBtn = rootEl.shadowRoot.querySelector(".cc-close");
+            if (closeBtn) closeBtn.style.display = "none";
+            
+            // Disable escape from closing the palette on new tab, keeping it open
+            const input = rootEl.shadowRoot.querySelector(".cc-search-input");
+            if (input) {
+              input.addEventListener("keydown", (e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              });
+            }
+          }
+        }
+      }, 50);
+    });
+  </script>
+</body>
+</html>

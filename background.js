@@ -1,4 +1,4 @@
-// Background Service Worker for Bookmark Sorter & Command Center Extension
+// Background Service Worker for Smart Command Palette Productivity Platform
 
 // Open the onboarding dashboard automatically upon installation
 chrome.runtime.onInstalled.addListener((details) => {
@@ -7,7 +7,7 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 
-// Listen for global command hotkey (Alt+Shift+B)
+// Listen for global command hotkey (Alt+Space)
 chrome.commands.onCommand.addListener((command) => {
   if (command === "toggle-command-center") {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -20,35 +20,66 @@ chrome.commands.onCommand.addListener((command) => {
 
 // Helper function to safely send toggle commands with dynamic script injection fallback
 function toggleCenterInTab(tabId) {
-  // 1. Send a ping message to check if script is active
-  chrome.tabs.sendMessage(tabId, { action: "ping" }, (response) => {
-    if (chrome.runtime.lastError || !response || response.status !== "pong") {
-      // 2. Script is not running in this tab, dynamically inject rules.js and content.js
-      chrome.scripting.executeScript({
-        target: { tabId: tabId },
-        files: ["rules.js", "content.js"]
-      }, () => {
-        if (chrome.runtime.lastError) {
-          console.warn("Could not inject script (likely a browser system page):", chrome.runtime.lastError.message);
-          // Fallback: open full-page manager dashboard in new tab
-          chrome.tabs.create({ url: "dashboard.html" });
-          return;
-        }
-        // 3. Script injected, wait a split second and trigger toggle
-        setTimeout(() => {
-          chrome.tabs.sendMessage(tabId, { action: "toggle_command_center" }).catch(err => {
-            console.error("Failed to send toggle after injection:", err);
-          });
-        }, 120);
-      });
-    } else {
-      // 4. Script is active, toggle overlay directly
+  chrome.tabs.get(tabId, (tab) => {
+    if (chrome.runtime.lastError || !tab) return;
+    const url = tab.url || "";
+
+    // If it's our own extension dashboard page, message directly (since scripts are loaded statically)
+    if (url.startsWith("chrome-extension://") && url.includes("dashboard.html")) {
       chrome.tabs.sendMessage(tabId, { action: "toggle_command_center" }).catch(err => {
-        console.error("Failed to send toggle to active tab:", err);
+        console.warn("Failed to toggle inside dashboard:", err);
       });
+      return;
     }
+
+    // If it's a restricted browser system page
+    if (url.startsWith("chrome://") || url.startsWith("edge://") || url.startsWith("about:")) {
+      chrome.tabs.create({ url: "dashboard.html" });
+      return;
+    }
+
+    // Normal web pages flow
+    chrome.tabs.sendMessage(tabId, { action: "ping" }, (response) => {
+      if (chrome.runtime.lastError || !response || response.status !== "pong") {
+        // Script is not running in this tab, dynamically inject dependencies
+        chrome.scripting.executeScript({
+          target: { tabId: tabId },
+          files: ["rules.js", "db.js", "content.js"]
+        }, () => {
+          if (chrome.runtime.lastError) {
+            console.warn("Could not inject script (likely a browser system page):", chrome.runtime.lastError.message);
+            chrome.tabs.create({ url: "dashboard.html" });
+            return;
+          }
+          setTimeout(() => {
+            chrome.tabs.sendMessage(tabId, { action: "toggle_command_center" }).catch(err => {
+              console.error("Failed to send toggle after injection:", err);
+            });
+          }, 120);
+        });
+      } else {
+        chrome.tabs.sendMessage(tabId, { action: "toggle_command_center" }).catch(err => {
+          console.error("Failed to send toggle to active tab:", err);
+        });
+      }
+    });
   });
 }
+
+// Alarm Listener for Timers
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name.startsWith("timer_")) {
+    const details = alarm.name.split("|");
+    const label = details[1] || "Timer completed!";
+    chrome.notifications.create({
+      type: "basic",
+      iconUrl: "icons/icon128.png",
+      title: "Command Palette Timer",
+      message: label,
+      priority: 2
+    });
+  }
+});
 
 // Listener for messages from popup or content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -124,6 +155,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === "delete_history_url") {
+    chrome.history.deleteUrl({ url: message.url }, () => {
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+
   if (message.action === "search_history") {
     chrome.history.search({ text: message.query, maxResults: 15 }, (results) => {
       const mapped = (results || []).map(item => ({
@@ -153,7 +191,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     chrome.cookies.getAll({ url: targetUrl }, (cookies) => {
       sendResponse({ cookies });
     });
-    return true; // Keep channel open
+    return true;
   }
 
   if (message.action === "clear_cookies") {
@@ -200,6 +238,103 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // --- DOWNLOADS API PROXY ---
+  if (message.action === "get_downloads") {
+    chrome.downloads.search({ query: message.query || "", limit: 30 }, (downloads) => {
+      sendResponse(downloads || []);
+    });
+    return true;
+  }
+
+  if (message.action === "open_download") {
+    chrome.downloads.showDefault(message.id);
+    sendResponse({ success: true });
+    return;
+  }
+
+  if (message.action === "delete_download") {
+    chrome.downloads.erase({ id: message.id }, () => {
+      sendResponse({ success: !chrome.runtime.lastError });
+    });
+    return true;
+  }
+
+  // --- TABS API PROXY ---
+  if (message.action === "get_tabs") {
+    chrome.tabs.query({}, (tabs) => {
+      sendResponse(tabs || []);
+    });
+    return true;
+  }
+
+  if (message.action === "activate_tab") {
+    chrome.tabs.update(message.id, { active: true }, () => {
+      if (message.windowId) {
+        chrome.windows.update(message.windowId, { focused: true });
+      }
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+
+  if (message.action === "close_tab") {
+    chrome.tabs.remove(message.id, () => {
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+
+  if (message.action === "close_other_tabs") {
+    chrome.tabs.query({ currentWindow: true }, (tabs) => {
+      const activeTabId = message.id;
+      const idsToRemove = tabs.filter(t => t.id !== activeTabId).map(t => t.id);
+      chrome.tabs.remove(idsToRemove, () => {
+        sendResponse({ success: true });
+      });
+    });
+    return true;
+  }
+
+  if (message.action === "duplicate_tab") {
+    chrome.tabs.duplicate(message.id, () => {
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+
+  if (message.action === "set_tab_pinned") {
+    chrome.tabs.update(message.id, { pinned: message.pinned }, () => {
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+
+  if (message.action === "set_tab_muted") {
+    chrome.tabs.update(message.id, { muted: message.muted }, () => {
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+
+  // --- SCREENSHOT CAPTURE PROXY ---
+  if (message.action === "capture_visible") {
+    chrome.tabs.captureVisibleTab(null, { format: "png" }, (dataUrl) => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ error: chrome.runtime.lastError.message });
+      } else {
+        sendResponse({ dataUrl });
+      }
+    });
+    return true;
+  }
+
+  // --- ALARMS FOR TIMERS ---
+  if (message.action === "set_timer") {
+    const alarmName = `timer_${Date.now()}|${message.label || "Timer"}`;
+    chrome.alarms.create(alarmName, { delayInMinutes: message.minutes });
+    sendResponse({ success: true });
+    return;
+  }
 
   return true;
 });
@@ -212,7 +347,6 @@ chrome.history.onVisited.addListener((historyItem) => {
     const rules = result.history_blacklist_rules || [];
     const url = historyItem.url;
     
-    // Check legacy blacklist string
     let isLegacyBlacklisted = false;
     if (blacklistStr) {
       const blacklist = blacklistStr.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
@@ -220,7 +354,6 @@ chrome.history.onVisited.addListener((historyItem) => {
       isLegacyBlacklisted = blacklist.some(d => domain === d || domain.endsWith('.' + d));
     }
 
-    // Check custom blacklist rules (Never Store Again behavior)
     let isRuleBlacklisted = false;
     if (rules.length > 0) {
       const hostname = getDomain(url);

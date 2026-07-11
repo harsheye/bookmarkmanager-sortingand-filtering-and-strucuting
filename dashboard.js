@@ -3715,20 +3715,24 @@ const BookmarkManager = {
     const settingsEl = document.getElementById('settings-view-container');
     const notesEl = document.getElementById('notes-view-container');
     const cookiesEl = document.getElementById('cookies-view-container');
+    const managerViewEl = document.getElementById('manager-view');
     
     if (viewName === 'settings') {
+      if (managerViewEl) managerViewEl.classList.remove('hidden');
       if (tableEl) tableEl.classList.add('hidden');
       if (settingsEl) settingsEl.classList.remove('hidden');
       if (notesEl) notesEl.classList.add('hidden');
       if (cookiesEl) cookiesEl.classList.add('hidden');
       if (this.historyViewContainer) this.historyViewContainer.classList.add('hidden');
     } else if (viewName === 'notes') {
+      if (managerViewEl) managerViewEl.classList.remove('hidden');
       if (tableEl) tableEl.classList.add('hidden');
       if (settingsEl) settingsEl.classList.add('hidden');
       if (notesEl) notesEl.classList.remove('hidden');
       if (cookiesEl) cookiesEl.classList.add('hidden');
       if (this.historyViewContainer) this.historyViewContainer.classList.add('hidden');
     } else if (viewName === 'history') {
+      if (managerViewEl) managerViewEl.classList.remove('hidden');
       if (tableEl) tableEl.classList.add('hidden');
       if (settingsEl) settingsEl.classList.add('hidden');
       if (notesEl) notesEl.classList.add('hidden');
@@ -3754,12 +3758,14 @@ const BookmarkManager = {
       }
       this.clearHistorySelection();
     } else if (viewName === 'cookies') {
-      if (tableEl) tableEl.classList.add('hidden');
+      // Hide the entire manager-view (sidebar + explorer) so cookies can fill the viewport
+      if (managerViewEl) managerViewEl.classList.add('hidden');
       if (settingsEl) settingsEl.classList.add('hidden');
       if (notesEl) notesEl.classList.add('hidden');
       if (this.historyViewContainer) this.historyViewContainer.classList.add('hidden');
       if (cookiesEl) cookiesEl.classList.remove('hidden');
     } else {
+      if (managerViewEl) managerViewEl.classList.remove('hidden');
       if (tableEl) tableEl.classList.remove('hidden');
       if (settingsEl) settingsEl.classList.add('hidden');
       if (notesEl) notesEl.classList.add('hidden');
