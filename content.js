@@ -1765,40 +1765,19 @@ async function createMappingFromInput() {
     showToast("Type label or '<keyword> <label> <url>' first!", "error");
     return;
   }
-  const parts = text.split(/\s+/);
-  let keyword = "";
-  let label = "";
-  let url = "";
-
-  if (parts.length === 1) {
-    keyword = getCleanKeyword();
-    label = parts[0].toLowerCase();
-    url = window.location.href;
-  } else if (parts.length === 2) {
-    keyword = parts[0].toLowerCase();
-    label = parts[1].toLowerCase();
-    url = window.location.href;
-  } else {
-    keyword = parts[0].toLowerCase();
-    label = parts[1].toLowerCase();
-    url = parts.slice(2).join(" ");
-  }
-
-  let targetUrl = url;
-  if (!/^https?:\/\//i.test(targetUrl)) {
-    targetUrl = "https://" + targetUrl;
-  }
+  
+  const parsed = parseMappingInput(text);
 
   let mappingsObj = await DB.get("settings", "account_mappings");
   let mappings = mappingsObj ? mappingsObj.value : [];
   
-  const id = keyword + "_" + label;
+  const id = parsed.keyword + "_" + parsed.label;
   mappings = mappings.filter(m => m.id !== id);
   
-  mappings.push({ id, keyword, label, url: targetUrl });
+  mappings.push({ id, keyword: parsed.keyword, label: parsed.label, url: parsed.url });
   await DB.put("settings", { key: "account_mappings", value: mappings });
   
-  showToast(`Mapping for "${keyword} (${label})" created!`, "success");
+  showToast(`Mapping for "${parsed.keyword} (${parsed.label})" created!`, "success");
   ccSearchInput.value = "";
   renderSearchResults("");
 }
