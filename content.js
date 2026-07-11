@@ -1530,16 +1530,13 @@ Prefix Commands (type directly in search):
         let subtitle = "Type label or '<keyword> <label> <url>' to map current or custom page";
         
         if (filter) {
-          const parts = filter.trim().split(/\s+/);
-          if (parts.length === 1) {
-            title = `➕ Map Current Page as: ${getCleanKeyword()} (${parts[0]})`;
-            subtitle = "Press Enter to map this webpage under the clean hostname and custom label";
-          } else if (parts.length === 2) {
-            title = `➕ Map Current Page as: ${parts[0]} (${parts[1]})`;
-            subtitle = "Press Enter to map this webpage under the custom keyword and label";
+          const parsed = parseMappingInput(filter);
+          if (parsed.url === window.location.href) {
+            title = `➕ Map Current Page as: ${parsed.keyword} (${parsed.label})`;
+            subtitle = "Press Enter to map this webpage under these parameters";
           } else {
-            title = `➕ Map Custom URL: ${parts[0]} (${parts[1]})`;
-            subtitle = `URL: ${parts.slice(2).join(" ")}`;
+            title = `➕ Map Custom URL: ${parsed.keyword} (${parsed.label})`;
+            subtitle = `URL: ${parsed.url}`;
           }
         }
 
@@ -2543,44 +2540,22 @@ CommandRegistry.register({
   description: "Map the current opened URL page to a label/keyword.",
   icon: Icons.globe,
   execute: async () => {
-    let queryText = activeQuery.trim();
-    const prefixes = ["mapping new", "mapping add", "new mapping", "add mapping"];
-    let arg = "";
-    for (const p of prefixes) {
-      if (queryText.startsWith(p)) {
-        arg = queryText.substring(p.length).trim();
-        break;
-      }
-    }
-    if (!arg) {
+    const parsed = parseMappingInput(activeQuery);
+    if (!parsed.label || parsed.label === "default") {
       showToast("Please specify a label, e.g. 'mapping new personal'", "error");
       return;
     }
 
-    const parts = arg.split(/\s+/);
-    let keyword = "";
-    let label = "";
-
-    if (parts.length === 1) {
-      keyword = getCleanKeyword();
-      label = parts[0].toLowerCase();
-    } else {
-      keyword = parts[0].toLowerCase();
-      label = parts[1].toLowerCase();
-    }
-
-    const currentUrl = window.location.href;
-
     let mappingsObj = await DB.get("settings", "account_mappings");
     let mappings = mappingsObj ? mappingsObj.value : [];
     
-    const id = keyword + "_" + label;
+    const id = parsed.keyword + "_" + parsed.label;
     mappings = mappings.filter(m => m.id !== id);
     
-    mappings.push({ id, keyword, label, url: currentUrl });
+    mappings.push({ id, keyword: parsed.keyword, label: parsed.label, url: parsed.url });
     await DB.put("settings", { key: "account_mappings", value: mappings });
     
-    showToast(`Mapped current page to: ${keyword} (${label})`, "success");
+    showToast(`Mapped page to: ${parsed.keyword} (${parsed.label})`, "success");
     closeCommandPalette();
   }
 });
@@ -3505,6 +3480,51 @@ function getCleanKeyword() {
   } catch (e) {
     return "site";
   }
+}
+
+function parseMappingInput(inputText) {
+  let text = inputText.trim();
+  text = text.replace(/^\//, "");
+
+  const prefixes = [
+    "mapping new", "mapping add", "new mapping", "add mapping",
+    "mapping", "new", "add", "create"
+  ];
+  for (const p of prefixes) {
+    const reg = new RegExp("^" + p + "\\s+", "i");
+    const simpleReg = new RegExp("^" + p + "\\b", "i");
+    if (reg.test(text)) {
+      text = text.replace(reg, "");
+      break;
+    } else if (simpleReg.test(text) && text.toLowerCase() === p) {
+      text = "";
+      break;
+    }
+  }
+
+  if (!text) {
+    return { keyword: getCleanKeyword(), label: "default", url: window.location.href };
+  }
+
+  const parts = text.split(/\s+/);
+  let keyword = "";
+  let label = "";
+  let url = "";
+
+  const lastPart = parts[parts.length - 1] || "";
+  const isUrl = lastPart.includes(".") || /^https?:\/\//i.test(lastPart) || lastPart.startsWith("localhost");
+
+  if (isUrl && parts.length >= 3) {
+    keyword = parts[0].toLowerCase();
+    label = parts[1].toLowerCase();
+    url = parts.slice(2).join(" ");
+  } else {
+    keyword = getCleanKeyword();
+    label = parts.join(" ").toLowerCase();
+    url = window.location.href;
+  }
+
+  return { keyword, label, url };
 }
 
 async function getPaletteConfig() {
