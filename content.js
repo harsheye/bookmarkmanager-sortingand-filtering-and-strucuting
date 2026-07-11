@@ -90,6 +90,28 @@ window.addEventListener("keydown", (e) => {
   }
 }, true);
 
+window.addEventListener("keyup", (e) => {
+  if (ccBackdrop && ccBackdrop.classList.contains("active")) {
+    const path = e.composedPath();
+    if (!path.includes(ccRoot)) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+    }
+  }
+}, true);
+
+window.addEventListener("keypress", (e) => {
+  if (ccBackdrop && ccBackdrop.classList.contains("active")) {
+    const path = e.composedPath();
+    if (!path.includes(ccRoot)) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+    }
+  }
+}, true);
+
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "ping") {
@@ -777,6 +799,12 @@ function createCommandPalette() {
 function setupUIEventListeners() {
   // Stop key propagation from leaking to page
   ccBackdrop.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+  });
+  ccBackdrop.addEventListener("keyup", (e) => {
+    e.stopPropagation();
+  });
+  ccBackdrop.addEventListener("keypress", (e) => {
     e.stopPropagation();
   });
 
