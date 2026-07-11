@@ -215,7 +215,8 @@ const CommandModeMetadata = {
   bookmark_tools: { name: "Bookmarks", icon: "🔖", placeholder: "Search bookmarks..." },
   download_tools: { name: "Downloads", icon: "📥", placeholder: "Search downloads..." },
   history_tools: { name: "History", icon: "📜", placeholder: "Search history..." },
-  tab_tools: { name: "Tabs", icon: "📑", placeholder: "Search active tabs..." }
+  tab_tools: { name: "Tabs", icon: "📑", placeholder: "Search active tabs..." },
+  mappings_tools: { name: "Mappings", icon: "🔗", placeholder: "Add: <keyword> <label> <url>..." }
 };
 
 function enterCommandMode(modeId) {
@@ -918,6 +919,9 @@ async function handleSearchChange(query) {
     } else if (cleanQ === "/tabs") {
       enterCommandMode("tab_tools");
       return;
+    } else if (cleanQ === "/mappings") {
+      enterCommandMode("mappings_tools");
+      return;
     }
   }
 
@@ -961,6 +965,34 @@ async function renderSearchResults(query) {
       pinned: cmd.pinned || false,
       favorite: cmd.favorite || false
     }));
+    
+    // Add custom account mappings
+    let mappingsObj = await DB.get("settings", "account_mappings");
+    let mappings = mappingsObj ? mappingsObj.value : [];
+    
+    // Add default mappings for Gmail if none exist
+    if (mappings.length === 0) {
+      mappings = [
+        { id: "gmail_personal", keyword: "gmail", label: "personal", url: "https://mail.google.com/mail/u/0/" },
+        { id: "gmail_work", keyword: "gmail", label: "work", url: "https://mail.google.com/mail/u/1/" },
+        { id: "gmail_0", keyword: "gmail", label: "0", url: "https://mail.google.com/mail/u/0/" },
+        { id: "gmail_1", keyword: "gmail", label: "1", url: "https://mail.google.com/mail/u/1/" }
+      ];
+      // Save default ones
+      await DB.put("settings", { key: "account_mappings", value: mappings });
+    }
+
+    mappings.forEach(m => {
+      candidates.push({
+        id: "mapping_root_" + m.id,
+        title: `${m.keyword} (${m.label})`,
+        subtitle: `Redirect to: ${m.url}`,
+        icon: Icons.globe,
+        type: "mapping_redirect",
+        mappingData: m,
+        aliases: [m.keyword, `${m.keyword} ${m.label}`]
+      });
+    });
     
     // Prefix command check: e.g. "youtube kdrama" or "/youtube kdrama"
     for (const cmd of CommandRegistry.getAll()) {
@@ -1474,6 +1506,35 @@ Prefix Commands (type directly in search):
         }
       }
       break;
+
+    case "mappings_tools":
+      {
+        let mappingsObj = await DB.get("settings", "account_mappings");
+        let mappings = mappingsObj ? mappingsObj.value : [];
+        
+        list = [
+          {
+            id: "mapping_add_new",
+            title: "➕ Create New Mapping",
+            subtitle: "Type '<keyword> <label> <url>' in search input and select this action",
+            icon: Icons.globe,
+            type: "subaction",
+            run: () => createMappingFromInput()
+          }
+        ];
+        
+        mappings.forEach(m => {
+          list.push({
+            id: "mapping_item_" + m.id,
+            title: `🔗 ${m.keyword} (${m.label})`,
+            subtitle: `Redirects to: ${m.url}`,
+            icon: Icons.globe,
+            type: "mapping",
+            mappingData: m
+          });
+        });
+      }
+      break;
     }
   } catch (err) {
     console.error("Error in getCommandModeCandidates:", err);
@@ -1503,6 +1564,40 @@ function executeDirectCommand(commandId, args = "") {
     }
     cmdObj.execute();
   }
+}
+
+async function createMappingFromInput() {
+  const text = ccSearchInput.value.trim();
+  if (!text) {
+    showToast("Type '<keyword> <label> <url>' first!", "error");
+    return;
+  }
+  const parts = text.split(/\s+/);
+  if (parts.length < 3) {
+    showToast("Format must be: <keyword> <label> <url>", "error");
+    return;
+  }
+  const keyword = parts[0].toLowerCase();
+  const label = parts[1].toLowerCase();
+  const url = parts.slice(2).join(" ");
+
+  let targetUrl = url;
+  if (!/^https?:\/\//i.test(targetUrl)) {
+    targetUrl = "https://" + targetUrl;
+  }
+
+  let mappingsObj = await DB.get("settings", "account_mappings");
+  let mappings = mappingsObj ? mappingsObj.value : [];
+  
+  const id = keyword + "_" + label;
+  mappings = mappings.filter(m => m.id !== id);
+  
+  mappings.push({ id, keyword, label, url: targetUrl });
+  await DB.put("settings", { key: "account_mappings", value: mappings });
+  
+  showToast(`Mapping for "${keyword} (${label})" created!`, "success");
+  ccSearchInput.value = "";
+  renderSearchResults("");
 }
 
 // Image Resizer action trigger
@@ -1798,6 +1893,7 @@ async function executeMainAction(inNewTab = false) {
     else if (item.id === "search_downloads") { enterCommandMode("download_tools"); return; }
     else if (item.id === "search_history") { enterCommandMode("history_tools"); return; }
     else if (item.id === "search_active_tabs") { enterCommandMode("tab_tools"); return; }
+    else if (item.id === "mappings_manager") { enterCommandMode("mappings_tools"); return; }
   }
 
   // Track stats
@@ -1811,6 +1907,16 @@ async function executeMainAction(inNewTab = false) {
 
   if (item.type === "command" && typeof item.execute === "function") {
     item.execute();
+    return;
+  }
+
+  if ((item.type === "mapping" || item.type === "mapping_redirect") && item.mappingData) {
+    if (inNewTab) {
+      window.open(item.mappingData.url, "_blank");
+    } else {
+      window.location.href = item.mappingData.url;
+    }
+    closeCommandPalette();
     return;
   }
 
@@ -2093,6 +2199,23 @@ function renderSubmenuActions() {
     });
   }
 
+  // Mapping details/actions
+  if (item.type === "mapping" && item.mappingData) {
+    actions.push({
+      label: "Delete Mapping",
+      icon: "🗑",
+      run: async () => {
+        let mappingsObj = await DB.get("settings", "account_mappings");
+        let mappings = mappingsObj ? mappingsObj.value : [];
+        mappings = mappings.filter(m => m.id !== item.mappingData.id);
+        await DB.put("settings", { key: "account_mappings", value: mappings });
+        showToast("Mapping deleted!", "success");
+        renderSearchResults(activeQuery);
+        closeSubmenu();
+      }
+    });
+  }
+
   // Render list
   actions.forEach(act => {
     const actEl = document.createElement("div");
@@ -2190,6 +2313,18 @@ CommandRegistry.register({
   execute: () => {
     ccSearchInput.value = "/clipboard";
     handleSearchChange("/clipboard");
+  }
+});
+
+// Mappings Management Command
+CommandRegistry.register({
+  id: "mappings_manager",
+  name: "Account Mappings",
+  aliases: ["mappings", "mapping", "accounts"],
+  description: "Configure custom domain and account redirects (e.g. gmail personal ➔ u/0).",
+  icon: Icons.globe,
+  execute: () => {
+    enterCommandMode("mappings_tools");
   }
 });
 
