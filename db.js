@@ -2,6 +2,8 @@
 const DB_NAME = "SmartCommandPaletteDB";
 const DB_VERSION = 1;
 
+const isContentScript = typeof window !== "undefined" && window.location.protocol !== "chrome-extension:";
+
 class CommandPaletteDB {
   static open() {
     return new Promise((resolve, reject) => {
@@ -73,6 +75,11 @@ class CommandPaletteDB {
 
   // --- GENERAL CRUD WRAPPERS ---
   static async get(storeName, id) {
+    if (isContentScript) {
+      return new Promise((resolve) => {
+        chrome.runtime.sendMessage({ action: "db_op", op: "get", storeName, id }, resolve);
+      });
+    }
     return this.performTx(storeName, "readonly", (store) => {
       let request = store.get(id);
       return new Promise((resolve) => {
@@ -82,6 +89,11 @@ class CommandPaletteDB {
   }
 
   static async getAll(storeName) {
+    if (isContentScript) {
+      return new Promise((resolve) => {
+        chrome.runtime.sendMessage({ action: "db_op", op: "getAll", storeName }, resolve);
+      });
+    }
     return this.performTx(storeName, "readonly", (store) => {
       let request = store.getAll();
       return new Promise((resolve) => {
@@ -91,6 +103,11 @@ class CommandPaletteDB {
   }
 
   static async put(storeName, data) {
+    if (isContentScript) {
+      return new Promise((resolve) => {
+        chrome.runtime.sendMessage({ action: "db_op", op: "put", storeName, data }, resolve);
+      });
+    }
     return this.performTx(storeName, "readwrite", (store) => {
       let request = store.put(data);
       return new Promise((resolve) => {
@@ -100,6 +117,11 @@ class CommandPaletteDB {
   }
 
   static async delete(storeName, id) {
+    if (isContentScript) {
+      return new Promise((resolve) => {
+        chrome.runtime.sendMessage({ action: "db_op", op: "delete", storeName, id }, resolve);
+      });
+    }
     return this.performTx(storeName, "readwrite", (store) => {
       let request = store.delete(id);
       return new Promise((resolve) => {
@@ -109,6 +131,11 @@ class CommandPaletteDB {
   }
 
   static async clear(storeName) {
+    if (isContentScript) {
+      return new Promise((resolve) => {
+        chrome.runtime.sendMessage({ action: "db_op", op: "clear", storeName }, resolve);
+      });
+    }
     return this.performTx(storeName, "readwrite", (store) => {
       store.clear();
       return true;
@@ -130,6 +157,11 @@ class CommandPaletteDB {
   }
 
   static async getClipboardHistory(limit = 50) {
+    if (isContentScript) {
+      return new Promise((resolve) => {
+        chrome.runtime.sendMessage({ action: "db_op", op: "getClipboardHistory", limit }, resolve);
+      });
+    }
     const db = await this.open();
     return new Promise((resolve, reject) => {
       const tx = db.transaction("clipboard", "readonly");
@@ -152,6 +184,11 @@ class CommandPaletteDB {
 
   // Notes Helper with migration
   static async getNotes() {
+    if (isContentScript) {
+      return new Promise((resolve) => {
+        chrome.runtime.sendMessage({ action: "db_op", op: "getNotes" }, resolve);
+      });
+    }
     const notes = await this.getAll("notes");
     if (notes.length === 0) {
       // Try migrating from storage.local
@@ -161,27 +198,27 @@ class CommandPaletteDB {
             const legacyNotes = result.bookmark_organizer_notes || {};
             const names = Object.keys(legacyNotes);
             if (names.length > 0) {
-              const migrated = [];
-              for (const name of names) {
-                const noteVal = legacyNotes[name];
-                const content = typeof noteVal === 'string' ? noteVal : (noteVal.content || "");
-                const versions = noteVal.versions || [];
-                const note = {
-                  id: name,
-                  title: name,
-                  content: content,
-                  versions: versions,
-                  tags: [],
-                  pinned: false,
-                  favorite: false,
-                  lastModified: Date.now()
-                };
-                await this.put("notes", note);
-                migrated.push(note);
-              }
-              resolve(migrated);
+               const migrated = [];
+               for (const name of names) {
+                 const noteVal = legacyNotes[name];
+                 const content = typeof noteVal === 'string' ? noteVal : (noteVal.content || "");
+                 const versions = noteVal.versions || [];
+                 const note = {
+                   id: name,
+                   title: name,
+                   content: content,
+                   versions: versions,
+                   tags: [],
+                   pinned: false,
+                   favorite: false,
+                   lastModified: Date.now()
+                 };
+                 await this.put("notes", note);
+                 migrated.push(note);
+               }
+               resolve(migrated);
             } else {
-              resolve([]);
+               resolve([]);
             }
           });
         } else {

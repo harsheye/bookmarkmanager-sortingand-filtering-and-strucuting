@@ -1,4 +1,5 @@
 // Background Service Worker for Smart Command Palette Productivity Platform
+importScripts("db.js");
 
 // Open the onboarding dashboard automatically upon installation
 chrome.runtime.onInstalled.addListener((details) => {
@@ -83,6 +84,11 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 // Listener for messages from popup or content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "db_op") {
+    handleDbOp(message, sendResponse);
+    return true; // Keep message channel open for asynchronous response
+  }
+
   if (message.action === "open_dashboard") {
     const targetUrl = "dashboard.html" + (message.view ? "?view=" + message.view : "");
     chrome.tabs.create({ url: targetUrl });
@@ -387,5 +393,24 @@ function getDomain(urlString) {
     return hostname;
   } catch (e) {
     return "";
+  }
+}
+
+function handleDbOp(message, sendResponse) {
+  const { op, storeName, id, data, limit } = message;
+  if (op === "get") {
+    CommandPaletteDB.get(storeName, id).then(sendResponse);
+  } else if (op === "getAll") {
+    CommandPaletteDB.getAll(storeName).then(sendResponse);
+  } else if (op === "put") {
+    CommandPaletteDB.put(storeName, data).then(sendResponse);
+  } else if (op === "delete") {
+    CommandPaletteDB.delete(storeName, id).then(sendResponse);
+  } else if (op === "clear") {
+    CommandPaletteDB.clear(storeName).then(sendResponse);
+  } else if (op === "getClipboardHistory") {
+    CommandPaletteDB.getClipboardHistory(limit).then(sendResponse);
+  } else if (op === "getNotes") {
+    CommandPaletteDB.getNotes().then(sendResponse);
   }
 }
