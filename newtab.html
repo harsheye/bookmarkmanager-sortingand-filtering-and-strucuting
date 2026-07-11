@@ -3,36 +3,496 @@
 <head>
   <meta charset="UTF-8">
   <title>New Tab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --accent-color: #8b5cf6;
+      --bg-gradient: linear-gradient(180deg, rgba(10, 7, 24, 0.45) 0%, rgba(5, 5, 10, 0.85) 100%);
+    }
     body {
       margin: 0;
       padding: 0;
-      background: #06070b; /* Deep space slate background */
-      overflow: hidden;
       width: 100vw;
       height: 100vh;
+      font-family: 'Outfit', -apple-system, sans-serif;
+      color: #f3f4f6;
+      background-color: #06070b;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      overflow: hidden;
+      box-sizing: border-box;
+      padding: 40px;
+    }
+    
+    /* Background overlay */
+    .bg-overlay {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: var(--bg-gradient);
+      z-index: -1;
+    }
+
+    /* Top Clock section */
+    .top-section {
+      text-align: center;
+      z-index: 10;
+      margin-bottom: 20px;
+    }
+    .clock {
+      font-size: 52px;
+      font-weight: 700;
+      letter-spacing: -1.5px;
+      margin-bottom: 4px;
+      text-shadow: 0 4px 16px rgba(0,0,0,0.6);
+      background: linear-gradient(135deg, #ffffff 30%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .date {
+      font-size: 13px;
+      color: #9ca3af;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      opacity: 0.8;
+    }
+
+    /* Top Visited Sites */
+    .visited-sites {
+      display: flex;
+      gap: 16px;
+      z-index: 10;
+      margin-top: 20px;
+    }
+    .site-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      padding: 10px 18px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      color: #cbd5e1;
+      text-decoration: none;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    }
+    .site-card:hover {
+      transform: translateY(-2px);
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.18);
+      color: #ffffff;
+      box-shadow: 0 8px 30px rgba(139, 92, 246, 0.2);
+    }
+    .site-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+    }
+    .site-title {
+      font-size: 13px;
+      font-weight: 600;
+      max-width: 100px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Center workspace spacer */
+    .center-section {
+      flex-grow: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      position: relative;
+    }
+
+    /* Bottom Section panels */
+    .bottom-section {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      z-index: 10;
+    }
+
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.015);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+      width: 270px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-sizing: border-box;
+    }
+    .panel-header {
+      font-size: 11px;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 8px;
+      margin-bottom: 4px;
+    }
+    
+    /* Quick Tools style */
+    .tool-btn {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: #e2e8f0;
+      font-weight: 500;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .tool-btn:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: var(--accent-color);
+      transform: translateX(2px);
+    }
+
+    /* Notes panel list style */
+    .notes-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+    .note-item {
+      font-size: 13px;
+      color: #cbd5e1;
+      cursor: pointer;
+      padding: 6px 8px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.01);
+      border: 1px solid transparent;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: all 0.15s;
+    }
+    .note-item:hover {
+      background: rgba(255,255,255,0.04);
+      border-color: rgba(255,255,255,0.08);
+      color: #ffffff;
+    }
+    .btn-new-note {
+      background: var(--accent-color);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      padding: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+      transition: opacity 0.2s;
+    }
+    .btn-new-note:hover {
+      opacity: 0.9;
+    }
+
+    /* Background Settings Toggle */
+    .bg-settings-btn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      cursor: pointer;
+      width: 32px;
+      height: 32px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #9ca3af;
+      transition: all 0.2s;
+      z-index: 20;
+    }
+    .bg-settings-btn:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.08);
+      transform: rotate(30deg);
+    }
+    
+    .bg-modal {
+      position: fixed;
+      top: 60px;
+      right: 20px;
+      background: rgba(15, 18, 28, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 16px;
+      width: 280px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 100;
+    }
+    .bg-modal.active {
+      display: flex;
+    }
+    .bg-input {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      color: white;
+      padding: 8px;
+      font-size: 12px;
+      outline: none;
     }
   </style>
 </head>
 <body>
+  <div class="bg-overlay"></div>
+  
+  <div class="bg-settings-btn" id="bg-settings-trigger">⚙️</div>
+  <div class="bg-modal" id="bg-modal">
+    <div style="font-size:12px; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:0.5px;">Custom Background</div>
+    <input type="text" class="bg-input" id="bg-url-input" placeholder="Paste image URL here...">
+    <div style="text-align:center; color:#4b5563; font-size:10px;">- OR -</div>
+    <button class="btn-new-note" id="bg-upload-btn" style="background:#4f46e5;">Upload Local File</button>
+    <input type="file" id="bg-file-input" style="display:none;" accept="image/*">
+    <button class="btn-new-note" id="bg-save-btn">Apply Background</button>
+    <button class="btn-new-note" id="bg-reset-btn" style="background:#e11d48;">Reset to Default</button>
+  </div>
+
+  <div class="top-section">
+    <div class="clock" id="clock">-:-</div>
+    <div class="date" id="date">------</div>
+    <div class="visited-sites" id="visited-sites"></div>
+  </div>
+
+  <div class="center-section">
+    <!-- Command Palette gets injected here -->
+  </div>
+
+  <div class="bottom-section">
+    <div class="glass-panel">
+      <div class="panel-header">🧰 Quick Tools</div>
+      <div class="tool-btn" id="tool-image">
+        <span>🖼️</span> Clipboard Image Tools
+      </div>
+      <div class="tool-btn" id="tool-pdf">
+        <span>📄</span> PDF Utilities
+      </div>
+    </div>
+
+    <div class="glass-panel">
+      <div class="panel-header">📝 Recent Notes</div>
+      <div class="notes-list" id="notes-list"></div>
+      <button class="btn-new-note" id="btn-create-note">➕ New Note</button>
+    </div>
+  </div>
+
   <!-- Load extension scripts -->
   <script src="rules.js"></script>
   <script src="db.js"></script>
   <script src="content.js"></script>
   <script>
+    // clock update
+    function updateClock() {
+      const now = new Date();
+      let h = now.getHours();
+      let m = now.getMinutes();
+      h = h < 10 ? "0" + h : h;
+      m = m < 10 ? "0" + m : m;
+      document.getElementById("clock").textContent = `${h}:${m}`;
+      
+      const options = { weekday: 'long', month: 'long', day: 'numeric' };
+      document.getElementById("date").textContent = now.toLocaleDateString('en-US', options);
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // load custom background
+    async function loadBackground() {
+      const customBg = await CommandPaletteDB.get("settings", "newtab_bg");
+      if (customBg && customBg.value) {
+        document.body.style.backgroundImage = `url(${customBg.value})`;
+      } else {
+        document.body.style.backgroundImage = "url(newtab_bg.png)";
+      }
+    }
+    loadBackground();
+
+    // bg settings modal trigger
+    const trigger = document.getElementById("bg-settings-trigger");
+    const modal = document.getElementById("bg-modal");
+    trigger.addEventListener("click", () => modal.classList.toggle("active"));
+
+    // save bg URL
+    document.getElementById("bg-save-btn").addEventListener("click", async () => {
+      const url = document.getElementById("bg-url-input").value.trim();
+      if (url) {
+        await CommandPaletteDB.put("settings", { key: "newtab_bg", value: url });
+        loadBackground();
+        modal.classList.remove("active");
+        document.getElementById("bg-url-input").value = "";
+      }
+    });
+
+    // upload bg file
+    const fileInput = document.getElementById("bg-file-input");
+    document.getElementById("bg-upload-btn").addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          const base64 = event.target.result;
+          await CommandPaletteDB.put("settings", { key: "newtab_bg", value: base64 });
+          loadBackground();
+          modal.classList.remove("active");
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // reset bg to default
+    document.getElementById("bg-reset-btn").addEventListener("click", async () => {
+      await CommandPaletteDB.delete("settings", "newtab_bg");
+      loadBackground();
+      modal.classList.remove("active");
+    });
+
+    // top 5 visited sites
+    function loadTopSites() {
+      if (typeof chrome !== "undefined" && chrome.history) {
+        chrome.history.search({ text: "", maxResults: 120 }, (items) => {
+          if (!items) return;
+          const hosts = {};
+          items.forEach(item => {
+            try {
+              const url = new URL(item.url);
+              const host = url.hostname;
+              if (host && host !== "newtab" && !hosts[host]) {
+                hosts[host] = {
+                  title: item.title || host.replace("www.", ""),
+                  url: item.url,
+                  visitCount: item.visitCount || 1,
+                  domain: host
+                };
+              } else if (host && hosts[host]) {
+                hosts[host].visitCount += (item.visitCount || 1);
+              }
+            } catch (e) {}
+          });
+
+          const sorted = Object.values(hosts).sort((a, b) => b.visitCount - a.visitCount).slice(0, 5);
+          const container = document.getElementById("visited-sites");
+          container.innerHTML = "";
+
+          sorted.forEach(site => {
+            const card = document.createElement("a");
+            card.className = "site-card";
+            card.href = site.url;
+            card.innerHTML = `
+              <img class="site-icon" src="https://www.google.com/s2/favicons?sz=32&domain=${site.domain}" onerror="this.src='https://www.google.com/s2/favicons?sz=32&domain=google.com'">
+              <span class="site-title">${site.title}</span>
+            `;
+            container.appendChild(card);
+          });
+        });
+      }
+    }
+    loadTopSites();
+
+    // load notes
+    async function loadNotes() {
+      const notes = await CommandPaletteDB.getNotes();
+      const list = document.getElementById("notes-list");
+      list.innerHTML = "";
+      
+      const recent = notes.slice(0, 3);
+      recent.forEach(note => {
+        const item = document.createElement("div");
+        item.className = "note-item";
+        item.textContent = note.title || "(Untitled)";
+        item.addEventListener("click", () => {
+          if (typeof enterCommandMode === "function") {
+            enterCommandMode("note_tools");
+            commandModeParams.selectedNote = note.id;
+            commandModeParams.step = "view_content";
+            if (typeof renderSearchResults === "function") {
+              renderSearchResults("");
+            }
+          }
+        });
+        list.appendChild(item);
+      });
+    }
+    loadNotes();
+
+    // Create New Note
+    document.getElementById("btn-create-note").addEventListener("click", async () => {
+      const title = prompt("Enter note title:");
+      if (title) {
+        const newNote = {
+          id: title,
+          title: title,
+          content: "",
+          versions: [],
+          tags: [],
+          pinned: false,
+          favorite: false,
+          lastModified: Date.now()
+        };
+        await CommandPaletteDB.put("notes", newNote);
+        loadNotes();
+        if (typeof enterCommandMode === "function") {
+          enterCommandMode("note_tools");
+          if (typeof renderSearchResults === "function") {
+            renderSearchResults("");
+          }
+        }
+      }
+    });
+
+    // Quick Tools Click
+    document.getElementById("tool-image").addEventListener("click", () => {
+      if (typeof enterCommandMode === "function") enterCommandMode("image_tools");
+    });
+    document.getElementById("tool-pdf").addEventListener("click", () => {
+      if (typeof enterCommandMode === "function") enterCommandMode("pdf_tools");
+    });
+
     // Automatically open the palette on tab load
     window.addEventListener("DOMContentLoaded", () => {
       setTimeout(() => {
         if (typeof toggleCommandPalette === "function") {
           toggleCommandPalette();
           
-          // Hide close button so it feels like a native tab launcher page
           const rootEl = document.getElementById("smart-command-palette-root");
           if (rootEl && rootEl.shadowRoot) {
             const closeBtn = rootEl.shadowRoot.querySelector(".cc-close");
             if (closeBtn) closeBtn.style.display = "none";
             
-            // Disable escape from closing the palette on new tab, keeping it open
             const input = rootEl.shadowRoot.querySelector(".cc-search-input");
             if (input) {
               input.addEventListener("keydown", (e) => {
