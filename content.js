@@ -238,6 +238,7 @@ function enterCommandMode(modeId) {
     ccSearchInput.value = "";
     ccSearchInput.style.color = "#ffffff";
     ccSearchInput.placeholder = metadata.placeholder;
+    activeQuery = "";
   }
   
   // Clear autocomplete suggestion
