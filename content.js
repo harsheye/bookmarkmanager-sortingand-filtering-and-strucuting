@@ -178,6 +178,7 @@ function openCommandPalette() {
     document.activeElement.blur();
   }
   
+  applyPaletteSettings();
   ccSearchInput.focus();
   requestAnimationFrame(() => ccSearchInput.focus());
   setTimeout(() => ccSearchInput.focus(), 50);
@@ -216,7 +217,8 @@ const CommandModeMetadata = {
   download_tools: { name: "Downloads", icon: "📥", placeholder: "Search downloads..." },
   history_tools: { name: "History", icon: "📜", placeholder: "Search history..." },
   tab_tools: { name: "Tabs", icon: "📑", placeholder: "Search active tabs..." },
-  mappings_tools: { name: "Mappings", icon: "🔗", placeholder: "Add: <keyword> <label> <url>..." }
+  mappings_tools: { name: "Mappings", icon: "🔗", placeholder: "Add: <keyword> <label> <url>..." },
+  settings_tools: { name: "Settings", icon: "⚙️", placeholder: "Configure palette settings..." }
 };
 
 function enterCommandMode(modeId) {
@@ -305,14 +307,21 @@ function createCommandPalette() {
       background: rgba(255, 255, 255, 0.25);
     }
     .cc-backdrop {
+      --cc-width: 600px;
+      --cc-font-size-base: 13px;
+      --cc-accent-color: #8b5cf6;
+      --cc-accent-gradient: linear-gradient(135deg, #a78bfa, #8b5cf6);
+      --cc-backdrop-blur: 8px;
+      --cc-max-results: 8;
+
       position: fixed;
       top: 0;
       left: 0;
       width: 100vw;
       height: 100vh;
       background: rgba(4, 5, 8, 0.45);
-      backdrop-filter: blur(15px);
-      -webkit-backdrop-filter: blur(15px);
+      backdrop-filter: blur(var(--cc-backdrop-blur));
+      -webkit-backdrop-filter: blur(var(--cc-backdrop-blur));
       z-index: 2147483647;
       display: flex;
       justify-content: center;
@@ -322,14 +331,15 @@ function createCommandPalette() {
       transition: opacity 0.16s ease-out;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       color: #f3f4f6;
+      font-size: var(--cc-font-size-base);
     }
     .cc-backdrop.active {
       opacity: 1;
       pointer-events: auto;
     }
     .cc-modal {
-      width: 600px;
-      height: 380px;
+      width: var(--cc-width);
+      max-height: 90vh;
       background: #0e111a; /* Solid dark blue-slate */
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 12px;
@@ -377,9 +387,9 @@ function createCommandPalette() {
     .cc-command-pill {
       display: inline-flex;
       align-items: center;
-      background: rgba(139, 92, 246, 0.12);
-      border: 1px solid rgba(139, 92, 246, 0.25);
-      color: #a78bfa;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--cc-accent-color);
+      color: var(--cc-accent-color);
       border-radius: 6px;
       padding: 2px 8px;
       font-size: 12px;
@@ -398,7 +408,7 @@ function createCommandPalette() {
       border: none;
       outline: none;
       color: #ffffff;
-      font-size: 15px;
+      font-size: calc(var(--cc-font-size-base, 13px) + 2px);
       font-family: inherit;
       height: 24px;
       line-height: 24px;
@@ -417,19 +427,18 @@ function createCommandPalette() {
     }
     .cc-content-pane {
       display: flex;
-      flex-grow: 1;
-      height: calc(100% - 90px);
+      flex-direction: column;
       position: relative;
     }
     .cc-results-container {
-      flex-grow: 1;
+      max-height: calc(52px * var(--cc-max-results, 8) + 30px);
       overflow-y: auto;
       padding: 8px 0;
       display: flex;
       flex-direction: column;
     }
     .cc-group-header {
-      font-size: 11px;
+      font-size: calc(var(--cc-font-size-base, 13px) - 2px);
       font-weight: 600;
       color: #5f6e85;
       text-transform: uppercase;
@@ -446,7 +455,8 @@ function createCommandPalette() {
       transition: background 0.1s ease;
     }
     .cc-item.selected {
-      background: rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.04);
+      box-shadow: inset 3px 0 0 var(--cc-accent-color);
     }
     .cc-item-left {
       display: flex;
@@ -471,7 +481,7 @@ function createCommandPalette() {
       overflow: hidden;
     }
     .cc-item-title {
-      font-size: 13.5px;
+      font-size: calc(var(--cc-font-size-base, 13px) + 0.5px);
       font-weight: 500;
       color: #d1d5db;
       white-space: nowrap;
@@ -482,7 +492,7 @@ function createCommandPalette() {
       color: #ffffff;
     }
     .cc-item-subtitle {
-      font-size: 11px;
+      font-size: calc(var(--cc-font-size-base, 13px) - 2px);
       color: #4b5563;
       white-space: nowrap;
       overflow: hidden;
@@ -754,6 +764,7 @@ function createCommandPalette() {
   ccCommandTagContainer = ccBackdrop.querySelector(".cc-command-tag-container");
 
   setupUIEventListeners();
+  applyPaletteSettings();
 }
 
 // -------------------------------------------------------------
@@ -921,6 +932,9 @@ async function handleSearchChange(query) {
       return;
     } else if (cleanQ === "/mappings") {
       enterCommandMode("mappings_tools");
+      return;
+    } else if (cleanQ === "/settings") {
+      enterCommandMode("settings_tools");
       return;
     }
   }
@@ -1535,6 +1549,168 @@ Prefix Commands (type directly in search):
         });
       }
       break;
+
+    case "settings_tools":
+      {
+        const config = await getPaletteConfig();
+        
+        list = [
+          // Font Size options
+          {
+            id: "setting_font_small",
+            title: "Set Font Size: Small (11px)",
+            subtitle: config.fontSize === "11px" ? "⚡ Current setting" : "Change palette font size to small",
+            icon: "🔤",
+            type: "subaction",
+            run: () => updatePaletteSetting("fontSize", "11px")
+          },
+          {
+            id: "setting_font_normal",
+            title: "Set Font Size: Normal (13px)",
+            subtitle: config.fontSize === "13px" ? "⚡ Current setting" : "Change palette font size to normal",
+            icon: "🔤",
+            type: "subaction",
+            run: () => updatePaletteSetting("fontSize", "13px")
+          },
+          {
+            id: "setting_font_large",
+            title: "Set Font Size: Large (15px)",
+            subtitle: config.fontSize === "15px" ? "⚡ Current setting" : "Change palette font size to large",
+            icon: "🔤",
+            type: "subaction",
+            run: () => updatePaletteSetting("fontSize", "15px")
+          },
+          
+          // Width options
+          {
+            id: "setting_width_compact",
+            title: "Set Palette Width: Compact (500px)",
+            subtitle: config.width === "500px" ? "⚡ Current setting" : "Change layout width",
+            icon: "📏",
+            type: "subaction",
+            run: () => updatePaletteSetting("width", "500px")
+          },
+          {
+            id: "setting_width_default",
+            title: "Set Palette Width: Default (600px)",
+            subtitle: config.width === "600px" ? "⚡ Current setting" : "Change layout width",
+            icon: "📏",
+            type: "subaction",
+            run: () => updatePaletteSetting("width", "600px")
+          },
+          {
+            id: "setting_width_wide",
+            title: "Set Palette Width: Wide (700px)",
+            subtitle: config.width === "700px" ? "⚡ Current setting" : "Change layout width",
+            icon: "📏",
+            type: "subaction",
+            run: () => updatePaletteSetting("width", "700px")
+          },
+          {
+            id: "setting_width_longest",
+            title: "Set Palette Width: Longest (800px)",
+            subtitle: config.width === "800px" ? "⚡ Current setting" : "Change layout width",
+            icon: "📏",
+            type: "subaction",
+            run: () => updatePaletteSetting("width", "800px")
+          },
+
+          // Accent colors
+          {
+            id: "setting_accent_purple",
+            title: "Accent Color: Violet Purple (Default)",
+            subtitle: config.accent === "purple" ? "⚡ Current setting" : "Set accent theme to Violet",
+            icon: "🎨",
+            type: "subaction",
+            run: () => updatePaletteSetting("accent", "purple")
+          },
+          {
+            id: "setting_accent_blue",
+            title: "Accent Color: Ice Blue",
+            subtitle: config.accent === "blue" ? "⚡ Current setting" : "Set accent theme to Blue",
+            icon: "🎨",
+            type: "subaction",
+            run: () => updatePaletteSetting("accent", "blue")
+          },
+          {
+            id: "setting_accent_green",
+            title: "Accent Color: Emerald Green",
+            subtitle: config.accent === "green" ? "⚡ Current setting" : "Set accent theme to Green",
+            icon: "🎨",
+            type: "subaction",
+            run: () => updatePaletteSetting("accent", "green")
+          },
+          {
+            id: "setting_accent_orange",
+            title: "Accent Color: Sunset Orange",
+            subtitle: config.accent === "orange" ? "⚡ Current setting" : "Set accent theme to Orange",
+            icon: "🎨",
+            type: "subaction",
+            run: () => updatePaletteSetting("accent", "orange")
+          },
+          {
+            id: "setting_accent_red",
+            title: "Accent Color: Crimson Red",
+            subtitle: config.accent === "red" ? "⚡ Current setting" : "Set accent theme to Red",
+            icon: "🎨",
+            type: "subaction",
+            run: () => updatePaletteSetting("accent", "red")
+          },
+
+          // Max Results options
+          {
+            id: "setting_results_5",
+            title: "Max Results Displayed: 5 items",
+            subtitle: config.maxResults === 5 ? "⚡ Current setting" : "Compact lists layout",
+            icon: "🔢",
+            type: "subaction",
+            run: () => updatePaletteSetting("maxResults", 5)
+          },
+          {
+            id: "setting_results_8",
+            title: "Max Results Displayed: 8 items (Default)",
+            subtitle: config.maxResults === 8 ? "⚡ Current setting" : "Balanced list display",
+            icon: "🔢",
+            type: "subaction",
+            run: () => updatePaletteSetting("maxResults", 8)
+          },
+          {
+            id: "setting_results_12",
+            title: "Max Results Displayed: 12 items",
+            subtitle: config.maxResults === 12 ? "⚡ Current setting" : "Extended list display",
+            icon: "🔢",
+            type: "subaction",
+            run: () => updatePaletteSetting("maxResults", 12)
+          },
+
+          // Backdrop Blur options
+          {
+            id: "setting_blur_none",
+            title: "Backdrop Blur: None",
+            subtitle: config.blur === "none" ? "⚡ Current setting" : "Disable background blur",
+            icon: "👁️",
+            type: "subaction",
+            run: () => updatePaletteSetting("blur", "none")
+          },
+          {
+            id: "setting_blur_sleek",
+            title: "Backdrop Blur: Sleek (8px)",
+            subtitle: config.blur === "8px" ? "⚡ Current setting" : "Apply standard blur",
+            icon: "👁️",
+            type: "subaction",
+            run: () => updatePaletteSetting("blur", "8px")
+          },
+          {
+            id: "setting_blur_intense",
+            title: "Backdrop Blur: Intense Glassmorphism (20px)",
+            subtitle: config.blur === "20px" ? "⚡ Current setting" : "Apply heavy cinematic blur",
+            icon: "👁️",
+            type: "subaction",
+            run: () => updatePaletteSetting("blur", "20px")
+          }
+        ];
+      }
+      break;
     }
   } catch (err) {
     console.error("Error in getCommandModeCandidates:", err);
@@ -1778,7 +1954,7 @@ function renderResultsUI() {
     if (item.type === "static_text") {
       itemEl.innerHTML = `
         <div class="cc-item-left" style="flex-direction:column; align-items:flex-start; width:100%; gap:8px;">
-          <div style="font-weight:600; font-size:13px; color:#8b5cf6; display:flex; align-items:center; gap:8px;">
+          <div style="font-weight:600; font-size:13px; color:var(--cc-accent-color); display:flex; align-items:center; gap:8px;">
             <span>${item.icon || "📝"}</span>
             <span>${item.title}</span>
           </div>
@@ -1894,6 +2070,7 @@ async function executeMainAction(inNewTab = false) {
     else if (item.id === "search_history") { enterCommandMode("history_tools"); return; }
     else if (item.id === "search_active_tabs") { enterCommandMode("tab_tools"); return; }
     else if (item.id === "mappings_manager") { enterCommandMode("mappings_tools"); return; }
+    else if (item.id === "settings_manager") { enterCommandMode("settings_tools"); return; }
   }
 
   // Track stats
@@ -2221,7 +2398,7 @@ function renderSubmenuActions() {
     const actEl = document.createElement("div");
     actEl.className = "cc-submenu-item";
     actEl.innerHTML = `
-      <span style="font-weight:600; color:#8b5cf6;">${act.icon}</span>
+      <span style="font-weight:600; color:var(--cc-accent-color);">${act.icon}</span>
       <span>${act.label}</span>
     `;
     actEl.addEventListener("click", () => {
@@ -2325,6 +2502,68 @@ CommandRegistry.register({
   icon: Icons.globe,
   execute: () => {
     enterCommandMode("mappings_tools");
+  }
+});
+
+// Quick Map Current Page Command
+CommandRegistry.register({
+  id: "mapping_new",
+  name: "Create Quick Mapping",
+  aliases: ["mapping new", "mapping add", "new mapping", "add mapping"],
+  description: "Map the current opened URL page to a label/keyword.",
+  icon: Icons.globe,
+  execute: async () => {
+    let queryText = activeQuery.trim();
+    const prefixes = ["mapping new", "mapping add", "new mapping", "add mapping"];
+    let arg = "";
+    for (const p of prefixes) {
+      if (queryText.startsWith(p)) {
+        arg = queryText.substring(p.length).trim();
+        break;
+      }
+    }
+    if (!arg) {
+      showToast("Please specify a label, e.g. 'mapping new personal'", "error");
+      return;
+    }
+
+    const parts = arg.split(/\s+/);
+    let keyword = "";
+    let label = "";
+
+    if (parts.length === 1) {
+      keyword = getCleanKeyword();
+      label = parts[0].toLowerCase();
+    } else {
+      keyword = parts[0].toLowerCase();
+      label = parts[1].toLowerCase();
+    }
+
+    const currentUrl = window.location.href;
+
+    let mappingsObj = await DB.get("settings", "account_mappings");
+    let mappings = mappingsObj ? mappingsObj.value : [];
+    
+    const id = keyword + "_" + label;
+    mappings = mappings.filter(m => m.id !== id);
+    
+    mappings.push({ id, keyword, label, url: currentUrl });
+    await DB.put("settings", { key: "account_mappings", value: mappings });
+    
+    showToast(`Mapped current page to: ${keyword} (${label})`, "success");
+    closeCommandPalette();
+  }
+});
+
+// Settings Command
+CommandRegistry.register({
+  id: "settings_manager",
+  name: "Settings",
+  aliases: ["settings", "config", "preferences"],
+  description: "Configure command palette width, font size, theme, backdrop blur, etc.",
+  icon: "⚙️",
+  execute: () => {
+    enterCommandMode("settings_tools");
   }
 });
 
@@ -3085,7 +3324,7 @@ function showDropzoneOverlay(mode) {
       <div style="font-size:11px; opacity:0.6; margin-top:2px;">or click to select files</div>
       <input type="file" class="cc-file-input" style="display:none;" ${mode === 'merge' ? 'multiple' : ''} accept=".pdf">
       <div class="cc-file-list" style="margin-top:10px; font-size:11px; text-align:left; max-height:80px; overflow-y:auto; color:#9ca3af;"></div>
-      <button class="cc-btn-execute-pdf" style="background:#8b5cf6; border:none; color:white; padding:6px 12px; border-radius:6px; margin-top:10px; cursor:pointer; font-weight:600; font-size:12px; display:none;">
+      <button class="cc-btn-execute-pdf" style="background:var(--cc-accent-color); border:none; color:white; padding:6px 12px; border-radius:6px; margin-top:10px; cursor:pointer; font-weight:600; font-size:12px; display:none;">
         Run ${mode === 'merge' ? 'PDF Joiner' : 'Compressor'}
       </button>
     </div>
@@ -3216,4 +3455,79 @@ function showToast(message, type = "success") {
     toast.style.transform = "translateY(15px)";
     setTimeout(() => toast.remove(), 250);
   }, 2800);
+}
+
+// -------------------------------------------------------------
+// PALETTE SETTINGS AND CONFIG MANAGEMENT
+// -------------------------------------------------------------
+function getCleanKeyword() {
+  try {
+    const host = window.location.hostname.toLowerCase();
+    let clean = host.replace(/^www\./, "");
+    let parts = clean.split(".");
+    if (parts.length >= 2) {
+      if (parts[parts.length - 2] === "com" || parts[parts.length - 2] === "co" || parts[parts.length - 2] === "net" || parts[parts.length - 2] === "org") {
+        return parts[0];
+      }
+      return parts[0];
+    }
+    return clean || "site";
+  } catch (e) {
+    return "site";
+  }
+}
+
+async function getPaletteConfig() {
+  const settingsObj = await DB.get("settings", "palette_config");
+  return settingsObj ? settingsObj.value : {
+    width: "600px",
+    fontSize: "13px",
+    accent: "purple",
+    maxResults: 8,
+    blur: "8px"
+  };
+}
+
+async function updatePaletteSetting(key, val) {
+  const config = await getPaletteConfig();
+  config[key] = val;
+  await DB.put("settings", { key: "palette_config", value: config });
+  await applyPaletteSettings();
+  showToast(`Setting updated: ${key} = ${val}`, "success");
+  renderSearchResults("");
+}
+
+async function applyPaletteSettings() {
+  if (!ccBackdrop) return;
+  const config = await getPaletteConfig();
+
+  const style = ccBackdrop.style;
+  style.setProperty("--cc-width", config.width || "600px");
+  style.setProperty("--cc-font-size-base", config.fontSize || "13px");
+  style.setProperty("--cc-max-results", config.maxResults || 8);
+
+  // Accent Colors mapping
+  let accentColor = "#8b5cf6";
+  let accentGrad = "linear-gradient(135deg, #a78bfa, #8b5cf6)";
+  if (config.accent === "blue") {
+    accentColor = "#3b82f6";
+    accentGrad = "linear-gradient(135deg, #60a5fa, #3b82f6)";
+  } else if (config.accent === "green") {
+    accentColor = "#10b981";
+    accentGrad = "linear-gradient(135deg, #34d399, #10b981)";
+  } else if (config.accent === "orange") {
+    accentColor = "#f97316";
+    accentGrad = "linear-gradient(135deg, #fb923c, #f97316)";
+  } else if (config.accent === "red") {
+    accentColor = "#ef4444";
+    accentGrad = "linear-gradient(135deg, #f87171, #ef4444)";
+  }
+  style.setProperty("--cc-accent-color", accentColor);
+  style.setProperty("--cc-accent-gradient", accentGrad);
+
+  // Backdrop blur amount
+  let blurVal = "8px";
+  if (config.blur === "none") blurVal = "0px";
+  else if (config.blur === "20px") blurVal = "20px";
+  style.setProperty("--cc-backdrop-blur", blurVal);
 }
