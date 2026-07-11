@@ -1526,13 +1526,31 @@ Prefix Commands (type directly in search):
         let mappingsObj = await DB.get("settings", "account_mappings");
         let mappings = mappingsObj ? mappingsObj.value : [];
         
+        let title = "➕ Create New Mapping";
+        let subtitle = "Type label or '<keyword> <label> <url>' to map current or custom page";
+        
+        if (filter) {
+          const parts = filter.trim().split(/\s+/);
+          if (parts.length === 1) {
+            title = `➕ Map Current Page as: ${getCleanKeyword()} (${parts[0]})`;
+            subtitle = "Press Enter to map this webpage under the clean hostname and custom label";
+          } else if (parts.length === 2) {
+            title = `➕ Map Current Page as: ${parts[0]} (${parts[1]})`;
+            subtitle = "Press Enter to map this webpage under the custom keyword and label";
+          } else {
+            title = `➕ Map Custom URL: ${parts[0]} (${parts[1]})`;
+            subtitle = `URL: ${parts.slice(2).join(" ")}`;
+          }
+        }
+
         list = [
           {
             id: "mapping_add_new",
-            title: "➕ Create New Mapping",
-            subtitle: "Type '<keyword> <label> <url>' in search input and select this action",
+            title: title,
+            subtitle: subtitle,
             icon: Icons.globe,
             type: "subaction",
+            alwaysKeep: true,
             run: () => createMappingFromInput()
           }
         ];
@@ -1718,9 +1736,11 @@ Prefix Commands (type directly in search):
 
   // Filter command candidates list
   if (filter) {
+    const fLower = filter.toLowerCase();
     list = list.filter(item => 
-      item.title.toLowerCase().includes(filter) || 
-      item.subtitle.toLowerCase().includes(filter)
+      item.alwaysKeep ||
+      item.title.toLowerCase().includes(fLower) || 
+      item.subtitle.toLowerCase().includes(fLower)
     );
   }
 
@@ -1745,17 +1765,27 @@ function executeDirectCommand(commandId, args = "") {
 async function createMappingFromInput() {
   const text = ccSearchInput.value.trim();
   if (!text) {
-    showToast("Type '<keyword> <label> <url>' first!", "error");
+    showToast("Type label or '<keyword> <label> <url>' first!", "error");
     return;
   }
   const parts = text.split(/\s+/);
-  if (parts.length < 3) {
-    showToast("Format must be: <keyword> <label> <url>", "error");
-    return;
+  let keyword = "";
+  let label = "";
+  let url = "";
+
+  if (parts.length === 1) {
+    keyword = getCleanKeyword();
+    label = parts[0].toLowerCase();
+    url = window.location.href;
+  } else if (parts.length === 2) {
+    keyword = parts[0].toLowerCase();
+    label = parts[1].toLowerCase();
+    url = window.location.href;
+  } else {
+    keyword = parts[0].toLowerCase();
+    label = parts[1].toLowerCase();
+    url = parts.slice(2).join(" ");
   }
-  const keyword = parts[0].toLowerCase();
-  const label = parts[1].toLowerCase();
-  const url = parts.slice(2).join(" ");
 
   let targetUrl = url;
   if (!/^https?:\/\//i.test(targetUrl)) {
