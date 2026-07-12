@@ -24,6 +24,8 @@ let clipboardHistoryCache = [];
 let commandStats = {}; // { id: { frequency: 0, lastUsed: 0 } }
 let currentSearchRequestId = 0;
 let activeSuggestion = "";
+let undoStack = [];
+let redoStack = [];
 
 // Command Mode State
 let currentCommandMode = null; // 'image', 'pdf', 'note', 'boost', 'timer', 'translate'
@@ -50,6 +52,28 @@ const DB = typeof CommandPaletteDB !== 'undefined' ? CommandPaletteDB : {
 // --- INITIALIZE ON LOAD ---
 document.addEventListener("DOMContentLoaded", () => {
   preloadStats();
+
+  // Check if we came from Google Search fallback
+  if (window.location.hash.includes("focus-palette=true")) {
+    // Remove the hash immediately
+    history.replaceState(null, null, window.location.pathname + window.location.search);
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const q = urlParams.get("q") || "";
+    
+    // Open the palette and focus the input field with the query
+    setTimeout(() => {
+      if (!ccRoot) {
+        createCommandPalette();
+      }
+      openCommandPalette();
+      if (q) {
+        ccSearchInput.value = q;
+        ccSearchInput.setSelectionRange(0, q.length);
+        handleSearchInputChange();
+      }
+    }, 150);
+  }
 });
 
 // Global copy listener for Clipboard History
@@ -79,35 +103,43 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 
-  // If palette is active, block all inputs outside of it
+  // If palette is active, block ALL events from reaching the page
   if (ccBackdrop && ccBackdrop.classList.contains("active")) {
-    const path = e.composedPath();
-    if (!path.includes(ccRoot)) {
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-    }
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    handlePaletteKeydown(e);
   }
 }, true);
 
 window.addEventListener("keyup", (e) => {
   if (ccBackdrop && ccBackdrop.classList.contains("active")) {
-    const path = e.composedPath();
-    if (!path.includes(ccRoot)) {
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-    }
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
   }
 }, true);
 
 window.addEventListener("keypress", (e) => {
   if (ccBackdrop && ccBackdrop.classList.contains("active")) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+  }
+}, true);
+
+// Focus trap to keep focus inside the command palette
+document.addEventListener("focusin", (e) => {
+  if (ccBackdrop && ccBackdrop.classList.contains("active")) {
     const path = e.composedPath();
-    if (!path.includes(ccRoot)) {
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
+    if (ccRoot && !path.includes(ccRoot)) {
+      const active = e.target;
+      if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) {
+        return;
+      }
+      if (ccSearchInput) {
+        ccSearchInput.focus();
+      }
     }
   }
 }, true);
@@ -171,12 +203,302 @@ const CommandRegistry = {
   }
 };
 
+// --- TEXT EDITING HELPERS FOR EVENT ISOLATION ---
+function saveUndoState() {
+  if (!ccSearchInput) return;
+  const state = {
+    value: ccSearchInput.value,
+    selStart: ccSearchInput.selectionStart,
+    selEnd: ccSearchInput.selectionEnd
+  };
+  if (undoStack.length === 0 || undoStack[undoStack.length - 1].value !== state.value) {
+    undoStack.push(state);
+    if (undoStack.length > 100) undoStack.shift();
+    redoStack = []; // Clear redo stack on new action
+  }
+}
+
+function handleSearchInputChange() {
+  if (!ccSearchInput) return;
+  const val = ccSearchInput.value;
+  if (val.startsWith("/")) {
+    ccSearchInput.style.color = "#60a5fa";
+  } else {
+    ccSearchInput.style.color = "#ffffff";
+  }
+  handleSearchChange(val);
+}
+
+function insertTextAtCursor(input, text) {
+  const start = input.selectionStart;
+  const end = input.selectionEnd;
+  const val = input.value;
+  input.value = val.slice(0, start) + text + val.slice(end);
+  input.selectionStart = input.selectionEnd = start + text.length;
+}
+
+function handleBackspace(input) {
+  const start = input.selectionStart;
+  const end = input.selectionEnd;
+  const val = input.value;
+  if (start !== end) {
+    input.value = val.slice(0, start) + val.slice(end);
+    input.selectionStart = input.selectionEnd = start;
+  } else if (start > 0) {
+    input.value = val.slice(0, start - 1) + val.slice(end);
+    input.selectionStart = input.selectionEnd = start - 1;
+  }
+}
+
+function handleDelete(input) {
+  const start = input.selectionStart;
+  const end = input.selectionEnd;
+  const val = input.value;
+  if (start !== end) {
+    input.value = val.slice(0, start) + val.slice(end);
+    input.selectionStart = input.selectionEnd = start;
+  } else if (start < val.length) {
+    input.value = val.slice(0, start) + val.slice(start + 1);
+    input.selectionStart = input.selectionEnd = start;
+  }
+}
+
+function handleArrowLeft(input, shiftKey) {
+  const start = input.selectionStart;
+  const end = input.selectionEnd;
+  if (shiftKey) {
+    if (input.selectionDirection === "backward") {
+      if (start > 0) {
+        input.setSelectionRange(start - 1, end, "backward");
+      }
+    } else {
+      if (start < end) {
+        input.setSelectionRange(start, end - 1, "forward");
+      } else if (start > 0) {
+        input.setSelectionRange(start - 1, end, "backward");
+      }
+    }
+  } else {
+    const newPos = Math.max(0, start === end ? start - 1 : start);
+    input.setSelectionRange(newPos, newPos);
+  }
+}
+
+function handleArrowRight(input, shiftKey) {
+  const start = input.selectionStart;
+  const end = input.selectionEnd;
+  if (shiftKey) {
+    if (input.selectionDirection === "forward") {
+      if (end < input.value.length) {
+        input.setSelectionRange(start, end + 1, "forward");
+      }
+    } else {
+      if (start < end) {
+        input.setSelectionRange(start + 1, end, "backward");
+      } else if (end < input.value.length) {
+        input.setSelectionRange(start, end + 1, "forward");
+      }
+    }
+  } else {
+    const newPos = Math.min(input.value.length, start === end ? start + 1 : end);
+    input.setSelectionRange(newPos, newPos);
+  }
+}
+
+function handleHome(input, shiftKey) {
+  if (shiftKey) {
+    if (input.selectionDirection === "forward") {
+      input.setSelectionRange(0, input.selectionStart, "backward");
+    } else {
+      input.setSelectionRange(0, input.selectionEnd, "backward");
+    }
+  } else {
+    input.setSelectionRange(0, 0);
+  }
+}
+
+function handleEnd(input, shiftKey) {
+  const len = input.value.length;
+  if (shiftKey) {
+    input.setSelectionRange(input.selectionStart, len, "forward");
+  } else {
+    input.setSelectionRange(len, len);
+  }
+}
+
+function handlePaletteKeydown(e) {
+  if (!ccSearchInput) return;
+
+  const key = e.key;
+  const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+  const isAlt = e.altKey;
+  const isShift = e.shiftKey;
+
+  // 1. Keyboard shortcuts: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, Ctrl+K, Alt+K
+  if (isCtrlOrMeta && !isAlt && !isShift && key.toLowerCase() === "a") {
+    ccSearchInput.select();
+    return;
+  }
+  if (isCtrlOrMeta && !isAlt && !isShift && key.toLowerCase() === "c") {
+    const selectedText = ccSearchInput.value.slice(ccSearchInput.selectionStart, ccSearchInput.selectionEnd);
+    if (selectedText) {
+      navigator.clipboard.writeText(selectedText).catch(() => {});
+    }
+    return;
+  }
+  if (isCtrlOrMeta && !isAlt && !isShift && key.toLowerCase() === "x") {
+    saveUndoState();
+    const start = ccSearchInput.selectionStart;
+    const end = ccSearchInput.selectionEnd;
+    const selectedText = ccSearchInput.value.slice(start, end);
+    if (selectedText) {
+      navigator.clipboard.writeText(selectedText).catch(() => {});
+      ccSearchInput.value = ccSearchInput.value.slice(0, start) + ccSearchInput.value.slice(end);
+      ccSearchInput.setSelectionRange(start, start);
+      handleSearchInputChange();
+    }
+    return;
+  }
+  if (isCtrlOrMeta && !isAlt && !isShift && key.toLowerCase() === "v") {
+    navigator.clipboard.readText().then(text => {
+      if (text) {
+        saveUndoState();
+        insertTextAtCursor(ccSearchInput, text);
+        handleSearchInputChange();
+      }
+    }).catch(() => {});
+    return;
+  }
+  if (isCtrlOrMeta && !isAlt && !isShift && key.toLowerCase() === "z") {
+    if (undoStack.length > 0) {
+      const currentState = {
+        value: ccSearchInput.value,
+        selStart: ccSearchInput.selectionStart,
+        selEnd: ccSearchInput.selectionEnd
+      };
+      redoStack.push(currentState);
+      const prevState = undoStack.pop();
+      ccSearchInput.value = prevState.value;
+      ccSearchInput.setSelectionRange(prevState.selStart, prevState.selEnd);
+      handleSearchInputChange();
+    }
+    return;
+  }
+  if ((isCtrlOrMeta && !isAlt && !isShift && key.toLowerCase() === "y") ||
+      (isCtrlOrMeta && !isAlt && isShift && key.toLowerCase() === "z")) {
+    if (redoStack.length > 0) {
+      const nextState = redoStack.pop();
+      undoStack.push({
+        value: ccSearchInput.value,
+        selStart: ccSearchInput.selectionStart,
+        selEnd: ccSearchInput.selectionEnd
+      });
+      ccSearchInput.value = nextState.value;
+      ccSearchInput.setSelectionRange(nextState.selStart, nextState.selEnd);
+      handleSearchInputChange();
+    }
+    return;
+  }
+  if (key.toLowerCase() === "k" && (isCtrlOrMeta || isAlt)) {
+    toggleSubmenu();
+    return;
+  }
+
+  // 2. Autocomplete and suggestion replacement
+  if ((key === "Tab" || key === "ArrowRight") && activeSuggestion) {
+    if (ccSearchInput.selectionStart === ccSearchInput.value.length) {
+      saveUndoState();
+      ccSearchInput.value = activeSuggestion;
+      handleSearchInputChange();
+      return;
+    }
+  }
+
+  // 3. Navigation/Editing keys
+  if (key === "ArrowDown") {
+    moveSelection(1);
+    return;
+  }
+  if (key === "ArrowUp") {
+    moveSelection(-1);
+    return;
+  }
+  if (key === "ArrowLeft") {
+    handleArrowLeft(ccSearchInput, isShift);
+    return;
+  }
+  if (key === "ArrowRight") {
+    handleArrowRight(ccSearchInput, isShift);
+    return;
+  }
+  if (key === "Home") {
+    handleHome(ccSearchInput, isShift);
+    return;
+  }
+  if (key === "End") {
+    handleEnd(ccSearchInput, isShift);
+    return;
+  }
+  if (key === "Enter") {
+    executeMainAction(isCtrlOrMeta || isAlt);
+    return;
+  }
+  if (key === "Escape") {
+    if (isSubmenuOpen) {
+      closeSubmenu();
+    } else {
+      closeCommandPalette();
+    }
+    return;
+  }
+  if (key === "Delete") {
+    triggerDeleteAction();
+    return;
+  }
+  if (key === "Backspace") {
+    if (!ccSearchInput.value) {
+      if (currentCommandMode) {
+        if (commandModeParams.step === "view_content") {
+          delete commandModeParams.step;
+          renderSearchResults("");
+        } else if (commandModeParams.selectedNote) {
+          delete commandModeParams.selectedNote;
+          renderSearchResults("");
+        } else if (commandModeParams.targetLang) {
+          delete commandModeParams.targetLang;
+          ccSearchInput.placeholder = "Select target language...";
+          renderSearchResults("");
+        } else {
+          exitCommandMode();
+        }
+      }
+    } else {
+      saveUndoState();
+      handleBackspace(ccSearchInput);
+      handleSearchInputChange();
+    }
+    return;
+  }
+
+  // 4. Character typing
+  if (key.length === 1 && !isCtrlOrMeta && !isAlt) {
+    saveUndoState();
+    insertTextAtCursor(ccSearchInput, key);
+    handleSearchInputChange();
+  }
+}
+
 // -------------------------------------------------------------
 // COMMAND PALETTE UI TOGGLE
 // -------------------------------------------------------------
 function toggleCommandPalette() {
+  const isNewTabPage = window.location.pathname.endsWith("newtab.html") || !!document.querySelector(".center-section");
   if (!ccRoot) {
     createCommandPalette();
+  }
+  if (isNewTabPage) {
+    openCommandPalette();
+    return;
   }
   const isActive = ccBackdrop.classList.contains("active");
   if (isActive) {
@@ -214,6 +536,9 @@ function openCommandPalette() {
 }
 
 function closeCommandPalette() {
+  const isNewTabPage = window.location.pathname.endsWith("newtab.html") || !!document.querySelector(".center-section");
+  if (isNewTabPage) return;
+
   if (ccBackdrop) {
     ccBackdrop.classList.remove("active");
     ccRoot.style.pointerEvents = "none";
@@ -243,9 +568,9 @@ const CommandModeMetadata = {
   settings_tools: { name: "Settings", icon: "⚙️", placeholder: "Configure palette settings..." }
 };
 
-function enterCommandMode(modeId) {
+function enterCommandMode(modeId, initialParams = {}) {
   currentCommandMode = modeId;
-  commandModeParams = {};
+  commandModeParams = { ...initialParams };
   selectedIndex = 0;
 
   const metadata = CommandModeMetadata[modeId];
@@ -300,10 +625,27 @@ function exitCommandMode(refresh = true) {
 // CREATE PALETTE ELEMENT (SHADOW DOM)
 // -------------------------------------------------------------
 function createCommandPalette() {
+  const isNewTabPage = window.location.pathname.endsWith("newtab.html") || !!document.querySelector(".center-section");
+
   ccRoot = document.createElement("div");
   ccRoot.id = "smart-command-palette-root";
-  ccRoot.style.cssText = "position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:2147483647; pointer-events:none;";
-  document.body.appendChild(ccRoot);
+  if (isNewTabPage) {
+    ccRoot.style.cssText = "width:100%; max-width:600px; display:flex; align-items:center; justify-content:center; pointer-events:auto;";
+    const placeholder = document.getElementById("palette-placeholder");
+    if (placeholder) {
+      placeholder.appendChild(ccRoot);
+    } else {
+      const centerSection = document.querySelector(".center-section");
+      if (centerSection) {
+        centerSection.appendChild(ccRoot);
+      } else {
+        document.body.appendChild(ccRoot);
+      }
+    }
+  } else {
+    ccRoot.style.cssText = "position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:2147483647; pointer-events:none;";
+    document.body.appendChild(ccRoot);
+  }
 
   ccShadow = ccRoot.attachShadow({ mode: "open" });
 
@@ -359,6 +701,26 @@ function createCommandPalette() {
     .cc-backdrop.active {
       opacity: 1;
       pointer-events: auto;
+    }
+    .cc-backdrop.cc-embedded {
+      position: static;
+      width: 100%;
+      height: auto;
+      max-height: 500px;
+      background: transparent;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      opacity: 1 !important;
+      pointer-events: auto !important;
+      display: flex;
+    }
+    .cc-backdrop.cc-embedded .cc-modal {
+      transform: scale(1) !important;
+      transition: none !important;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+    .cc-backdrop.cc-embedded .cc-close {
+      display: none !important;
     }
     .cc-modal {
       width: var(--cc-width);
@@ -737,6 +1099,9 @@ function createCommandPalette() {
 
   ccBackdrop = document.createElement("div");
   ccBackdrop.className = "cc-backdrop";
+  if (isNewTabPage) {
+    ccBackdrop.classList.add("cc-embedded");
+  }
 
   ccBackdrop.innerHTML = `
     <div class="cc-modal">
@@ -797,17 +1162,6 @@ function createCommandPalette() {
 // EVENT BINDINGS
 // -------------------------------------------------------------
 function setupUIEventListeners() {
-  // Stop key propagation from leaking to page
-  ccBackdrop.addEventListener("keydown", (e) => {
-    e.stopPropagation();
-  });
-  ccBackdrop.addEventListener("keyup", (e) => {
-    e.stopPropagation();
-  });
-  ccBackdrop.addEventListener("keypress", (e) => {
-    e.stopPropagation();
-  });
-
   // Backdrop close click
   ccBackdrop.addEventListener("click", (e) => {
     if (e.target === ccBackdrop) closeCommandPalette();
@@ -819,79 +1173,6 @@ function setupUIEventListeners() {
   // Back button click
   ccBackBtn.addEventListener("click", () => {
     exitCommandMode();
-  });
-
-  // Search input events
-  ccSearchInput.addEventListener("input", (e) => {
-    const val = e.target.value;
-    if (val.startsWith("/")) {
-      ccSearchInput.style.color = "#60a5fa";
-    } else {
-      ccSearchInput.style.color = "#ffffff";
-    }
-    handleSearchChange(val);
-  });
-
-  ccSearchInput.addEventListener("keydown", (e) => {
-    if ((e.key === "Tab" || e.key === "ArrowRight") && activeSuggestion) {
-      if (ccSearchInput.selectionStart === ccSearchInput.value.length) {
-        e.preventDefault();
-        ccSearchInput.value = activeSuggestion;
-        if (activeSuggestion.startsWith("/")) {
-          ccSearchInput.style.color = "#60a5fa";
-        }
-        handleSearchChange(activeSuggestion);
-        return;
-      }
-    }
-
-    if (e.key === "Backspace" && !ccSearchInput.value) {
-      if (currentCommandMode) {
-        e.preventDefault();
-        if (commandModeParams.step === "view_content") {
-          delete commandModeParams.step;
-          renderSearchResults("");
-        } else if (commandModeParams.selectedNote) {
-          delete commandModeParams.selectedNote;
-          renderSearchResults("");
-        } else if (commandModeParams.targetLang) {
-          delete commandModeParams.targetLang;
-          ccSearchInput.placeholder = "Select target language...";
-          renderSearchResults("");
-        } else {
-          exitCommandMode();
-        }
-        return;
-      }
-    }
-
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      moveSelection(1);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      moveSelection(-1);
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      if (e.ctrlKey || e.altKey) {
-        executeMainAction(true); // new tab
-      } else {
-        executeMainAction(false); // standard run
-      }
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      if (isSubmenuOpen) {
-        closeSubmenu();
-      } else {
-        closeCommandPalette();
-      }
-    } else if (e.key.toLowerCase() === "k" && (e.ctrlKey || e.altKey)) {
-      e.preventDefault();
-      toggleSubmenu();
-    } else if (e.key === "Delete") {
-      e.preventDefault();
-      triggerDeleteAction();
-    }
   });
 }
 
@@ -999,286 +1280,256 @@ async function renderSearchResults(query) {
   if (currentCommandMode) {
     scored = await getCommandModeCandidates(currentCommandMode, qClean);
   } else {
-    // --- CASE B: ROOT GENERAL SEARCH ---
-    let candidates = CommandRegistry.getAll().map(cmd => ({
-      id: cmd.id,
-      title: cmd.name,
-      subtitle: cmd.description,
-      icon: cmd.icon || Icons.search,
-      type: "command",
-      aliases: cmd.aliases || [],
-      execute: cmd.execute,
-      pinned: cmd.pinned || false,
-      favorite: cmd.favorite || false
-    }));
-    
-    // Add custom account mappings
-    let mappingsObj = await DB.get("settings", "account_mappings");
-    let mappings = mappingsObj ? mappingsObj.value : [];
-    
-    // Add default mappings for Gmail if none exist
-    if (mappings.length === 0) {
-      mappings = [
-        { id: "gmail_personal", keyword: "gmail", label: "personal", url: "https://mail.google.com/mail/u/0/" },
-        { id: "gmail_work", keyword: "gmail", label: "work", url: "https://mail.google.com/mail/u/1/" },
-        { id: "gmail_0", keyword: "gmail", label: "0", url: "https://mail.google.com/mail/u/0/" },
-        { id: "gmail_1", keyword: "gmail", label: "1", url: "https://mail.google.com/mail/u/1/" }
-      ];
-      // Save default ones
-      await DB.put("settings", { key: "account_mappings", value: mappings });
-    }
-
-    mappings.forEach(m => {
-      candidates.push({
-        id: "mapping_root_" + m.id,
-        title: `${m.keyword} (${m.label})`,
-        subtitle: `Redirect to: ${m.url}`,
-        icon: Icons.globe,
-        type: "mapping_redirect",
-        mappingData: m,
-        aliases: [m.keyword, `${m.keyword} ${m.label}`]
-      });
-    });
-    
-    // Prefix command check: e.g. "youtube kdrama" or "/youtube kdrama"
-    for (const cmd of CommandRegistry.getAll()) {
-      if (cmd.aliases) {
-        for (const alias of cmd.aliases) {
-          const prefix = alias + " ";
-          const slashPrefix = "/" + alias + " ";
-          if (qClean.startsWith(prefix) || qClean.startsWith(slashPrefix)) {
-            const arg = query.substring(qClean.startsWith(slashPrefix) ? slashPrefix.length : prefix.length).trim();
-            candidates.unshift({
-              id: cmd.id + "_active",
-              title: `${cmd.name} for "${arg}"`,
-              subtitle: `Run: ${cmd.description}`,
-              icon: cmd.icon || Icons.globe,
-              type: "command",
-              execute: () => {
-                activeQuery = alias + " " + arg; // override query so execute gets correct arg
-                cmd.execute();
-              },
-              score: 9999,
-              isPrefixMatch: true
-            });
-          }
-        }
+    if (!qClean) {
+      let candidates = CommandRegistry.getAll().map(cmd => ({
+        id: cmd.id,
+        title: cmd.name,
+        subtitle: cmd.description,
+        icon: cmd.icon || Icons.search,
+        type: "command",
+        aliases: cmd.aliases || [],
+        execute: cmd.execute,
+        pinned: cmd.pinned || false,
+        favorite: cmd.favorite || false
+      }));
+      
+      // Add custom account mappings
+      let mappingsObj = await DB.get("settings", "account_mappings");
+      let mappings = mappingsObj ? mappingsObj.value : [];
+      
+      // Add default mappings for Gmail if none exist
+      if (mappings.length === 0) {
+        mappings = [
+          { id: "gmail_personal", keyword: "gmail", label: "personal", url: "https://mail.google.com/mail/u/0/" },
+          { id: "gmail_work", keyword: "gmail", label: "work", url: "https://mail.google.com/mail/u/1/" },
+          { id: "gmail_0", keyword: "gmail", label: "0", url: "https://mail.google.com/mail/u/0/" },
+          { id: "gmail_1", keyword: "gmail", label: "1", url: "https://mail.google.com/mail/u/1/" }
+        ];
+        // Save default ones
+        await DB.put("settings", { key: "account_mappings", value: mappings });
       }
-    }
 
-    // Add Clipboard History Clips if query contains '/clipboard'
-    if (qClean.startsWith("/clipboard") || qClean === "clipboard") {
-      clipboardHistoryCache.forEach((clip, i) => {
+      mappings.forEach(m => {
         candidates.push({
-          id: "clip_" + clip.id,
-          title: clip.content,
-          subtitle: `Clipboard History • ${new Date(clip.timestamp).toLocaleTimeString()}`,
+          id: "mapping_root_" + m.id,
+          title: `${m.keyword} (${m.label})`,
+          subtitle: `Redirect to: ${m.url}`,
+          icon: Icons.globe,
+          type: "mapping_redirect",
+          mappingData: m,
+          aliases: [m.keyword, `${m.keyword} ${m.label}`]
+        });
+      });
+
+      let notesResults = [];
+      // Query local notes from DB
+      const notes = await DB.getNotes();
+      notes.forEach(note => {
+        notesResults.push({
+          id: "note_" + note.id,
+          title: note.title,
+          subtitle: `Notes • ${note.content.substring(0, 50)}`,
           icon: Icons.file,
-          type: "clipboard",
-          clipData: clip,
-          favorite: clip.favorite,
-          pinned: clip.pinned
+          type: "note",
+          noteData: note,
+          pinned: note.pinned,
+          favorite: note.favorite
         });
       });
-    }
 
-    // Calculator check
-    const mathRegex = /^[0-9+\-*/().\s^|sqrt|pow|sin|cos|tan|log|pi|e]+$/i;
-    const containsMathOperator = /[\+\-\*\/\^]/.test(query) || /sqrt|pow/i.test(query);
-    if (query.length > 2 && mathRegex.test(query) && containsMathOperator) {
-      try {
-        const cleanExpr = query.replace(/\^/g, "**")
-                               .replace(/sqrt/gi, "Math.sqrt")
-                               .replace(/pow/gi, "Math.pow")
-                               .replace(/sin/gi, "Math.sin")
-                               .replace(/cos/gi, "Math.cos")
-                               .replace(/tan/gi, "Math.tan")
-                               .replace(/log/gi, "Math.log")
-                               .replace(/pi/gi, "Math.PI")
-                               .replace(/e/gi, "Math.E");
-        const evalResult = new Function(`return ${cleanExpr}`)();
-        if (typeof evalResult === 'number' && !isNaN(evalResult)) {
-          candidates.unshift({
-            id: "calculator_result",
-            title: `Result: ${evalResult}`,
-            subtitle: `Calculator output for "${query}"`,
-            icon: Icons.search,
-            type: "command",
-            execute: () => {
-              navigator.clipboard.writeText(evalResult.toString());
-              showToast("Copied calculator result to clipboard!", "success");
-              closeCommandPalette();
-            }
-          });
-        }
-      } catch(e) {}
-    }
+      const allCandidates = [
+        ...candidates,
+        ...notesResults
+      ];
 
-    // Query native Bookmarks & History
-    let bookmarkResults = [];
-    let historyResults = [];
-    let tabResults = [];
-    let downloadResults = [];
-    let notesResults = [];
+      scored = allCandidates.map(item => ({ ...item, score: 1 }));
 
-    // Query local notes from DB
-    const notes = await DB.getNotes();
-    notes.forEach(note => {
-      notesResults.push({
-        id: "note_" + note.id,
-        title: note.title,
-        subtitle: `Notes • ${note.content.substring(0, 50)}`,
-        icon: Icons.file,
-        type: "note",
-        noteData: note,
-        pinned: note.pinned,
-        favorite: note.favorite
+      // Sort: Pinned > Favorite
+      scored.sort((a, b) => {
+        if (a.pinned && !b.pinned) return -1;
+        if (!a.pinned && b.pinned) return 1;
+        if (a.favorite && !b.favorite) return -1;
+        if (!a.favorite && b.favorite) return 1;
+        return 0;
       });
-    });
+    } else {
+      let results = [];
 
-    if (query.length > 0) {
-      const qLower = query.toLowerCase();
-
-      // Query Tabs
-      const tabsList = await new Promise(res => chrome.runtime.sendMessage({ action: "get_tabs" }, res));
-      
-      // Safety Check after Async Call
-      if (requestId !== currentSearchRequestId || currentCommandMode !== startedInMode) return;
-      
-      if (tabsList && Array.isArray(tabsList)) {
-        tabsList.forEach(t => {
-          if (t.title?.toLowerCase().includes(qLower) || t.url?.toLowerCase().includes(qLower)) {
-            tabResults.push({
-              id: "tab_" + t.id,
-              title: t.title || "Tab",
-              subtitle: `Active Tab • ${t.url}`,
-              icon: Icons.globe,
-              type: "tab",
-              tabData: t
-            });
-          }
-        });
+      // A. Mappings Search
+      let mappingsObj = await DB.get("settings", "account_mappings");
+      let mappings = mappingsObj ? mappingsObj.value : [];
+      if (mappings.length === 0) {
+        mappings = [
+          { id: "gmail_personal", keyword: "gmail", label: "personal", url: "https://mail.google.com/mail/u/0/" },
+          { id: "gmail_work", keyword: "gmail", label: "work", url: "https://mail.google.com/mail/u/1/" },
+          { id: "gmail_0", keyword: "gmail", label: "0", url: "https://mail.google.com/mail/u/0/" },
+          { id: "gmail_1", keyword: "gmail", label: "1", url: "https://mail.google.com/mail/u/1/" }
+        ];
+        await DB.put("settings", { key: "account_mappings", value: mappings });
       }
 
-      // Query Downloads
-      const downloadsList = await new Promise(res => chrome.runtime.sendMessage({ action: "get_downloads", query: query }, res));
-      
-      // Safety Check after Async Call
-      if (requestId !== currentSearchRequestId || currentCommandMode !== startedInMode) return;
-      
-      if (downloadsList && Array.isArray(downloadsList)) {
-        downloadsList.forEach(d => {
-          downloadResults.push({
-            id: "download_" + d.id,
-            title: d.filename.split(/[\\/]/).pop() || "Downloaded File",
-            subtitle: `Downloads • ${d.url}`,
-            icon: Icons.download,
-            type: "download",
-            downloadData: d
-          });
-        });
-      }
-
-      // Query Bookmarks from Chrome
-      const bkList = await new Promise(res => chrome.runtime.sendMessage({ action: "get_bookmarks_tree" }, res));
-      
-      // Safety Check after Async Call
-      if (requestId !== currentSearchRequestId || currentCommandMode !== startedInMode) return;
-      
-      function traverseSearch(node) {
-        if (node.url && (node.title?.toLowerCase().includes(qLower) || node.url?.toLowerCase().includes(qLower))) {
-          bookmarkResults.push({
-            id: "bm_" + node.id,
-            title: node.title || node.url,
-            subtitle: `Bookmark • ${node.url}`,
-            icon: Icons.tag,
-            type: "bookmark",
-            bmData: node
-          });
-        }
-        if (node.children) node.children.forEach(traverseSearch);
-      }
-      if (bkList && bkList[0]) traverseSearch(bkList[0]);
-
-      // Query History from Chrome
-      const histList = await new Promise(res => chrome.runtime.sendMessage({ action: "search_history", query: query }, res));
-      
-      // Safety Check after Async Call
-      if (requestId !== currentSearchRequestId || currentCommandMode !== startedInMode) return;
-      
-      if (histList && Array.isArray(histList)) {
-        histList.forEach(h => {
-          historyResults.push({
-            id: h.id,
-            title: h.title || h.url,
-            subtitle: `History • ${h.url}`,
-            icon: Icons.clock,
-            type: "history",
-            histData: h
-          });
-        });
-      }
-    }
-
-    // Combine Candidates
-    const allCandidates = [
-      ...candidates,
-      ...notesResults,
-      ...tabResults,
-      ...downloadResults,
-      ...bookmarkResults,
-      ...historyResults
-    ];
-
-    // Score & Rank
-    scored = allCandidates.map(item => {
-      if (item.isPrefixMatch) {
-        return item;
-      }
-      let score = 0;
-      const titleLower = item.title.toLowerCase();
-      const subLower = (item.subtitle || "").toLowerCase();
-
-      if (qClean) {
+      let mappingCandidates = [];
+      mappings.forEach(m => {
+        const title = `${m.keyword} (${m.label})`;
+        const subtitle = `Redirect to: ${m.url}`;
+        const titleLower = title.toLowerCase();
+        const subLower = subtitle.toLowerCase();
+        const kwLower = m.keyword.toLowerCase();
+        let score = 0;
         if (titleLower === qClean) score += 100;
         else if (titleLower.startsWith(qClean)) score += 80;
         else if (titleLower.includes(qClean)) score += 50;
         else if (subLower.includes(qClean)) score += 20;
+        else if (kwLower.includes(qClean)) score += 60;
 
-        if (item.aliases && item.aliases.some(a => a.toLowerCase().includes(qClean))) {
-          score += 60;
+        if (score > 0) {
+          mappingCandidates.push({
+            id: "mapping_root_" + m.id,
+            title: title,
+            subtitle: subtitle,
+            icon: Icons.globe,
+            type: "mapping_redirect",
+            mappingData: m,
+            aliases: [m.keyword, `${m.keyword} ${m.label}`],
+            score: score
+          });
         }
+      });
+
+      if (mappingCandidates.length > 0) {
+        mappingCandidates.sort((a, b) => b.score - a.score);
+        results = mappingCandidates;
       } else {
-        score += 1;
+        // B. Active Tabs Search
+        const tabsList = await new Promise(res => chrome.runtime.sendMessage({ action: "get_tabs" }, res));
+        if (requestId !== currentSearchRequestId || currentCommandMode !== startedInMode) return;
+
+        let tabCandidates = [];
+        if (tabsList && Array.isArray(tabsList)) {
+          tabsList.forEach(t => {
+            const title = t.title || "Tab";
+            const url = t.url || "";
+            const titleLower = title.toLowerCase();
+            const urlLower = url.toLowerCase();
+            let score = 0;
+            if (titleLower === qClean) score += 100;
+            else if (titleLower.startsWith(qClean)) score += 80;
+            else if (titleLower.includes(qClean)) score += 50;
+            else if (urlLower.includes(qClean)) score += 20;
+
+            if (score > 0) {
+              tabCandidates.push({
+                id: "tab_" + t.id,
+                title: title,
+                subtitle: `Active Tab • ${url}`,
+                icon: Icons.globe,
+                type: "tab",
+                tabData: t,
+                score: score
+              });
+            }
+          });
+        }
+
+        if (tabCandidates.length > 0) {
+          tabCandidates.sort((a, b) => b.score - a.score);
+          results = tabCandidates;
+        } else {
+          // C. Bookmarks Search
+          const bkList = await new Promise(res => chrome.runtime.sendMessage({ action: "get_bookmarks_tree" }, res));
+          if (requestId !== currentSearchRequestId || currentCommandMode !== startedInMode) return;
+
+          let bookmarkCandidates = [];
+          function traverseSearch(node) {
+            if (node.url) {
+              const title = node.title || node.url;
+              const url = node.url;
+              const titleLower = title.toLowerCase();
+              const urlLower = url.toLowerCase();
+              let score = 0;
+              if (titleLower === qClean) score += 100;
+              else if (titleLower.startsWith(qClean)) score += 80;
+              else if (titleLower.includes(qClean)) score += 50;
+              else if (urlLower.includes(qClean)) score += 20;
+
+              if (score > 0) {
+                bookmarkCandidates.push({
+                  id: "bm_" + node.id,
+                  title: title,
+                  subtitle: `Bookmark • ${url}`,
+                  icon: Icons.tag,
+                  type: "bookmark",
+                  bmData: node,
+                  score: score
+                });
+              }
+            }
+            if (node.children) node.children.forEach(traverseSearch);
+          }
+          if (bkList && bkList[0]) traverseSearch(bkList[0]);
+
+          if (bookmarkCandidates.length > 0) {
+            bookmarkCandidates.sort((a, b) => b.score - a.score);
+            results = bookmarkCandidates;
+          } else {
+            // D. History Search
+            const histList = await new Promise(res => chrome.runtime.sendMessage({ action: "search_history", query: query }, res));
+            if (requestId !== currentSearchRequestId || currentCommandMode !== startedInMode) return;
+
+            let historyCandidates = [];
+            if (histList && Array.isArray(histList)) {
+              histList.forEach(h => {
+                const title = h.title || h.url;
+                const url = h.url;
+                const titleLower = title.toLowerCase();
+                const urlLower = url.toLowerCase();
+                let score = 0;
+                if (titleLower === qClean) score += 100;
+                else if (titleLower.startsWith(qClean)) score += 80;
+                else if (titleLower.includes(qClean)) score += 50;
+                else if (urlLower.includes(qClean)) score += 20;
+
+                if (score > 0) {
+                  historyCandidates.push({
+                    id: h.id,
+                    title: title,
+                    subtitle: `History • ${url}`,
+                    icon: Icons.clock,
+                    type: "history",
+                    histData: h,
+                    score: score
+                  });
+                }
+              });
+            }
+
+            if (historyCandidates.length > 0) {
+              historyCandidates.sort((a, b) => b.score - a.score);
+              results = historyCandidates;
+            } else {
+              // E. Default Google Search Fallback
+              results = [{
+                id: "google_search_fallback",
+                title: `Search Google for "${query}"`,
+                subtitle: "Search web using Google",
+                icon: Icons.search,
+                type: "google_search",
+                searchQuery: query,
+                score: 1
+              }];
+            }
+          }
+        }
       }
 
-      // Command Stats boosting
-      const stats = commandStats[item.id];
-      if (stats) {
-        score += Math.min(20, stats.frequency * 2);
-      }
-
-      return { ...item, score };
-    });
-
-    if (qClean) {
-      scored = scored.filter(item => item.score > 0 || item.isPrefixMatch);
+      scored = results;
     }
-
-    // Sort: Pinned > Favorite > Score
-    scored.sort((a, b) => {
-      if (a.pinned && !b.pinned) return -1;
-      if (!a.pinned && b.pinned) return 1;
-      if (a.favorite && !b.favorite) return -1;
-      if (!a.favorite && b.favorite) return 1;
-      return b.score - a.score;
-    });
   }
 
   // Safety Check before Rendering
   if (requestId !== currentSearchRequestId || currentCommandMode !== startedInMode) return;
 
-  visibleItems = scored.slice(0, 30);
+  visibleItems = scored.slice(0, 5);
   renderResultsUI();
   updateAutocompleteShadow(query);
 }
@@ -2129,6 +2380,17 @@ async function executeMainAction(inNewTab = false) {
 
   if (item.type === "command" && typeof item.execute === "function") {
     item.execute();
+    return;
+  }
+
+  if (item.type === "google_search" && item.searchQuery) {
+    const url = `https://www.google.com/search?q=${encodeURIComponent(item.searchQuery)}#focus-palette=true`;
+    if (inNewTab) {
+      window.open(url, "_blank");
+    } else {
+      window.location.href = url;
+    }
+    closeCommandPalette();
     return;
   }
 

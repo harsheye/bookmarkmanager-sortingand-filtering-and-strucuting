@@ -13,7 +13,7 @@
     }
     body {
       margin: 0;
-      padding: 0;
+      padding: 30px;
       width: 100vw;
       height: 100vh;
       font-family: 'Outfit', -apple-system, sans-serif;
@@ -25,10 +25,10 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: space-between;
+      justify-content: center;
+      gap: 45px;
       overflow: hidden;
       box-sizing: border-box;
-      padding: 40px;
     }
     
     /* Background overlay */
@@ -110,21 +110,22 @@
 
     /* Center workspace spacer */
     .center-section {
-      flex-grow: 1;
       display: flex;
+      flex-direction: row;
       align-items: center;
       justify-content: center;
+      gap: 30px;
       width: 100%;
+      max-width: 1200px;
       position: relative;
     }
 
-    /* Bottom Section panels */
-    .bottom-section {
-      width: 100%;
+    #palette-placeholder {
+      width: 600px;
+      flex-shrink: 0;
       display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
-      z-index: 10;
+      align-items: center;
+      justify-content: center;
     }
 
     .glass-panel {
@@ -289,10 +290,7 @@
   </div>
 
   <div class="center-section">
-    <!-- Command Palette gets injected here -->
-  </div>
-
-  <div class="bottom-section">
+    <!-- Left panel: Quick Tools -->
     <div class="glass-panel">
       <div class="panel-header">🧰 Quick Tools</div>
       <div class="tool-btn" id="tool-image">
@@ -303,6 +301,10 @@
       </div>
     </div>
 
+    <!-- Center: Command Palette Placeholder -->
+    <div id="palette-placeholder"></div>
+
+    <!-- Right panel: Recent Notes -->
     <div class="glass-panel">
       <div class="panel-header">📝 Recent Notes</div>
       <div class="notes-list" id="notes-list"></div>

@@ -121,12 +121,7 @@ async function loadNotes() {
     item.textContent = note.title || "(Untitled)";
     item.addEventListener("click", () => {
       if (typeof enterCommandMode === "function") {
-        enterCommandMode("note_tools");
-        commandModeParams.selectedNote = note.id;
-        commandModeParams.step = "view_content";
-        if (typeof renderSearchResults === "function") {
-          renderSearchResults("");
-        }
+        enterCommandMode("note_tools", { selectedNote: note.id, step: "view_content" });
       }
     });
     list.appendChild(item);
