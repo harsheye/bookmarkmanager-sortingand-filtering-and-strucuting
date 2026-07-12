@@ -8242,11 +8242,25 @@ class CookieProfileManager {
       if (this.activeProfileIdx > -1) {
         this.profiles[this.activeProfileIdx].cookies = extracted;
       }
+    } else if (this.currentViewMode === 'raw' && viewName !== 'raw') {
+      try {
+        const parsed = JSON.parse(this.rawEditor.value);
+        if (this.activeProfileIdx > -1) {
+          this.profiles[this.activeProfileIdx] = parsed;
+        }
+      } catch (e) {
+        alert("Cannot switch view: Profile JSON is invalid.\n\n" + e.message);
+        return;
+      }
     }
     
     // Re-seed JSON if switching TO json
     if (viewName === 'json' && this.activeProfileIdx > -1) {
        this.jsonEditor.value = JSON.stringify(this.profiles[this.activeProfileIdx].cookies, null, 2);
+    }
+    // Re-seed Raw if switching TO raw (Storage)
+    if (viewName === 'raw' && this.activeProfileIdx > -1) {
+       this.rawEditor.value = JSON.stringify(this.profiles[this.activeProfileIdx], null, 2);
     }
 
     this.currentViewMode = viewName;
@@ -8531,17 +8545,67 @@ class CookieProfileManager {
       }
     } else if (this.currentViewMode === 'table') {
       this.profiles[this.activeProfileIdx].cookies = this.extractTableData();
+    } else if (this.currentViewMode === 'raw') {
+      try {
+        const parsed = JSON.parse(this.rawEditor.value);
+        if (!parsed.profileName || !parsed.hostname) throw new Error("Profile must have a profileName and hostname.");
+        this.profiles[this.activeProfileIdx] = parsed;
+      } catch (e) {
+        alert("Invalid Profile JSON: " + e.message);
+        return;
+      }
     }
 
+    const profile = this.profiles[this.activeProfileIdx];
+
     // Save to storage
-    chrome.storage.local.set({ cookie_profiles: this.profiles }, () => {
+    chrome.storage.local.set({ cookie_profiles: this.profiles }, async () => {
       this.updateStats();
+      this.renderSidebar();
+
+      // Write/apply the cookies to the browser's actual active cookie storage!
+      let successCount = 0;
+      let failCount = 0;
+      
+      const cookiesList = profile.cookies || [];
+      for (const c of cookiesList) {
+        if (!c.name || !profile.hostname) continue;
+        
+        const details = {
+          name: c.name,
+          value: c.value || "",
+          domain: c.domain || profile.hostname,
+          path: c.path || "/",
+          secure: !!c.secure,
+          httpOnly: !!c.httpOnly
+        };
+        
+        if (c.expirationDate !== undefined) {
+          details.expirationDate = c.expirationDate;
+        }
+        if (c.sameSite !== undefined) {
+          details.sameSite = c.sameSite;
+        }
+        if (c.storeId !== undefined) {
+          details.storeId = c.storeId;
+        }
+        
+        const res = await new Promise(resolve => {
+          chrome.runtime.sendMessage({ action: "set_cookie", cookie: details }, resolve);
+        });
+        
+        if (res && res.success) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      }
+
       if (window.showToast) {
-        window.showToast("Profile saved successfully", "success");
+        window.showToast(`Saved profile & applied ${successCount} cookies to browser!`, "success");
       } else {
         alert("Profile saved successfully");
       }
-      this.renderSidebar();
     });
   }
 
