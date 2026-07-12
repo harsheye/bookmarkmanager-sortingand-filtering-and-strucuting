@@ -193,23 +193,45 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // --- COOKIE PROFILES API ---
   if (message.action === "get_cookies") {
-    const targetUrl = message.url || ("https://" + message.domain);
-    chrome.cookies.getAll({ url: targetUrl }, (cookies) => {
+    const filter = {};
+    if (message.url) {
+      filter.url = message.url;
+    } else if (message.domain) {
+      let domainClean = message.domain;
+      if (domainClean.startsWith('.')) {
+        domainClean = domainClean.substring(1);
+      }
+      filter.domain = domainClean;
+    }
+    chrome.cookies.getAll(filter, (cookies) => {
       sendResponse({ cookies });
     });
     return true;
   }
 
   if (message.action === "clear_cookies") {
-    const targetUrl = message.url || ("https://" + message.domain);
-    chrome.cookies.getAll({ url: targetUrl }, (cookies) => {
+    const filter = {};
+    if (message.url) {
+      filter.url = message.url;
+    } else if (message.domain) {
+      let domainClean = message.domain;
+      if (domainClean.startsWith('.')) {
+        domainClean = domainClean.substring(1);
+      }
+      filter.domain = domainClean;
+    }
+    chrome.cookies.getAll(filter, (cookies) => {
       let pending = cookies.length;
       if (pending === 0) {
         sendResponse({ success: true });
         return;
       }
       cookies.forEach(cookie => {
-        const url = "http" + (cookie.secure ? "s" : "") + "://" + cookie.domain + cookie.path;
+        let domainClean = cookie.domain || "";
+        if (domainClean.startsWith('.')) {
+          domainClean = domainClean.substring(1);
+        }
+        const url = "http" + (cookie.secure ? "s" : "") + "://" + domainClean + (cookie.path || "/");
         chrome.cookies.remove({ url: url, name: cookie.name }, () => {
           pending--;
           if (pending === 0) sendResponse({ success: true });
@@ -221,22 +243,38 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.action === "set_cookie") {
     const cookie = message.cookie;
-    let url = "http" + (cookie.secure ? "s" : "") + "://" + (cookie.domain?.startsWith('.') ? cookie.domain.slice(1) : cookie.domain) + cookie.path;
-    if (url.includes('undefined')) url = "https://" + message.domain + "/";
+    let domainClean = cookie.domain || "";
+    if (domainClean.startsWith('.')) {
+      domainClean = domainClean.substring(1);
+    }
+    const pathClean = cookie.path || "/";
+    const url = "http" + (cookie.secure ? "s" : "") + "://" + domainClean + pathClean;
+    
     const newCookie = {
       url: url,
-      name: cookie.name,
-      value: cookie.value,
-      domain: cookie.domain,
-      path: cookie.path,
-      secure: cookie.secure,
-      httpOnly: cookie.httpOnly,
-      sameSite: cookie.sameSite,
-      expirationDate: cookie.expirationDate
+      name: cookie.name || "",
+      value: cookie.value || "",
+      path: pathClean,
+      secure: !!cookie.secure,
+      httpOnly: !!cookie.httpOnly
     };
+
+    if (cookie.domain) {
+      newCookie.domain = cookie.domain;
+    }
+    if (cookie.expirationDate !== undefined) {
+      newCookie.expirationDate = cookie.expirationDate;
+    }
+    if (cookie.sameSite !== undefined) {
+      newCookie.sameSite = cookie.sameSite;
+    }
+    if (cookie.storeId !== undefined) {
+      newCookie.storeId = cookie.storeId;
+    }
+
     chrome.cookies.set(newCookie, (result) => {
       if (chrome.runtime.lastError) {
-        sendResponse({ success: false, error: chrome.runtime.lastError });
+        sendResponse({ success: false, error: chrome.runtime.lastError.message || chrome.runtime.lastError });
       } else {
         sendResponse({ success: true, result });
       }

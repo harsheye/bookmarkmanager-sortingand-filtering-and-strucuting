@@ -7528,6 +7528,12 @@ const BookmarkManager = {
             <span>Export Cookies</span>
           </div>
         </button>
+        <button class="menu-item" id="floating-btn-import-cookies" type="button">
+          <div class="menu-item-left">
+            <i class="fi fi-rr-upload" style="color: #60a5fa;"></i>
+            <span>Import Cookies</span>
+          </div>
+        </button>
         <button class="menu-item" id="floating-btn-clear-cookies" type="button">
           <div class="menu-item-left">
             <i class="fi fi-rr-trash" style="color: #f87171;"></i>
@@ -7642,6 +7648,10 @@ const BookmarkManager = {
     document.getElementById('floating-btn-export-cookies')?.addEventListener('click', () => {
       this.closeFloatingMenu();
       this.exportCookies();
+    });
+    document.getElementById('floating-btn-import-cookies')?.addEventListener('click', () => {
+      this.closeFloatingMenu();
+      this.importCookies();
     });
     document.getElementById('floating-btn-clear-cookies')?.addEventListener('click', () => {
       this.closeFloatingMenu();
@@ -7785,6 +7795,66 @@ const BookmarkManager = {
         });
       }
     });
+  },
+
+  importCookies() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const cookies = JSON.parse(event.target.result);
+          const cookiesList = Array.isArray(cookies) ? cookies : [cookies];
+          
+          let successCount = 0;
+          let failCount = 0;
+          
+          for (const c of cookiesList) {
+            if (!c.name || !c.domain) continue;
+            
+            const details = {
+              name: c.name,
+              value: c.value || "",
+              domain: c.domain,
+              path: c.path || "/",
+              secure: !!c.secure,
+              httpOnly: !!c.httpOnly
+            };
+            
+            if (c.expirationDate !== undefined) {
+              details.expirationDate = c.expirationDate;
+            }
+            if (c.sameSite !== undefined) {
+              details.sameSite = c.sameSite;
+            }
+            if (c.storeId !== undefined) {
+              details.storeId = c.storeId;
+            }
+            
+            const res = await new Promise(resolve => {
+              chrome.runtime.sendMessage({ action: "set_cookie", cookie: details }, resolve);
+            });
+            
+            if (res && res.success) {
+              successCount++;
+            } else {
+              failCount++;
+            }
+          }
+          
+          showToast(`Imported ${successCount} cookies successfully!${failCount > 0 ? ` (${failCount} failed)` : ''}`, 'success');
+          this.loadCookies();
+        } catch(err) {
+          showToast('Failed to parse JSON file.', 'error');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
   },
 
   exportCookies() {
