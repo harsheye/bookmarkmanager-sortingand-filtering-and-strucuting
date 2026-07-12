@@ -3758,8 +3758,8 @@ const BookmarkManager = {
       }
       this.clearHistorySelection();
     } else if (viewName === 'cookies') {
-      // Hide the entire manager-view (sidebar + explorer) so cookies can fill the viewport
-      if (managerViewEl) managerViewEl.classList.add('hidden');
+      if (managerViewEl) managerViewEl.classList.remove('hidden');
+      if (tableEl) tableEl.classList.add('hidden');
       if (settingsEl) settingsEl.classList.add('hidden');
       if (notesEl) notesEl.classList.add('hidden');
       if (this.historyViewContainer) this.historyViewContainer.classList.add('hidden');
@@ -8003,9 +8003,13 @@ class CookieProfileManager {
     
     // Bind buttons
     document.getElementById('cookies-new-btn')?.addEventListener('click', () => this.createNewProfile());
+    document.getElementById('cookies-import-btn')?.addEventListener('click', () => this.importProfiles());
+    document.getElementById('cookies-export-all-btn')?.addEventListener('click', () => this.exportAllProfiles());
     document.getElementById('cookie-save-btn')?.addEventListener('click', () => this.saveActiveProfile());
     document.getElementById('cookie-delete-btn')?.addEventListener('click', () => this.deleteActiveProfile());
-    document.getElementById('cookie-refresh-btn')?.addEventListener('click', () => this.loadProfiles());
+    document.getElementById('cookie-duplicate-btn')?.addEventListener('click', () => this.duplicateActiveProfile());
+    document.getElementById('cookie-export-btn')?.addEventListener('click', () => this.exportActiveProfile());
+    document.getElementById('cookie-refresh-btn')?.addEventListener('click', () => this.syncActiveProfileWithBrowser());
     document.getElementById('close-inspector-btn')?.addEventListener('click', () => this.closeInspector());
     document.getElementById('cookie-add-row-btn')?.addEventListener('click', () => this.addEmptyCookie());
     document.getElementById('insp-apply-btn')?.addEventListener('click', () => this.applyInspectorChanges());
@@ -8526,15 +8530,14 @@ class CookieProfileManager {
         return;
       }
     } else if (this.currentViewMode === 'table') {
-      // In a real robust implementation, we'd extract rows. Here we just rely on Inspector Apply edits 
-      // or we sync the subset of editable fields.
+      this.profiles[this.activeProfileIdx].cookies = this.extractTableData();
     }
 
     // Save to storage
     chrome.storage.local.set({ cookie_profiles: this.profiles }, () => {
       this.updateStats();
       if (window.showToast) {
-        window.showToast("Profile saved successfully");
+        window.showToast("Profile saved successfully", "success");
       } else {
         alert("Profile saved successfully");
       }
@@ -8557,20 +8560,27 @@ class CookieProfileManager {
     }
   }
 
-  createNewProfile() {
+  async createNewProfile() {
     const profileName = prompt("Enter a name for the new profile:");
     if (!profileName) return;
     
-    const hostname = prompt("Enter the hostname (e.g., example.com):");
+    let hostname = prompt("Enter the hostname (e.g., example.com):");
+    if (!hostname) hostname = "unknown.domain";
+
+    // Harvest live cookies from browser
+    const res = await new Promise(resolve => {
+      chrome.runtime.sendMessage({ action: "get_cookies", domain: hostname }, resolve);
+    });
+    const liveCookies = (res && res.cookies) ? res.cookies : [];
 
     const newProfile = {
       id: "profile_" + Date.now(),
-      hostname: hostname || "unknown.domain",
-      url: hostname ? ("https://" + hostname) : "",
+      hostname: hostname,
+      url: "https://" + hostname,
       title: profileName,
       profileName: profileName,
       createdAt: Date.now(),
-      cookies: []
+      cookies: liveCookies
     };
 
     this.profiles.push(newProfile);
@@ -8578,7 +8588,125 @@ class CookieProfileManager {
       this.loadProfiles();
       this.expandedDomains.add(newProfile.hostname);
       this.selectProfile(this.profiles.length - 1);
+      if (window.showToast) {
+        window.showToast(`Harvested ${liveCookies.length} active cookies for ${hostname}!`, 'success');
+      }
     });
+  }
+
+  async syncActiveProfileWithBrowser() {
+    if (this.activeProfileIdx === -1) return;
+    const profile = this.profiles[this.activeProfileIdx];
+    const hostname = profile.hostname;
+    if (!hostname) {
+      if (window.showToast) window.showToast('Cannot sync: profile hostname is empty.', 'error');
+      return;
+    }
+    
+    const res = await new Promise(resolve => {
+      chrome.runtime.sendMessage({ action: "get_cookies", domain: hostname }, resolve);
+    });
+    const liveCookies = (res && res.cookies) ? res.cookies : [];
+    
+    profile.cookies = liveCookies;
+    this.profiles[this.activeProfileIdx] = profile;
+    
+    chrome.storage.local.set({ cookie_profiles: this.profiles }, () => {
+      this.selectProfile(this.activeProfileIdx);
+      if (window.showToast) {
+        window.showToast(`Synced profile with ${liveCookies.length} live browser cookies!`, 'success');
+      }
+    });
+  }
+
+  duplicateActiveProfile() {
+    if (this.activeProfileIdx === -1) return;
+    const original = this.profiles[this.activeProfileIdx];
+    const duplicate = {
+      ...original,
+      id: "profile_" + Date.now(),
+      profileName: original.profileName + " (Copy)",
+      createdAt: Date.now(),
+      cookies: JSON.parse(JSON.stringify(original.cookies || []))
+    };
+    
+    this.profiles.push(duplicate);
+    chrome.storage.local.set({ cookie_profiles: this.profiles }, () => {
+      this.loadProfiles();
+      this.selectProfile(this.profiles.length - 1);
+      if (window.showToast) window.showToast('Profile duplicated successfully!', 'success');
+    });
+  }
+
+  exportActiveProfile() {
+    if (this.activeProfileIdx === -1) return;
+    const profile = this.profiles[this.activeProfileIdx];
+    const jsonStr = JSON.stringify(profile, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${profile.profileName.replace(/\s+/g, '_')}_cookies_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    if (window.showToast) window.showToast('Profile exported successfully!', 'success');
+  }
+
+  importProfiles() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const data = JSON.parse(event.target.result);
+          const imported = Array.isArray(data) ? data : [data];
+          
+          let addedCount = 0;
+          imported.forEach(p => {
+            if (!p.profileName || !p.hostname) return;
+            const newProfile = {
+              id: p.id || ("profile_" + Date.now() + Math.random().toString(36).substring(2, 5)),
+              hostname: p.hostname,
+              url: p.url || ("https://" + p.hostname),
+              profileName: p.profileName,
+              createdAt: p.createdAt || Date.now(),
+              cookies: p.cookies || []
+            };
+            this.profiles.push(newProfile);
+            addedCount++;
+          });
+          
+          chrome.storage.local.set({ cookie_profiles: this.profiles }, () => {
+            this.loadProfiles();
+            if (window.showToast) window.showToast(`Imported ${addedCount} cookie profiles successfully!`, 'success');
+          });
+        } catch(err) {
+          if (window.showToast) window.showToast('Failed to parse JSON file.', 'error');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  }
+
+  exportAllProfiles() {
+    if (this.profiles.length === 0) {
+      if (window.showToast) window.showToast('No profiles to export!', 'error');
+      return;
+    }
+    const jsonStr = JSON.stringify(this.profiles, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cookie_profiles_export_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    if (window.showToast) window.showToast('All profiles exported successfully!', 'success');
   }
 
   escapeHtml(unsafe) {
