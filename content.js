@@ -690,7 +690,9 @@ function createCommandPalette() {
       z-index: 2147483647;
       display: flex;
       justify-content: center;
-      align-items: center;
+      align-items: flex-start;
+      padding-top: 15vh;
+      box-sizing: border-box;
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.16s ease-out;
@@ -713,6 +715,7 @@ function createCommandPalette() {
       opacity: 1 !important;
       pointer-events: auto !important;
       display: flex;
+      align-items: flex-start;
     }
     .cc-backdrop.cc-embedded .cc-modal {
       transform: scale(1) !important;
@@ -1269,6 +1272,27 @@ const Icons = {
   crop: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"></path><path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"></path></svg>`
 };
 
+function matchCommandAlias(query) {
+  const clean = query.trim().toLowerCase();
+  const firstSpace = clean.indexOf(" ");
+  
+  let firstWord = firstSpace === -1 ? clean : clean.substring(0, firstSpace);
+  if (firstWord.startsWith("/")) {
+    firstWord = firstWord.substring(1);
+  }
+  
+  if (!firstWord) return null;
+  
+  for (const cmd of CommandRegistry.getAll()) {
+    const aliases = cmd.aliases || [];
+    if (cmd.id.toLowerCase() === firstWord || aliases.some(a => a.toLowerCase() === firstWord)) {
+      const arg = firstSpace === -1 ? "" : query.substring(firstSpace + 1).trim();
+      return { command: cmd, arg: arg };
+    }
+  }
+  return null;
+}
+
 async function renderSearchResults(query) {
   const requestId = ++currentSearchRequestId;
   const startedInMode = currentCommandMode;
@@ -1355,95 +1379,94 @@ async function renderSearchResults(query) {
     } else {
       let results = [];
 
-      // A. Mappings Search
-      let mappingsObj = await DB.get("settings", "account_mappings");
-      let mappings = mappingsObj ? mappingsObj.value : [];
-      if (mappings.length === 0) {
-        mappings = [
-          { id: "gmail_personal", keyword: "gmail", label: "personal", url: "https://mail.google.com/mail/u/0/" },
-          { id: "gmail_work", keyword: "gmail", label: "work", url: "https://mail.google.com/mail/u/1/" },
-          { id: "gmail_0", keyword: "gmail", label: "0", url: "https://mail.google.com/mail/u/0/" },
-          { id: "gmail_1", keyword: "gmail", label: "1", url: "https://mail.google.com/mail/u/1/" }
-        ];
-        await DB.put("settings", { key: "account_mappings", value: mappings });
-      }
-
-      let mappingCandidates = [];
-      mappings.forEach(m => {
-        const title = `${m.keyword} (${m.label})`;
-        const subtitle = `Redirect to: ${m.url}`;
-        const titleLower = title.toLowerCase();
-        const subLower = subtitle.toLowerCase();
-        const kwLower = m.keyword.toLowerCase();
-        let score = 0;
-        if (titleLower === qClean) score += 100;
-        else if (titleLower.startsWith(qClean)) score += 80;
-        else if (titleLower.includes(qClean)) score += 50;
-        else if (subLower.includes(qClean)) score += 20;
-        else if (kwLower.includes(qClean)) score += 60;
-
-        if (score > 0) {
-          mappingCandidates.push({
-            id: "mapping_root_" + m.id,
-            title: title,
-            subtitle: subtitle,
-            icon: Icons.globe,
-            type: "mapping_redirect",
-            mappingData: m,
-            aliases: [m.keyword, `${m.keyword} ${m.label}`],
-            score: score
-          });
+      const cmdMatch = matchCommandAlias(query);
+      if (cmdMatch) {
+        const cmd = cmdMatch.command;
+        const arg = cmdMatch.arg;
+        
+        let title = `Run command: ${cmd.name}`;
+        if (arg) {
+          title = `Search ${cmd.name.replace("Search ", "")} for "${arg}"`;
         }
-      });
+        
+        results.push({
+          id: "cmd_run_" + cmd.id,
+          title: title,
+          subtitle: cmd.description,
+          icon: cmd.icon || Icons.globe,
+          type: "command",
+          execute: () => {
+            activeQuery = query;
+            cmd.execute();
+          },
+          score: 1000
+        });
 
-      if (mappingCandidates.length > 0) {
-        mappingCandidates.sort((a, b) => b.score - a.score);
-        results = mappingCandidates;
+        // Add Google search fallback as secondary option
+        results.push({
+          id: "google_search_fallback",
+          title: `Search Google for "${query}"`,
+          subtitle: "Search web using Google",
+          icon: Icons.search,
+          type: "google_search",
+          searchQuery: query,
+          score: 1
+        });
       } else {
-        // B. Active Tabs Search
-        const tabsList = await new Promise(res => chrome.runtime.sendMessage({ action: "get_tabs" }, res));
-        if (requestId !== currentSearchRequestId || currentCommandMode !== startedInMode) return;
-
-        let tabCandidates = [];
-        if (tabsList && Array.isArray(tabsList)) {
-          tabsList.forEach(t => {
-            const title = t.title || "Tab";
-            const url = t.url || "";
-            const titleLower = title.toLowerCase();
-            const urlLower = url.toLowerCase();
-            let score = 0;
-            if (titleLower === qClean) score += 100;
-            else if (titleLower.startsWith(qClean)) score += 80;
-            else if (titleLower.includes(qClean)) score += 50;
-            else if (urlLower.includes(qClean)) score += 20;
-
-            if (score > 0) {
-              tabCandidates.push({
-                id: "tab_" + t.id,
-                title: title,
-                subtitle: `Active Tab • ${url}`,
-                icon: Icons.globe,
-                type: "tab",
-                tabData: t,
-                score: score
-              });
-            }
-          });
+        // A. Mappings Search
+        let mappingsObj = await DB.get("settings", "account_mappings");
+        let mappings = mappingsObj ? mappingsObj.value : [];
+        if (mappings.length === 0) {
+          mappings = [
+            { id: "gmail_personal", keyword: "gmail", label: "personal", url: "https://mail.google.com/mail/u/0/" },
+            { id: "gmail_work", keyword: "gmail", label: "work", url: "https://mail.google.com/mail/u/1/" },
+            { id: "gmail_0", keyword: "gmail", label: "0", url: "https://mail.google.com/mail/u/0/" },
+            { id: "gmail_1", keyword: "gmail", label: "1", url: "https://mail.google.com/mail/u/1/" }
+          ];
+          await DB.put("settings", { key: "account_mappings", value: mappings });
         }
 
-        if (tabCandidates.length > 0) {
-          tabCandidates.sort((a, b) => b.score - a.score);
-          results = tabCandidates;
+        let mappingCandidates = [];
+        mappings.forEach(m => {
+          const title = `${m.keyword} (${m.label})`;
+          const subtitle = `Redirect to: ${m.url}`;
+          const titleLower = title.toLowerCase();
+          const subLower = subtitle.toLowerCase();
+          const kwLower = m.keyword.toLowerCase();
+          let score = 0;
+          if (titleLower === qClean) score += 100;
+          else if (titleLower.startsWith(qClean)) score += 80;
+          else if (titleLower.includes(qClean)) score += 50;
+          else if (subLower.includes(qClean)) score += 20;
+          else if (kwLower.includes(qClean)) score += 60;
+
+          if (score > 0) {
+            mappingCandidates.push({
+              id: "mapping_root_" + m.id,
+              title: title,
+              subtitle: subtitle,
+              icon: Icons.globe,
+              type: "mapping_redirect",
+              mappingData: m,
+              aliases: [m.keyword, `${m.keyword} ${m.label}`],
+              score: score
+            });
+          }
+        });
+
+        if (mappingCandidates.length > 0) {
+          mappingCandidates.sort((a, b) => b.score - a.score);
+          results = mappingCandidates;
         } else {
-          // C. Bookmarks Search
-          const bkList = await new Promise(res => chrome.runtime.sendMessage({ action: "get_bookmarks_tree" }, res));
+          // B. Active Tabs Search
+          const tabsList = await new Promise(res => chrome.runtime.sendMessage({ action: "get_tabs" }, res));
           if (requestId !== currentSearchRequestId || currentCommandMode !== startedInMode) return;
 
-          let bookmarkCandidates = [];
-          function traverseSearch(node) {
-            if (node.url) {
-              const title = node.title || node.url;
-              const url = node.url;
+          let tabCandidates = [];
+          if (tabsList && Array.isArray(tabsList)) {
+            tabsList.forEach(t => {
+              const title = t.title || "Tab";
+              const url = t.url || "";
               const titleLower = title.toLowerCase();
               const urlLower = url.toLowerCase();
               let score = 0;
@@ -1453,34 +1476,32 @@ async function renderSearchResults(query) {
               else if (urlLower.includes(qClean)) score += 20;
 
               if (score > 0) {
-                bookmarkCandidates.push({
-                  id: "bm_" + node.id,
+                tabCandidates.push({
+                  id: "tab_" + t.id,
                   title: title,
-                  subtitle: `Bookmark • ${url}`,
-                  icon: Icons.tag,
-                  type: "bookmark",
-                  bmData: node,
+                  subtitle: `Active Tab • ${url}`,
+                  icon: Icons.globe,
+                  type: "tab",
+                  tabData: t,
                   score: score
                 });
               }
-            }
-            if (node.children) node.children.forEach(traverseSearch);
+            });
           }
-          if (bkList && bkList[0]) traverseSearch(bkList[0]);
 
-          if (bookmarkCandidates.length > 0) {
-            bookmarkCandidates.sort((a, b) => b.score - a.score);
-            results = bookmarkCandidates;
+          if (tabCandidates.length > 0) {
+            tabCandidates.sort((a, b) => b.score - a.score);
+            results = tabCandidates;
           } else {
-            // D. History Search
-            const histList = await new Promise(res => chrome.runtime.sendMessage({ action: "search_history", query: query }, res));
+            // C. Bookmarks Search
+            const bkList = await new Promise(res => chrome.runtime.sendMessage({ action: "get_bookmarks_tree" }, res));
             if (requestId !== currentSearchRequestId || currentCommandMode !== startedInMode) return;
 
-            let historyCandidates = [];
-            if (histList && Array.isArray(histList)) {
-              histList.forEach(h => {
-                const title = h.title || h.url;
-                const url = h.url;
+            let bookmarkCandidates = [];
+            function traverseSearch(node) {
+              if (node.url) {
+                const title = node.title || node.url;
+                const url = node.url;
                 const titleLower = title.toLowerCase();
                 const urlLower = url.toLowerCase();
                 let score = 0;
@@ -1490,33 +1511,71 @@ async function renderSearchResults(query) {
                 else if (urlLower.includes(qClean)) score += 20;
 
                 if (score > 0) {
-                  historyCandidates.push({
-                    id: h.id,
+                  bookmarkCandidates.push({
+                    id: "bm_" + node.id,
                     title: title,
-                    subtitle: `History • ${url}`,
-                    icon: Icons.clock,
-                    type: "history",
-                    histData: h,
+                    subtitle: `Bookmark • ${url}`,
+                    icon: Icons.tag,
+                    type: "bookmark",
+                    bmData: node,
                     score: score
                   });
                 }
-              });
+              }
+              if (node.children) node.children.forEach(traverseSearch);
             }
+            if (bkList && bkList[0]) traverseSearch(bkList[0]);
 
-            if (historyCandidates.length > 0) {
-              historyCandidates.sort((a, b) => b.score - a.score);
-              results = historyCandidates;
+            if (bookmarkCandidates.length > 0) {
+              bookmarkCandidates.sort((a, b) => b.score - a.score);
+              results = bookmarkCandidates;
             } else {
-              // E. Default Google Search Fallback
-              results = [{
-                id: "google_search_fallback",
-                title: `Search Google for "${query}"`,
-                subtitle: "Search web using Google",
-                icon: Icons.search,
-                type: "google_search",
-                searchQuery: query,
-                score: 1
-              }];
+              // D. History Search
+              const histList = await new Promise(res => chrome.runtime.sendMessage({ action: "search_history", query: query }, res));
+              if (requestId !== currentSearchRequestId || currentCommandMode !== startedInMode) return;
+
+              let historyCandidates = [];
+              if (histList && Array.isArray(histList)) {
+                histList.forEach(h => {
+                  const title = h.title || h.url;
+                  const url = h.url;
+                  const titleLower = title.toLowerCase();
+                  const urlLower = url.toLowerCase();
+                  let score = 0;
+                  if (titleLower === qClean) score += 100;
+                  else if (titleLower.startsWith(qClean)) score += 80;
+                  else if (titleLower.includes(qClean)) score += 50;
+                  else if (urlLower.includes(qClean)) score += 20;
+
+                  if (score > 0) {
+                    historyCandidates.push({
+                      id: h.id,
+                      title: title,
+                      subtitle: `History • ${url}`,
+                      icon: Icons.clock,
+                      type: "history",
+                      histData: h,
+                      score: score
+                    });
+                  }
+                });
+              }
+
+              if (historyCandidates.length > 0) {
+                historyCandidates.sort((a, b) => b.score - a.score);
+                results = historyCandidates;
+              } else {
+                // E. Default Google Search Fallback
+                results = [{
+                  id: "google_search_fallback",
+                  title: `Search Google for "${query}"`,
+                  subtitle: "Search web using Google",
+                  icon: Icons.search,
+                  type: "google_search",
+                  searchQuery: query,
+                  score: 1
+                }];
+              }
             }
           }
         }
