@@ -25,10 +25,10 @@ function toggleCenterInTab(tabId) {
     if (chrome.runtime.lastError || !tab) return;
     const url = tab.url || "";
 
-    // If it's our own extension dashboard page, message directly (since scripts are loaded statically)
-    if (url.startsWith("chrome-extension://") && url.includes("dashboard.html")) {
+    // If it's our own extension pages (newtab, dashboard, pdf, image), message directly since content.js is loaded statically
+    if (url.startsWith(chrome.runtime.getURL(""))) {
       chrome.tabs.sendMessage(tabId, { action: "toggle_command_center" }).catch(err => {
-        console.warn("Failed to toggle inside dashboard:", err);
+        console.warn("Failed to toggle inside extension page:", err);
       });
       return;
     }

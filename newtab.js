@@ -21,7 +21,7 @@ async function loadBackground() {
   if (customBg && customBg.value) {
     document.body.style.backgroundImage = `url(${customBg.value})`;
   } else {
-    document.body.style.backgroundImage = "url(newtab_bg.png)";
+    document.body.style.backgroundImage = "";
   }
 }
 loadBackground();
@@ -181,6 +181,11 @@ window.addEventListener("DOMContentLoaded", () => {
               e.stopPropagation();
             }
           });
+          // Focus input repeatedly to grab focus from browser address bar
+          setTimeout(() => input.focus(), 50);
+          setTimeout(() => input.focus(), 150);
+          setTimeout(() => input.focus(), 300);
+          setTimeout(() => input.focus(), 500);
         }
       }
     }

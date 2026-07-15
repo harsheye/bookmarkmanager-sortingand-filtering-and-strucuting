@@ -181,6 +181,24 @@ function setupEventListeners() {
     goToStep(1);
   });
 
+  // Scan next button inside step 2
+  const scanNextBtn = document.getElementById('scan-next-btn');
+  if (scanNextBtn) {
+    scanNextBtn.addEventListener('click', () => {
+      renderPreview();
+      goToStep(3);
+    });
+  }
+
+  // Wizard cancel button inside step 1
+  const wizardCancelBtn = document.getElementById('wizard-cancel-btn-1');
+  if (wizardCancelBtn) {
+    wizardCancelBtn.addEventListener('click', () => {
+      const toggleManagerBtn = document.getElementById('toggle-manager-btn');
+      if (toggleManagerBtn) toggleManagerBtn.click();
+    });
+  }
+
   // Finish button (Go to bookmark manager)
   finishBtn.addEventListener('click', () => {
     chrome.tabs.create({ url: 'chrome://bookmarks/' });
@@ -268,6 +286,9 @@ function addLog(text, type = '') {
 // 4. STEP 2: Scanning & Processing Logic
 function startScanAndSort() {
   goToStep(2);
+  const nextAction = document.getElementById("scan-next-action");
+  if (nextAction) nextAction.style.display = "none";
+  
   scanProgress = 0;
   updateScanProgress(0);
   scanLog.innerHTML = '';
@@ -517,8 +538,17 @@ function runClassification() {
     if (finalPct >= 100) {
       clearInterval(interval);
       setTimeout(() => {
-        renderPreview();
-        goToStep(3);
+        if (scanningTitle) scanningTitle.textContent = "Scan Completed!";
+        if (scanningSub) scanningSub.textContent = "All bookmarks analyzed. Click continue to preview folders.";
+        
+        const nextAction = document.getElementById("scan-next-action");
+        if (nextAction) {
+          nextAction.style.display = "block";
+        } else {
+          // fallback if element doesn't exist
+          renderPreview();
+          goToStep(3);
+        }
       }, 500);
     }
   }, 30);

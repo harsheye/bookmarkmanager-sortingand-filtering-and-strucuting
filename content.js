@@ -526,6 +526,8 @@ function openCommandPalette() {
   ccSearchInput.focus();
   requestAnimationFrame(() => ccSearchInput.focus());
   setTimeout(() => ccSearchInput.focus(), 50);
+  setTimeout(() => ccSearchInput.focus(), 150);
+  setTimeout(() => ccSearchInput.focus(), 350);
 
   // Sync recent clipboard clips
   DB.getClipboardHistory(10).then(clips => {
@@ -586,6 +588,14 @@ function enterCommandMode(modeId, initialParams = {}) {
     ccSearchInput.style.color = "#ffffff";
     ccSearchInput.placeholder = metadata.placeholder;
     activeQuery = "";
+
+    // Set search icon based on command mode
+    let iconType = "search";
+    if (modeId === "bookmark_tools") iconType = "bookmark";
+    else if (modeId === "history_tools") iconType = "history";
+    else if (modeId === "tab_tools") iconType = "tab";
+    else if (modeId === "mappings_tools") iconType = "mapping";
+    updateSearchIcon(iconType);
   }
   
   // Clear autocomplete suggestion
@@ -609,6 +619,8 @@ function exitCommandMode(refresh = true) {
     ccSearchInput.value = "";
     ccSearchInput.style.color = "#ffffff";
   }
+
+  updateSearchIcon("search");
 
   // Clear autocomplete suggestion
   activeSuggestion = "";
@@ -716,6 +728,7 @@ function createCommandPalette() {
       pointer-events: auto !important;
       display: flex;
       align-items: flex-start;
+      padding-top: 0;
     }
     .cc-backdrop.cc-embedded .cc-modal {
       transform: scale(1) !important;
@@ -744,9 +757,22 @@ function createCommandPalette() {
     }
     .cc-header {
       display: flex;
-      align-items: center;
-      padding: 14px 20px;
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 12px 20px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      gap: 10px;
+    }
+    .cc-header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
+    .cc-header-bottom {
+      display: flex;
+      align-items: center;
+      width: 100%;
       gap: 10px;
     }
     .cc-back-btn {
@@ -990,6 +1016,11 @@ function createCommandPalette() {
       color: #6b7280;
       display: flex;
       align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: calc(var(--cc-width, 600px) - 60px);
     }
     .cc-breadcrumb-badge {
       background: rgba(255, 255, 255, 0.04);
@@ -1000,6 +1031,12 @@ function createCommandPalette() {
       margin-left: 6px;
       font-weight: 600;
       font-size: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 350px;
+      display: inline-block;
+      vertical-align: middle;
     }
     .cc-shortcuts {
       display: flex;
@@ -1109,16 +1146,21 @@ function createCommandPalette() {
   ccBackdrop.innerHTML = `
     <div class="cc-modal">
       <div class="cc-header">
-        <div class="cc-back-btn hidden">‹</div>
-        <div class="cc-command-tag-container"></div>
-        <span class="cc-logo">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-        </span>
-        <div class="cc-input-container">
-          <span class="cc-autocomplete-shadow"></span>
-          <input class="cc-search-input" placeholder="Search..." autocomplete="off">
+        <div class="cc-header-top">
+          <div class="cc-breadcrumbs">Command Palette</div>
+          <span class="cc-close">✕</span>
         </div>
-        <span class="cc-close">✕</span>
+        <div class="cc-header-bottom">
+          <div class="cc-back-btn hidden">‹</div>
+          <div class="cc-command-tag-container"></div>
+          <span class="cc-logo">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          </span>
+          <div class="cc-input-container">
+            <span class="cc-autocomplete-shadow"></span>
+            <input class="cc-search-input" placeholder="Search..." autocomplete="off" autofocus>
+          </div>
+        </div>
       </div>
       <div class="cc-content-pane">
         <div class="cc-results-container">
@@ -1134,7 +1176,6 @@ function createCommandPalette() {
         </div>
       </div>
       <div class="cc-footer">
-        <div class="cc-breadcrumbs">Command Palette</div>
         <div class="cc-shortcuts">
           <span>↑↓ Navigate</span>
           <span>↵ Run</span>
@@ -1177,6 +1218,24 @@ function setupUIEventListeners() {
   ccBackBtn.addEventListener("click", () => {
     exitCommandMode();
   });
+}
+
+function updateSearchIcon(type) {
+  const logoEl = ccBackdrop ? ccBackdrop.querySelector(".cc-logo") : null;
+  if (!logoEl) return;
+  
+  let iconHtml = Icons.search;
+  if (type === "mapping_redirect" || type === "mapping") {
+    iconHtml = Icons.globe;
+  } else if (type === "bookmark") {
+    iconHtml = Icons.tag;
+  } else if (type === "history") {
+    iconHtml = Icons.clock;
+  } else if (type === "tab") {
+    iconHtml = Icons.globe;
+  }
+  
+  logoEl.innerHTML = iconHtml;
 }
 
 function closeSubmenu() {
@@ -1458,15 +1517,15 @@ async function renderSearchResults(query) {
           mappingCandidates.sort((a, b) => b.score - a.score);
           results = mappingCandidates;
         } else {
-          // B. Active Tabs Search
-          const tabsList = await new Promise(res => chrome.runtime.sendMessage({ action: "get_tabs" }, res));
+          // B. Bookmarks Search
+          const bkList = await new Promise(res => chrome.runtime.sendMessage({ action: "get_bookmarks_tree" }, res));
           if (requestId !== currentSearchRequestId || currentCommandMode !== startedInMode) return;
 
-          let tabCandidates = [];
-          if (tabsList && Array.isArray(tabsList)) {
-            tabsList.forEach(t => {
-              const title = t.title || "Tab";
-              const url = t.url || "";
+          let bookmarkCandidates = [];
+          function traverseSearch(node) {
+            if (node.url) {
+              const title = node.title || node.url;
+              const url = node.url;
               const titleLower = title.toLowerCase();
               const urlLower = url.toLowerCase();
               let score = 0;
@@ -1476,32 +1535,34 @@ async function renderSearchResults(query) {
               else if (urlLower.includes(qClean)) score += 20;
 
               if (score > 0) {
-                tabCandidates.push({
-                  id: "tab_" + t.id,
+                bookmarkCandidates.push({
+                  id: "bm_" + node.id,
                   title: title,
-                  subtitle: `Active Tab • ${url}`,
-                  icon: Icons.globe,
-                  type: "tab",
-                  tabData: t,
+                  subtitle: `Bookmark • ${url}`,
+                  icon: Icons.tag,
+                  type: "bookmark",
+                  bmData: node,
                   score: score
                 });
               }
-            });
+            }
+            if (node.children) node.children.forEach(traverseSearch);
           }
+          if (bkList && bkList[0]) traverseSearch(bkList[0]);
 
-          if (tabCandidates.length > 0) {
-            tabCandidates.sort((a, b) => b.score - a.score);
-            results = tabCandidates;
+          if (bookmarkCandidates.length > 0) {
+            bookmarkCandidates.sort((a, b) => b.score - a.score);
+            results = bookmarkCandidates;
           } else {
-            // C. Bookmarks Search
-            const bkList = await new Promise(res => chrome.runtime.sendMessage({ action: "get_bookmarks_tree" }, res));
+            // C. History Search
+            const histList = await new Promise(res => chrome.runtime.sendMessage({ action: "search_history", query: query }, res));
             if (requestId !== currentSearchRequestId || currentCommandMode !== startedInMode) return;
 
-            let bookmarkCandidates = [];
-            function traverseSearch(node) {
-              if (node.url) {
-                const title = node.title || node.url;
-                const url = node.url;
+            let historyCandidates = [];
+            if (histList && Array.isArray(histList)) {
+              histList.forEach(h => {
+                const title = h.title || h.url;
+                const url = h.url;
                 const titleLower = title.toLowerCase();
                 const urlLower = url.toLowerCase();
                 let score = 0;
@@ -1511,34 +1572,32 @@ async function renderSearchResults(query) {
                 else if (urlLower.includes(qClean)) score += 20;
 
                 if (score > 0) {
-                  bookmarkCandidates.push({
-                    id: "bm_" + node.id,
+                  historyCandidates.push({
+                    id: h.id,
                     title: title,
-                    subtitle: `Bookmark • ${url}`,
-                    icon: Icons.tag,
-                    type: "bookmark",
-                    bmData: node,
+                    subtitle: `History • ${url}`,
+                    icon: Icons.clock,
+                    type: "history",
+                    histData: h,
                     score: score
                   });
                 }
-              }
-              if (node.children) node.children.forEach(traverseSearch);
+              });
             }
-            if (bkList && bkList[0]) traverseSearch(bkList[0]);
 
-            if (bookmarkCandidates.length > 0) {
-              bookmarkCandidates.sort((a, b) => b.score - a.score);
-              results = bookmarkCandidates;
+            if (historyCandidates.length > 0) {
+              historyCandidates.sort((a, b) => b.score - a.score);
+              results = historyCandidates;
             } else {
-              // D. History Search
-              const histList = await new Promise(res => chrome.runtime.sendMessage({ action: "search_history", query: query }, res));
+              // D. Active Tabs Search
+              const tabsList = await new Promise(res => chrome.runtime.sendMessage({ action: "get_tabs" }, res));
               if (requestId !== currentSearchRequestId || currentCommandMode !== startedInMode) return;
 
-              let historyCandidates = [];
-              if (histList && Array.isArray(histList)) {
-                histList.forEach(h => {
-                  const title = h.title || h.url;
-                  const url = h.url;
+              let tabCandidates = [];
+              if (tabsList && Array.isArray(tabsList)) {
+                tabsList.forEach(t => {
+                  const title = t.title || "Tab";
+                  const url = t.url || "";
                   const titleLower = title.toLowerCase();
                   const urlLower = url.toLowerCase();
                   let score = 0;
@@ -1548,22 +1607,22 @@ async function renderSearchResults(query) {
                   else if (urlLower.includes(qClean)) score += 20;
 
                   if (score > 0) {
-                    historyCandidates.push({
-                      id: h.id,
+                    tabCandidates.push({
+                      id: "tab_" + t.id,
                       title: title,
-                      subtitle: `History • ${url}`,
-                      icon: Icons.clock,
-                      type: "history",
-                      histData: h,
+                      subtitle: `Active Tab • ${url}`,
+                      icon: Icons.globe,
+                      type: "tab",
+                      tabData: t,
                       score: score
                     });
                   }
                 });
               }
 
-              if (historyCandidates.length > 0) {
-                historyCandidates.sort((a, b) => b.score - a.score);
-                results = historyCandidates;
+              if (tabCandidates.length > 0) {
+                tabCandidates.sort((a, b) => b.score - a.score);
+                results = tabCandidates;
               } else {
                 // E. Default Google Search Fallback
                 results = [{
@@ -1591,6 +1650,14 @@ async function renderSearchResults(query) {
   visibleItems = scored.slice(0, 5);
   renderResultsUI();
   updateAutocompleteShadow(query);
+
+  // Dynamic search icon based on search results type
+  if (visibleItems.length > 0) {
+    const firstType = visibleItems[0].type;
+    updateSearchIcon(firstType);
+  } else {
+    updateSearchIcon("search");
+  }
 }
 
 function updateAutocompleteShadow(query) {
@@ -3018,7 +3085,6 @@ CommandRegistry.register({
 // Website Shortcuts
 const websites = [
   { id: "gmail", name: "Open Gmail", url: "https://mail.google.com" },
-  { id: "youtube", name: "Open YouTube", url: "https://www.youtube.com" },
   { id: "github", name: "Open GitHub", url: "https://github.com" },
   { id: "reddit", name: "Open Reddit", url: "https://www.reddit.com" },
   { id: "chatgpt", name: "Open ChatGPT", url: "https://chatgpt.com" },
@@ -3286,14 +3352,15 @@ CommandRegistry.register({
 // Media & Search Commands
 CommandRegistry.register({
   id: "search_youtube",
-  name: "Search YouTube",
+  name: "YouTube",
   aliases: ["youtube", "yt"],
-  description: "Search media on YouTube: youtube <query>",
+  description: "Search media on YouTube or open homepage",
   icon: Icons.globe,
   execute: () => {
     const query = getCommandArg(activeQuery);
     if (!query) {
-      showToast("Usage: youtube <query>", "error");
+      window.open("https://www.youtube.com", "_blank");
+      closeCommandPalette();
       return;
     }
     const cleanQuery = autoCorrectMediaName(query);

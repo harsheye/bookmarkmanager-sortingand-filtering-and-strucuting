@@ -1,17 +1,40 @@
-// pdf.js - Logic for PDF merges and compression using pdf-lib
+// pdf.js - Logic for PDF merges, compression, splitting, and rotation using pdf-lib
 
+// Merge elements
 const mergeDropzone = document.getElementById("merge-dropzone");
 const mergeFileInput = document.getElementById("merge-file-input");
 const mergeFileList = document.getElementById("merge-file-list");
 const btnMergeRun = document.getElementById("btn-merge-run");
 
+// Compress elements
 const compressDropzone = document.getElementById("compress-dropzone");
 const compressFileInput = document.getElementById("compress-file-input");
 const compressFileList = document.getElementById("compress-file-list");
 const btnCompressRun = document.getElementById("btn-compress-run");
 
+// Split elements
+const splitDropzone = document.getElementById("split-dropzone");
+const splitFileInput = document.getElementById("split-file-input");
+const splitFileList = document.getElementById("split-file-list");
+const splitControls = document.getElementById("split-controls");
+const splitRangesInput = document.getElementById("split-ranges");
+const btnSplitRun = document.getElementById("btn-split-run");
+
+// Rotate elements
+const rotateDropzone = document.getElementById("rotate-dropzone");
+const rotateFileInput = document.getElementById("rotate-file-input");
+const rotateFileList = document.getElementById("rotate-file-list");
+const rotateControls = document.getElementById("rotate-controls");
+const rotateAngleSelect = document.getElementById("rotate-angle");
+const btnRotateRun = document.getElementById("btn-rotate-run");
+
+// Notification element
+const toastNotify = document.getElementById("toast-notify");
+
 let mergeFiles = [];
 let compressFile = null;
+let splitFile = null;
+let rotateFile = null;
 
 // Tab switcher
 window.switchTab = function(mode) {
@@ -19,11 +42,17 @@ window.switchTab = function(mode) {
   document.querySelectorAll(".tab-content").forEach(content => content.classList.remove("active"));
 
   if (mode === 'merge') {
-    document.querySelector(".tab-btn:nth-child(1)").classList.add("active");
+    document.getElementById("btn-tab-merge").classList.add("active");
     document.getElementById("tab-merge").classList.add("active");
-  } else {
-    document.querySelector(".tab-btn:nth-child(2)").classList.add("active");
+  } else if (mode === 'compress') {
+    document.getElementById("btn-tab-compress").classList.add("active");
     document.getElementById("tab-compress").classList.add("active");
+  } else if (mode === 'split') {
+    document.getElementById("btn-tab-split").classList.add("active");
+    document.getElementById("tab-split").classList.add("active");
+  } else if (mode === 'rotate') {
+    document.getElementById("btn-tab-rotate").classList.add("active");
+    document.getElementById("tab-rotate").classList.add("active");
   }
 };
 
@@ -38,6 +67,22 @@ setupDragAndDrop(compressDropzone, compressFileInput, (files) => {
   if (filtered.length > 0) {
     compressFile = filtered[0];
     renderCompressFile();
+  }
+});
+
+setupDragAndDrop(splitDropzone, splitFileInput, (files) => {
+  const filtered = Array.from(files).filter(f => f.type === "application/pdf" || f.name.endsWith(".pdf"));
+  if (filtered.length > 0) {
+    splitFile = filtered[0];
+    renderSplitFile();
+  }
+});
+
+setupDragAndDrop(rotateDropzone, rotateFileInput, (files) => {
+  const filtered = Array.from(files).filter(f => f.type === "application/pdf" || f.name.endsWith(".pdf"));
+  if (filtered.length > 0) {
+    rotateFile = filtered[0];
+    renderRotateFile();
   }
 });
 
@@ -66,15 +111,32 @@ function setupDragAndDrop(dropzone, input, callback) {
   });
 }
 
-// Render logic
-function renderMergeFiles() {
-  mergeFileList.innerHTML = mergeFiles.map((f, index) => `
-    <div class="file-row">
-      <span>📄 ${f.name} <span class="file-size">(${(f.size / 1024 / 1024).toFixed(2)} MB)</span></span>
-      <span style="color:#ef4444; cursor:pointer; font-weight:bold;" onclick="removeMergeFile(${index})">✕</span>
-    </div>
-  `).join("");
+function showToast(message) {
+  toastNotify.textContent = message;
+  toastNotify.classList.add("active");
+  setTimeout(() => {
+    toastNotify.classList.remove("active");
+  }, 3000);
+}
 
+// Render Merge Files
+function renderMergeFiles() {
+  if (mergeFiles.length > 0) {
+    mergeFileList.innerHTML = mergeFiles.map((f, index) => `
+      <div class="file-row">
+        <div class="file-info">
+          <span>📄</span>
+          <span class="file-name">${f.name}</span>
+          <span class="file-size">(${(f.size / 1024 / 1024).toFixed(2)} MB)</span>
+        </div>
+        <button class="file-action-btn" onclick="removeMergeFile(${index})">✕</button>
+      </div>
+    `).join("");
+    mergeDropzone.style.display = "none";
+  } else {
+    mergeFileList.innerHTML = "";
+    mergeDropzone.style.display = "flex";
+  }
   btnMergeRun.style.display = mergeFiles.length > 0 ? "block" : "none";
 }
 
@@ -83,20 +145,86 @@ window.removeMergeFile = function(index) {
   renderMergeFiles();
 };
 
+// Render Compress File
 function renderCompressFile() {
-  compressFileList.innerHTML = compressFile ? `
-    <div class="file-row">
-      <span>📄 ${compressFile.name} <span class="file-size">(${(compressFile.size / 1024 / 1024).toFixed(2)} MB)</span></span>
-      <span style="color:#ef4444; cursor:pointer; font-weight:bold;" onclick="removeCompressFile()">✕</span>
-    </div>
-  ` : "";
-
+  if (compressFile) {
+    compressFileList.innerHTML = `
+      <div class="file-row">
+        <div class="file-info">
+          <span>📄</span>
+          <span class="file-name">${compressFile.name}</span>
+          <span class="file-size">(${(compressFile.size / 1024 / 1024).toFixed(2)} MB)</span>
+        </div>
+        <button class="file-action-btn" onclick="removeCompressFile()">✕</button>
+      </div>
+    `;
+    compressDropzone.style.display = "none";
+  } else {
+    compressFileList.innerHTML = "";
+    compressDropzone.style.display = "flex";
+  }
   btnCompressRun.style.display = compressFile ? "block" : "none";
 }
 
 window.removeCompressFile = function() {
   compressFile = null;
   renderCompressFile();
+};
+
+// Render Split File
+function renderSplitFile() {
+  if (splitFile) {
+    splitFileList.innerHTML = `
+      <div class="file-row">
+        <div class="file-info">
+          <span>📄</span>
+          <span class="file-name">${splitFile.name}</span>
+          <span class="file-size">(${(splitFile.size / 1024 / 1024).toFixed(2)} MB)</span>
+        </div>
+        <button class="file-action-btn" onclick="removeSplitFile()">✕</button>
+      </div>
+    `;
+    splitDropzone.style.display = "none";
+    splitControls.style.display = "block";
+  } else {
+    splitFileList.innerHTML = "";
+    splitDropzone.style.display = "flex";
+    splitControls.style.display = "none";
+  }
+  btnSplitRun.style.display = splitFile ? "block" : "none";
+}
+
+window.removeSplitFile = function() {
+  splitFile = null;
+  renderSplitFile();
+};
+
+// Render Rotate File
+function renderRotateFile() {
+  if (rotateFile) {
+    rotateFileList.innerHTML = `
+      <div class="file-row">
+        <div class="file-info">
+          <span>📄</span>
+          <span class="file-name">${rotateFile.name}</span>
+          <span class="file-size">(${(rotateFile.size / 1024 / 1024).toFixed(2)} MB)</span>
+        </div>
+        <button class="file-action-btn" onclick="removeRotateFile()">✕</button>
+      </div>
+    `;
+    rotateDropzone.style.display = "none";
+    rotateControls.style.display = "block";
+  } else {
+    rotateFileList.innerHTML = "";
+    rotateDropzone.style.display = "flex";
+    rotateControls.style.display = "none";
+  }
+  btnRotateRun.style.display = rotateFile ? "block" : "none";
+}
+
+window.removeRotateFile = function() {
+  rotateFile = null;
+  renderRotateFile();
 };
 
 // Execute Merge
@@ -119,6 +247,7 @@ btnMergeRun.addEventListener("click", async () => {
     const mergedBytes = await mergedPdf.save();
     downloadPdf(mergedBytes, "merged_document.pdf");
     
+    showToast("PDFs Merged Successfully!");
     btnMergeRun.textContent = "Merge PDF Files";
     btnMergeRun.disabled = false;
     mergeFiles = [];
@@ -145,6 +274,7 @@ btnCompressRun.addEventListener("click", async () => {
     
     downloadPdf(compressedBytes, "compressed_document.pdf");
     
+    showToast("PDF Compressed Successfully!");
     btnCompressRun.textContent = "Compress PDF File";
     btnCompressRun.disabled = false;
     compressFile = null;
@@ -154,6 +284,112 @@ btnCompressRun.addEventListener("click", async () => {
     console.error(e);
     btnCompressRun.textContent = "Failed. Try again";
     btnCompressRun.disabled = false;
+  }
+});
+
+// Execute Split
+btnSplitRun.addEventListener("click", async () => {
+  if (!splitFile) return;
+  btnSplitRun.textContent = "Extracting Pages...";
+  btnSplitRun.disabled = true;
+
+  try {
+    const { PDFDocument } = window.PDFLib;
+    const buffer = await splitFile.arrayBuffer();
+    const srcDoc = await PDFDocument.load(buffer);
+    const splitDoc = await PDFDocument.create();
+    
+    const pageCount = srcDoc.getPageCount();
+    const indices = [];
+    const rangeStr = splitRangesInput.value.trim();
+    
+    if (!rangeStr) {
+      // Split all pages into indices
+      for (let i = 0; i < pageCount; i++) {
+        indices.push(i);
+      }
+    } else {
+      const parts = rangeStr.split(",");
+      for (let part of parts) {
+        part = part.trim();
+        if (part.includes("-")) {
+          const bounds = part.split("-");
+          const start = parseInt(bounds[0]) || 1;
+          const end = parseInt(bounds[1]) || pageCount;
+          for (let i = start; i <= end; i++) {
+            if (i >= 1 && i <= pageCount) {
+              indices.push(i - 1);
+            }
+          }
+        } else {
+          const pageNum = parseInt(part);
+          if (pageNum >= 1 && pageNum <= pageCount) {
+            indices.push(pageNum - 1);
+          }
+        }
+      }
+    }
+
+    if (indices.length === 0) {
+      alert("No valid pages found in range.");
+      btnSplitRun.textContent = "Extract Pages & Save";
+      btnSplitRun.disabled = false;
+      return;
+    }
+
+    const copiedPages = await splitDoc.copyPages(srcDoc, indices);
+    copiedPages.forEach(p => splitDoc.addPage(p));
+
+    const bytes = await splitDoc.save();
+    const baseName = splitFile.name.substring(0, splitFile.name.lastIndexOf('.')) || splitFile.name;
+    downloadPdf(bytes, `${baseName}_split.pdf`);
+
+    showToast("PDF Split Successfully!");
+    btnSplitRun.textContent = "Extract Pages & Save";
+    btnSplitRun.disabled = false;
+    splitFile = null;
+    splitRangesInput.value = "";
+    renderSplitFile();
+  } catch(e) {
+    alert("Error splitting PDF document");
+    console.error(e);
+    btnSplitRun.textContent = "Failed. Try again";
+    btnSplitRun.disabled = false;
+  }
+});
+
+// Execute Rotate
+btnRotateRun.addEventListener("click", async () => {
+  if (!rotateFile) return;
+  btnRotateRun.textContent = "Rotating Pages...";
+  btnRotateRun.disabled = true;
+
+  try {
+    const { PDFDocument, degrees } = window.PDFLib;
+    const buffer = await rotateFile.arrayBuffer();
+    const doc = await PDFDocument.load(buffer);
+    
+    const angle = parseInt(rotateAngleSelect.value) || 90;
+    const pages = doc.getPages();
+    pages.forEach(page => {
+      const currentRotation = page.getRotation().angle;
+      page.setRotation(degrees(currentRotation + angle));
+    });
+
+    const bytes = await doc.save();
+    const baseName = rotateFile.name.substring(0, rotateFile.name.lastIndexOf('.')) || rotateFile.name;
+    downloadPdf(bytes, `${baseName}_rotated.pdf`);
+
+    showToast("PDF Rotated Successfully!");
+    btnRotateRun.textContent = "Rotate & Save PDF";
+    btnRotateRun.disabled = false;
+    rotateFile = null;
+    renderRotateFile();
+  } catch(e) {
+    alert("Error rotating PDF document");
+    console.error(e);
+    btnRotateRun.textContent = "Failed. Try again";
+    btnRotateRun.disabled = false;
   }
 });
 

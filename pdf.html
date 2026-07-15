@@ -2,35 +2,59 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>PDF Utilities Dashboard</title>
+  <title>Premium PDF Workspace</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
       --accent-color: #8b5cf6;
-      --bg-dark: #07080c;
-      --card-bg: rgba(22, 26, 44, 0.45);
+      --accent-gradient: linear-gradient(135deg, #a78bfa, #8b5cf6);
+      --bg-dark: #090a0f;
+      --card-bg: rgba(19, 22, 38, 0.6);
       --border-color: rgba(255, 255, 255, 0.08);
+      --text-muted: #94a3b8;
     }
+    
     body {
       margin: 0;
       padding: 40px;
       width: 100vw;
-      height: 100vh;
+      min-height: 100vh;
       box-sizing: border-box;
       font-family: 'Outfit', sans-serif;
-      background: linear-gradient(135deg, #091a26 0%, var(--bg-dark) 100%);
-      color: #f3f4f6;
+      background: radial-gradient(circle at 10% 20%, rgba(12, 10, 36, 0.95) 0%, var(--bg-dark) 100%);
+      color: #f8fafc;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: flex-start;
-      overflow: auto;
+      overflow-x: hidden;
+      overflow-y: auto;
     }
+
+    /* Glows */
+    .glow-bg {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      z-index: -1;
+      overflow: hidden;
+    }
+    .glow-blob {
+      position: absolute;
+      width: 400px;
+      height: 400px;
+      border-radius: 50%;
+      filter: blur(130px);
+      opacity: 0.15;
+    }
+    .blob-purple { background: #8b5cf6; top: -100px; left: -100px; }
+    .blob-cyan { background: #06b6d4; bottom: -100px; right: -100px; }
+
     .header {
       width: 100%;
-      max-width: 800px;
+      max-width: 850px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -39,118 +63,228 @@
     .logo-section {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
     }
     .logo-icon {
-      font-size: 24px;
-      filter: drop-shadow(0 0 8px var(--accent-color));
+      font-size: 28px;
+      filter: drop-shadow(0 0 10px #8b5cf6);
     }
-    .logo-text {
-      font-size: 20px;
-      font-weight: 700;
-      background: linear-gradient(135deg, #fff, #a78bfa);
+    .logo-text h1 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #fff 30%, #a78bfa 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
+    .logo-text p {
+      margin: 2px 0 0 0;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
     .back-link {
-      font-size: 13px;
-      color: #9ca3af;
+      font-size: 13.5px;
+      color: #94a3b8;
       text-decoration: none;
       font-weight: 600;
-      transition: color 0.2s;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255,255,255,0.03);
+      padding: 8px 16px;
+      border-radius: 20px;
+      border: 1px solid var(--border-color);
     }
     .back-link:hover {
-      color: var(--accent-color);
+      color: #ffffff;
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(255, 255, 255, 0.18);
+      transform: translateY(-1px);
     }
 
+    /* Tabs Header */
     .tabs-header {
       display: flex;
-      gap: 10px;
+      gap: 8px;
       width: 100%;
-      max-width: 800px;
-      margin-bottom: 20px;
+      max-width: 850px;
+      background: rgba(15, 17, 28, 0.8);
+      border: 1px solid var(--border-color);
+      padding: 6px;
+      border-radius: 14px;
+      margin-bottom: 24px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     }
     .tab-btn {
-      background: rgba(255,255,255,0.02);
-      border: 1px solid var(--border-color);
-      color: #9ca3af;
-      padding: 10px 20px;
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 12px 16px;
       border-radius: 10px;
       cursor: pointer;
       font-weight: 600;
-      font-size: 14px;
+      font-size: 13.5px;
       transition: all 0.2s;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .tab-btn:hover {
+      color: white;
+      background: rgba(255,255,255,0.03);
     }
     .tab-btn.active {
-      background: var(--accent-color);
-      border-color: var(--accent-color);
+      background: var(--accent-gradient);
       color: white;
+      box-shadow: 0 4px 15px rgba(139, 92, 246, 0.25);
+    }
+
+    /* Workspace Content */
+    .workspace-card {
+      width: 100%;
+      max-width: 850px;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 30px;
+      box-sizing: border-box;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
     }
 
     .tab-content {
       display: none;
-      width: 100%;
-      max-width: 800px;
     }
     .tab-content.active {
       display: block;
     }
 
     .dropzone-container {
-      background: var(--card-bg);
       border: 2px dashed rgba(255, 255, 255, 0.12);
       border-radius: 16px;
-      padding: 40px;
+      padding: 50px 30px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       text-align: center;
       cursor: pointer;
-      min-height: 250px;
+      min-height: 240px;
       box-sizing: border-box;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.4);
       transition: all 0.2s;
+      background: rgba(255,255,255,0.01);
       position: relative;
     }
     .dropzone-container:hover, .dropzone-container.active {
       border-color: var(--accent-color);
-      background: rgba(139, 92, 246, 0.05);
+      background: rgba(139, 92, 246, 0.04);
+      box-shadow: inset 0 0 20px rgba(139, 92, 246, 0.05);
     }
     .drop-input {
       display: none;
     }
 
+    /* File List */
     .file-list {
       margin-top: 20px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 10px;
       width: 100%;
-      text-align: left;
     }
     .file-row {
       background: rgba(255,255,255,0.02);
       border: 1px solid var(--border-color);
-      border-radius: 8px;
-      padding: 10px 16px;
+      border-radius: 10px;
+      padding: 12px 18px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 13.5px;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+    .file-row:hover {
+      background: rgba(255,255,255,0.04);
+    }
+    .file-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .file-name {
+      font-weight: 500;
+      color: #e2e8f0;
     }
     .file-size {
-      color: #9ca3af;
+      color: var(--text-muted);
       font-size: 12px;
+    }
+    .file-action-btn {
+      background: transparent;
+      border: none;
+      color: #ef4444;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+      transition: transform 0.2s;
+      padding: 4px 8px;
+    }
+    .file-action-btn:hover {
+      transform: scale(1.2);
+    }
+
+    /* Controls Panel */
+    .controls-panel {
+      margin-top: 20px;
+      background: rgba(255,255,255,0.01);
+      border: 1px solid rgba(255,255,255,0.04);
+      padding: 18px;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .control-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .control-row label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .input-num {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: white;
+      padding: 10px 14px;
+      font-size: 14px;
+      outline: none;
+      box-sizing: border-box;
+      width: 100%;
+      font-family: inherit;
+    }
+    .input-num:focus {
+      border-color: var(--accent-color);
     }
 
     .btn-execute {
-      background: var(--accent-color);
+      background: var(--accent-gradient);
       border: none;
-      border-radius: 10px;
+      border-radius: 12px;
       color: white;
-      padding: 12px 24px;
-      font-size: 14px;
+      padding: 14px 28px;
+      font-size: 14.5px;
       font-weight: 700;
       cursor: pointer;
       transition: all 0.2s;
@@ -158,50 +292,139 @@
       width: 100%;
       text-align: center;
       box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+      font-family: inherit;
     }
     .btn-execute:hover {
-      opacity: 0.9;
+      opacity: 0.95;
+      transform: translateY(-1px);
+      box-shadow: 0 10px 28px rgba(139, 92, 246, 0.4);
+    }
+    .btn-execute:disabled {
+      background: rgba(255,255,255,0.08);
+      color: var(--text-muted);
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #10b981;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      box-shadow: 0 10px 30px rgba(16, 185, 129, 0.3);
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 1000;
+    }
+    .toast.active {
+      transform: translateY(0);
+      opacity: 1;
     }
   </style>
   <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
 </head>
 <body>
+  <div class="glow-bg">
+    <div class="glow-blob blob-purple"></div>
+    <div class="glow-blob blob-cyan"></div>
+  </div>
+
   <div class="header">
     <div class="logo-section">
       <span class="logo-icon">📄</span>
-      <span class="logo-text">PDF Utilities</span>
+      <div class="logo-text">
+        <h1>Premium PDF Workspace</h1>
+        <p>Merge, compress, split, and rotate PDFs instantly in your browser</p>
+      </div>
     </div>
-    <a href="newtab.html" class="back-link">‹ New Tab Launcher</a>
+    <a href="newtab.html" class="back-link">‹ Return Launcher</a>
   </div>
 
   <div class="tabs-header">
-    <button class="tab-btn active" onclick="switchTab('merge')">Merge PDFs</button>
-    <button class="tab-btn" onclick="switchTab('compress')">Compress PDF</button>
+    <button class="tab-btn active" id="btn-tab-merge" onclick="switchTab('merge')">🧩 Merge PDFs</button>
+    <button class="tab-btn" id="btn-tab-compress" onclick="switchTab('compress')">📉 Compress PDF</button>
+    <button class="tab-btn" id="btn-tab-split" onclick="switchTab('split')">✂️ Split PDF</button>
+    <button class="tab-btn" id="btn-tab-rotate" onclick="switchTab('rotate')">🔄 Rotate PDF</button>
   </div>
 
-  <!-- Merge Tab -->
-  <div id="tab-merge" class="tab-content active">
-    <div class="dropzone-container" id="merge-dropzone">
-      <div style="font-size: 32px;">📥</div>
-      <div style="font-weight: 700; font-size: 15px; margin-top: 10px;">Select or Drop PDF Files to Merge</div>
-      <div style="font-size: 12px; color: #9ca3af; margin-top: 4px;">Upload multiple files to join them together</div>
-      <input type="file" id="merge-file-input" class="drop-input" accept=".pdf" multiple>
+  <div class="workspace-card">
+    <!-- Merge Tab -->
+    <div id="tab-merge" class="tab-content active">
+      <div class="dropzone-container" id="merge-dropzone">
+        <div style="font-size: 36px; filter: drop-shadow(0 0 10px rgba(139, 92, 246, 0.3));">📥</div>
+        <div style="font-weight: 700; font-size: 16px; margin-top: 15px; color:#fff;">Select or Drop PDF Files to Merge</div>
+        <div style="font-size: 12.5px; color: var(--text-muted); margin-top: 6px;">Combine multiple documents into a single PDF</div>
+        <input type="file" id="merge-file-input" class="drop-input" accept=".pdf" multiple>
+      </div>
+      <div class="file-list" id="merge-file-list"></div>
+      <button class="btn-execute" id="btn-merge-run" style="display: none;">Merge PDF Files</button>
     </div>
-    <div class="file-list" id="merge-file-list"></div>
-    <button class="btn-execute" id="btn-merge-run" style="display: none;">Merge PDF Files</button>
+
+    <!-- Compress Tab -->
+    <div id="tab-compress" class="tab-content">
+      <div class="dropzone-container" id="compress-dropzone">
+        <div style="font-size: 36px; filter: drop-shadow(0 0 10px rgba(139, 92, 246, 0.3));">📥</div>
+        <div style="font-weight: 700; font-size: 16px; margin-top: 15px; color:#fff;">Select or Drop a PDF File to Compress</div>
+        <div style="font-size: 12.5px; color: var(--text-muted); margin-top: 6px;">Reduces file size using PDF stream optimization</div>
+        <input type="file" id="compress-file-input" class="drop-input" accept=".pdf">
+      </div>
+      <div class="file-list" id="compress-file-list"></div>
+      <button class="btn-execute" id="btn-compress-run" style="display: none;">Compress PDF File</button>
+    </div>
+
+    <!-- Split Tab -->
+    <div id="tab-split" class="tab-content">
+      <div class="dropzone-container" id="split-dropzone">
+        <div style="font-size: 36px; filter: drop-shadow(0 0 10px rgba(139, 92, 246, 0.3));">📥</div>
+        <div style="font-weight: 700; font-size: 16px; margin-top: 15px; color:#fff;">Select or Drop a PDF File to Split</div>
+        <div style="font-size: 12.5px; color: var(--text-muted); margin-top: 6px;">Extract specific pages or page ranges from a document</div>
+        <input type="file" id="split-file-input" class="drop-input" accept=".pdf">
+      </div>
+      <div class="file-list" id="split-file-list"></div>
+      
+      <div class="controls-panel" id="split-controls" style="display: none;">
+        <div class="control-row">
+          <label for="split-ranges">Pages / Ranges to Extract</label>
+          <input type="text" class="input-num" id="split-ranges" placeholder="e.g. 1-3, 5, 8 (or leave empty to split all)">
+        </div>
+      </div>
+      
+      <button class="btn-execute" id="btn-split-run" style="display: none;">Extract Pages & Save</button>
+    </div>
+
+    <!-- Rotate Tab -->
+    <div id="tab-rotate" class="tab-content">
+      <div class="dropzone-container" id="rotate-dropzone">
+        <div style="font-size: 36px; filter: drop-shadow(0 0 10px rgba(139, 92, 246, 0.3));">📥</div>
+        <div style="font-weight: 700; font-size: 16px; margin-top: 15px; color:#fff;">Select or Drop a PDF File to Rotate</div>
+        <div style="font-size: 12.5px; color: var(--text-muted); margin-top: 6px;">Rotate all pages in your document clockwise or counterclockwise</div>
+        <input type="file" id="rotate-file-input" class="drop-input" accept=".pdf">
+      </div>
+      <div class="file-list" id="rotate-file-list"></div>
+      
+      <div class="controls-panel" id="rotate-controls" style="display: none;">
+        <div class="control-row">
+          <label for="rotate-angle">Rotation Angle</label>
+          <select class="input-num" id="rotate-angle" style="background:#131522; color:white; border:1px solid rgba(255,255,255,0.1);">
+            <option value="90">90° Clockwise</option>
+            <option value="180">180° Flip</option>
+            <option value="270">270° Counter-Clockwise</option>
+          </select>
+        </div>
+      </div>
+      
+      <button class="btn-execute" id="btn-rotate-run" style="display: none;">Rotate & Save PDF</button>
+    </div>
   </div>
 
-  <!-- Compress Tab -->
-  <div id="tab-compress" class="tab-content">
-    <div class="dropzone-container" id="compress-dropzone">
-      <div style="font-size: 32px;">📥</div>
-      <div style="font-weight: 700; font-size: 15px; margin-top: 10px;">Select or Drop a PDF File to Compress</div>
-      <div style="font-size: 12px; color: #9ca3af; margin-top: 4px;">Reduces file size using PDF stream optimization</div>
-      <input type="file" id="compress-file-input" class="drop-input" accept=".pdf">
-    </div>
-    <div class="file-list" id="compress-file-list"></div>
-    <button class="btn-execute" id="btn-compress-run" style="display: none;">Compress PDF File</button>
-  </div>
+  <div class="toast" id="toast-notify">Action Completed!</div>
 
   <script src="pdf.js"></script>
 </body>

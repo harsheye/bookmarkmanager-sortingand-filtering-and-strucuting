@@ -1269,43 +1269,46 @@
 
       <!-- STEP 1: Welcome & Settings -->
       <section id="step-1" class="wizard-step active-step">
-        <div class="step-header">
-          <h1>Tidy Up Your Browser Bookmarks</h1>
-          <p class="subtitle">Organize cluttered links into smart, themed folders. Local, secure, and fully customizable.</p>
-        </div>
-
-        <div class="settings-grid">
-          <!-- Left Column: Categories -->
-          <div class="settings-box">
-            <h2>1. Choose Categories to Organize</h2>
-            <p class="box-desc">Select which themed folders to automatically create:</p>
-            <div class="categories-list" id="categories-container">
-              <!-- Dynamically populated from rules.js -->
-            </div>
+        <div class="step-scroll-content">
+          <div class="step-header">
+            <h1>Tidy Up Your Browser Bookmarks</h1>
+            <p class="subtitle">Organize cluttered links into smart, themed folders. Local, secure, and fully customizable.</p>
           </div>
 
-          <!-- Right Column: Settings -->
-          <div class="settings-box">
-            <h2>2. Domain Folder Settings</h2>
-            <p class="box-desc">If you have multiple bookmarks from the same website, we'll create a dedicated folder for it.</p>
-            
-            <div class="control-group">
-              <label for="threshold-slider" class="slider-label">
-                <span>Minimum Bookmarks for Domain Folder:</span>
-                <span id="threshold-val" class="badge">3</span>
-              </label>
-              <input type="range" id="threshold-slider" min="2" max="10" value="3" class="slider">
-              <span class="slider-hint">Example: If you have 3 or more bookmarks from "github.com", they get grouped into a "GitHub" folder.</span>
+          <div class="settings-grid">
+            <!-- Left Column: Categories -->
+            <div class="settings-box">
+              <h2>1. Choose Categories to Organize</h2>
+              <p class="box-desc">Select which themed folders to automatically create:</p>
+              <div class="categories-list" id="categories-container">
+                <!-- Dynamically populated from rules.js -->
+              </div>
             </div>
 
-            <div class="info-alert">
-              <span class="alert-icon">🔒</span>
-              <p class="alert-text"><strong>Privacy Guarantee:</strong> All analysis and restructuring happens entirely inside your browser. No data ever leaves your computer.</p>
+            <!-- Right Column: Settings -->
+            <div class="settings-box">
+              <h2>2. Domain Folder Settings</h2>
+              <p class="box-desc">If you have multiple bookmarks from the same website, we'll create a dedicated folder for it.</p>
+              
+              <div class="control-group">
+                <label for="threshold-slider" class="slider-label">
+                  <span>Minimum Bookmarks for Domain Folder:</span>
+                  <span id="threshold-val" class="badge">3</span>
+                </label>
+                <input type="range" id="threshold-slider" min="2" max="10" value="3" class="slider">
+                <span class="slider-hint">Example: If you have 3 or more bookmarks from "github.com", they get grouped into a "GitHub" folder.</span>
+              </div>
+
+              <div class="info-alert">
+                <span class="alert-icon">🔒</span>
+                <p class="alert-text"><strong>Privacy Guarantee:</strong> All analysis and restructuring happens entirely inside your browser. No data ever leaves your computer.</p>
+              </div>
             </div>
           </div>
         </div>
 
-        <div class="step-actions">
+        <div class="step-sticky-footer">
+          <button id="wizard-cancel-btn-1" class="btn btn-secondary">Cancel</button>
           <button id="start-scan-btn" class="btn btn-primary btn-large">
             <span>Scan & Sort Bookmarks</span> <span class="btn-arrow">→</span>
           </button>
@@ -1314,74 +1317,84 @@
 
       <!-- STEP 2: Scanning & Analyzing -->
       <section id="step-2" class="wizard-step">
-        <div class="scanning-container">
-          <div class="spinner-outer">
-            <div class="spinner-inner"></div>
-            <div class="spinner-center">
-              <span id="scan-pct">0%</span>
-            </div>
-          </div>
-
-          <div class="scanning-status">
-            <h2 id="scanning-title">Scanning bookmarks library...</h2>
-            <p id="scanning-sub">Preparing secure snapshot before processing.</p>
-            
-            <div class="live-stats">
-              <div class="stat-bubble">
-                <span class="stat-label">Total Found</span>
-                <span class="stat-number" id="stat-total">0</span>
-              </div>
-              <div class="stat-bubble">
-                <span class="stat-label">Folders To Create</span>
-                <span class="stat-number" id="stat-folders">0</span>
-              </div>
-              <div class="stat-bubble">
-                <span class="stat-label">Matched Links</span>
-                <span class="stat-number" id="stat-matched">0</span>
+        <div class="step-scroll-content">
+          <div class="scanning-container">
+            <div class="spinner-outer">
+              <div class="spinner-inner"></div>
+              <div class="spinner-center">
+                <span id="scan-pct">0%</span>
               </div>
             </div>
 
-            <div class="scan-log glass-panel" id="scan-log">
-              <div class="log-line">Initializing Bookmark Sorter engine...</div>
+            <div class="scanning-status">
+              <h2 id="scanning-title">Scanning bookmarks library...</h2>
+              <p id="scanning-sub">Preparing secure snapshot before processing.</p>
+              
+              <div class="live-stats">
+                <div class="stat-bubble">
+                  <span class="stat-label">Total Found</span>
+                  <span class="stat-number" id="stat-total">0</span>
+                </div>
+                <div class="stat-bubble">
+                  <span class="stat-label">Folders To Create</span>
+                  <span class="stat-number" id="stat-folders">0</span>
+                </div>
+                <div class="stat-bubble">
+                  <span class="stat-label">Matched Links</span>
+                  <span class="stat-number" id="stat-matched">0</span>
+                </div>
+              </div>
+
+              <div class="scan-log glass-panel" id="scan-log">
+                <div class="log-line">Initializing Bookmark Sorter engine...</div>
+              </div>
             </div>
           </div>
+        </div>
+
+        <div class="step-sticky-footer" id="scan-next-action" style="display: none;">
+          <button id="scan-next-btn" class="btn btn-primary btn-large" style="width: 100%;">
+            <span>Continue to Preview</span> <span class="btn-arrow">→</span>
+          </button>
         </div>
       </section>
 
       <!-- STEP 3: Interactive Preview & Edit -->
       <section id="step-3" class="wizard-step">
-        <div class="step-header">
-          <h1>Review Proposed Folder Structure</h1>
-          <p class="subtitle">Expand folders to see bookmarks. Uncheck items to exclude them, or rename folders to your liking.</p>
+        <div class="step-scroll-content">
+          <div class="step-header">
+            <h1>Review Proposed Folder Structure</h1>
+            <p class="subtitle">Expand folders to see bookmarks. Uncheck items to exclude them, or rename folders to your liking.</p>
+          </div>
+
+          <!-- Custom Folder Naming / Target Path Selection -->
+          <div class="preview-toolbar">
+            <div class="toolbar-input">
+              <label for="parent-folder-name">Parent Folder Name:</label>
+              <input type="text" id="parent-folder-name" value="Bookmarks Bar" class="text-input">
+            </div>
+            <div class="toolbar-stats">
+              <span class="badge badge-purple" id="preview-stat-count">0 items selected</span>
+            </div>
+          </div>
+
+          <!-- Scrollable Tree Preview Container -->
+          <div class="tree-preview-container glass-panel">
+            <div class="tree-root-header">
+              <label class="checkbox-container" onclick="event.stopPropagation()">
+                <input type="checkbox" id="select-all-preview" checked>
+                <span class="checkmark"></span>
+              </label>
+              <span class="tree-root-icon">📂</span>
+              <span class="tree-root-name" id="tree-root-name-label">Smart Sorted Bookmarks</span>
+            </div>
+            <div class="tree-body" id="tree-preview-body">
+              <!-- Dynamically populated preview of proposed folders and links -->
+            </div>
+          </div>
         </div>
 
-        <!-- Custom Folder Naming / Target Path Selection -->
-        <div class="preview-toolbar">
-          <div class="toolbar-input">
-            <label for="parent-folder-name">Parent Folder Name:</label>
-            <input type="text" id="parent-folder-name" value="Bookmarks Bar" class="text-input">
-          </div>
-          <div class="toolbar-stats">
-            <span class="badge badge-purple" id="preview-stat-count">0 items selected</span>
-          </div>
-        </div>
-
-        <!-- Scrollable Tree Preview Container -->
-        <div class="tree-preview-container glass-panel">
-          <div class="tree-root-header">
-            <label class="checkbox-container" onclick="event.stopPropagation()">
-              <input type="checkbox" id="select-all-preview" checked>
-              <span class="checkmark"></span>
-            </label>
-            <span class="tree-root-icon">📂</span>
-            <span class="tree-root-name" id="tree-root-name-label">Smart Sorted Bookmarks</span>
-          </div>
-          <div class="tree-body" id="tree-preview-body">
-            <!-- Dynamically populated preview of proposed folders and links -->
-          </div>
-        </div>
-
-        <div class="step-actions split-actions">
+        <div class="step-sticky-footer split-actions">
           <button id="prev-step-btn" class="btn btn-secondary">
             <span>←</span> Adjust Settings
           </button>
@@ -1393,51 +1406,53 @@
 
       <!-- STEP 4: Success & Backup Restore -->
       <section id="step-4" class="wizard-step">
-        <div class="success-container">
-          <div class="success-checkmark">
-            <div class="check-icon">
-              <span class="icon-line line-tip"></span>
-              <span class="icon-line line-long"></span>
-              <div class="icon-circle"></div>
-              <div class="icon-fix"></div>
+        <div class="step-scroll-content">
+          <div class="success-container">
+            <div class="success-checkmark">
+              <div class="check-icon">
+                <span class="icon-line line-tip"></span>
+                <span class="icon-line line-long"></span>
+                <div class="icon-circle"></div>
+                <div class="icon-fix"></div>
+              </div>
+            </div>
+
+            <div class="success-details">
+              <h1>Organization Complete!</h1>
+              <p class="subtitle">Your bookmarks have been neatly sorted. You can find them under the folder you specified.</p>
+
+              <div class="success-stats-grid">
+                <div class="success-stat-card glass-panel">
+                  <span class="succ-num" id="succ-folders">0</span>
+                  <span class="succ-label">Folders Created</span>
+                </div>
+                <div class="success-stat-card glass-panel">
+                  <span class="succ-num" id="succ-moved">0</span>
+                  <span class="succ-label">Bookmarks Moved</span>
+                </div>
+              </div>
+
+              <div class="safety-net glass-panel">
+                <h3>⚡ Don't like the new arrangement?</h3>
+                <p>We saved a local backup of your bookmarks right before sorting. Click below to restore your exact original bookmarks tree instantly.</p>
+                <div class="backup-actions">
+                  <button id="restore-btn" class="btn btn-danger">
+                    <span>↩️</span> Undo & Restore Original Bookmarks
+                  </button>
+                </div>
+                <p class="backup-time-stamp" id="backup-timestamp-text">Backup created: Just now</p>
+              </div>
             </div>
           </div>
+        </div>
 
-          <div class="success-details">
-            <h1>Organization Complete!</h1>
-            <p class="subtitle">Your bookmarks have been neatly sorted. You can find them under the folder you specified.</p>
-
-            <div class="success-stats-grid">
-              <div class="success-stat-card glass-panel">
-                <span class="succ-num" id="succ-folders">0</span>
-                <span class="succ-label">Folders Created</span>
-              </div>
-              <div class="success-stat-card glass-panel">
-                <span class="succ-num" id="succ-moved">0</span>
-                <span class="succ-label">Bookmarks Moved</span>
-              </div>
-            </div>
-
-            <div class="safety-net glass-panel">
-              <h3>⚡ Don't like the new arrangement?</h3>
-              <p>We saved a local backup of your bookmarks right before sorting. Click below to restore your exact original bookmarks tree instantly.</p>
-              <div class="backup-actions">
-                <button id="restore-btn" class="btn btn-danger">
-                  <span>↩️</span> Undo & Restore Original Bookmarks
-                </button>
-              </div>
-              <p class="backup-time-stamp" id="backup-timestamp-text">Backup created: Just now</p>
-            </div>
-
-            <div class="final-actions">
-              <button id="finish-btn" class="btn btn-primary">
-                Go to Bookmark Manager
-              </button>
-              <button id="restart-btn" class="btn btn-secondary">
-                Sort Again / Change Settings
-              </button>
-            </div>
-          </div>
+        <div class="step-sticky-footer">
+          <button id="finish-btn" class="btn btn-primary">
+            Go to Bookmark Manager
+          </button>
+          <button id="restart-btn" class="btn btn-secondary">
+            Sort Again / Change Settings
+          </button>
         </div>
       </section>
     </div>

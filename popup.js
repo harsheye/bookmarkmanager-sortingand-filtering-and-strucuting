@@ -133,6 +133,14 @@ function setupSoundBoost() {
     const applyToTab = (level) => {
       valLabel.textContent = `${level}%`;
       chrome.storage.local.set({ [storageKey]: level });
+
+      // Update segment active states
+      downBtn.classList.remove('active');
+      resetBtn.classList.remove('active');
+      upBtn.classList.remove('active');
+      if (level < 100) downBtn.classList.add('active');
+      else if (level === 100) resetBtn.classList.add('active');
+      else upBtn.classList.add('active');
       
       chrome.scripting.executeScript({
         target: { tabId: tabId },
