@@ -78,6 +78,13 @@ let currentHeight = 0;
 let aspectRatio = 1;
 let originalName = "clipboard_image.png";
 
+// Batch Mode State & Selectors
+let batchFiles = [];
+let batchModeActive = false;
+const batchPanel = document.getElementById("batch-panel");
+const batchFilesGrid = document.getElementById("batch-files-grid");
+const btnProcessBatch = document.getElementById("btn-process-batch");
+
 let panX = 0;
 let panY = 0;
 let isPanning = false;
@@ -149,26 +156,81 @@ dropzone.addEventListener("dragleave", () => {
 dropzone.addEventListener("drop", (e) => {
   e.preventDefault();
   dropzone.classList.remove("active");
-  if (e.dataTransfer.files.length > 0) {
+  if (e.dataTransfer.files.length > 1) {
+    handleBatchFiles(e.dataTransfer.files);
+  } else if (e.dataTransfer.files.length === 1) {
     handleImageFile(e.dataTransfer.files[0]);
   }
 });
 
-fileInput.addEventListener("change", (e) => {
+fileInput.addEventListener("change", async (e) => {
   if (e.target.files.length > 0) {
-    handleImageFile(e.target.files[0]);
+    if (batchModeActive) {
+      // Append files to existing batch
+      const newFiles = Array.from(e.target.files);
+      const startIdx = batchFiles.length;
+      
+      for (let i = 0; i < newFiles.length; i++) {
+        const file = newFiles[i];
+        if (file.type.indexOf("image") === -1) continue;
+        
+        const id = "batch_" + Date.now() + "_" + Math.random().toString(36).substring(2, 5);
+        const src = URL.createObjectURL(file);
+        
+        const entry = {
+          id: id,
+          file: file,
+          name: file.name || `image_${startIdx + i + 1}.png`,
+          size: file.size,
+          type: file.type,
+          src: src,
+          width: 0,
+          height: 0,
+          aspectRatio: 1
+        };
+        
+        batchFiles.push(entry);
+        
+        await new Promise((resolve) => {
+          const tempImg = new Image();
+          tempImg.onload = () => {
+            entry.width = tempImg.naturalWidth;
+            entry.height = tempImg.naturalHeight;
+            entry.aspectRatio = tempImg.naturalWidth / tempImg.naturalHeight;
+            resolve();
+          };
+          tempImg.onerror = resolve;
+          tempImg.src = src;
+        });
+      }
+      
+      infoName.textContent = `Batch Processing (${batchFiles.length} files)`;
+      renderBatchGrid();
+    } else {
+      if (e.target.files.length > 1) {
+        handleBatchFiles(e.target.files);
+      } else {
+        handleImageFile(e.target.files[0]);
+      }
+    }
   }
 });
 
 window.addEventListener("paste", (e) => {
   const items = e.clipboardData.items;
+  const pastedFiles = [];
   for (let i = 0; i < items.length; i++) {
     if (items[i].type.indexOf("image") !== -1) {
       const blob = items[i].getAsFile();
-      originalName = "clipboard_image.png";
-      handleImageFile(blob);
-      break;
+      if (blob) pastedFiles.push(blob);
     }
+  }
+  
+  if (pastedFiles.length > 1) {
+    handleBatchFiles(pastedFiles);
+  } else if (pastedFiles.length === 1) {
+    originalName = "clipboard_image.png";
+    handleImageFile(pastedFiles[0]);
   }
 });
 
@@ -233,6 +295,14 @@ function resetEditorState() {
   zoomScale = 1.0;
   applyZoom();
   
+  // Clear batch state
+  batchFiles.forEach(bf => URL.revokeObjectURL(bf.src));
+  batchFiles = [];
+  batchModeActive = false;
+  const progressContainer = document.getElementById("batch-progress-container");
+  if (progressContainer) progressContainer.classList.add("hidden");
+  toggleBatchMode(false);
+
   // Reset tabs to default (Transform)
   tabTransform.click();
 
@@ -869,4 +939,326 @@ function showToast(message) {
     toast.style.opacity = "0";
     toast.style.transform = "translateY(100px)";
   }, 3000);
+}
+
+// 11. Batch Processing Actions & UI Controller
+async function handleBatchFiles(filesList) {
+  batchFiles = [];
+  batchModeActive = true;
+  
+  if (editorHeader) editorHeader.classList.remove("hidden");
+  infoName.textContent = `Batch Processing (${filesList.length} files)`;
+  
+  toggleBatchMode(true);
+  
+  for (let i = 0; i < filesList.length; i++) {
+    const file = filesList[i];
+    if (file.type.indexOf("image") === -1) continue;
+    
+    const id = "batch_" + Date.now() + "_" + Math.random().toString(36).substring(2, 5);
+    const src = URL.createObjectURL(file);
+    
+    const entry = {
+      id: id,
+      file: file,
+      name: file.name || `image_${i + 1}.png`,
+      size: file.size,
+      type: file.type,
+      src: src,
+      width: 0,
+      height: 0,
+      aspectRatio: 1
+    };
+    
+    batchFiles.push(entry);
+    
+    await new Promise((resolve) => {
+      const tempImg = new Image();
+      tempImg.onload = () => {
+        entry.width = tempImg.naturalWidth;
+        entry.height = tempImg.naturalHeight;
+        entry.aspectRatio = tempImg.naturalWidth / tempImg.naturalHeight;
+        resolve();
+      };
+      tempImg.onerror = resolve;
+      tempImg.src = src;
+    });
+  }
+  
+  renderBatchGrid();
+}
+
+function renderBatchGrid() {
+  if (!batchFilesGrid) return;
+  batchFilesGrid.innerHTML = "";
+  
+  batchFiles.forEach((bf) => {
+    const card = document.createElement("div");
+    card.className = "batch-file-card";
+    card.id = `card-${bf.id}`;
+    
+    const kb = (bf.size / 1024).toFixed(1);
+    const dims = bf.width ? `${bf.width}x${bf.height}px` : "Loading...";
+    
+    card.innerHTML = `
+      <div class="batch-file-remove" data-id="${bf.id}">✕</div>
+      <img class="batch-file-thumb" src="${bf.src}" alt="${bf.name}">
+      <div class="batch-file-info">
+        <span class="batch-file-name" title="${bf.name}">${bf.name}</span>
+        <span class="batch-file-meta">${dims} • ${kb} KB</span>
+      </div>
+    `;
+    
+    card.querySelector(".batch-file-remove").addEventListener("click", (e) => {
+      e.stopPropagation();
+      removeBatchFile(bf.id);
+    });
+    
+    batchFilesGrid.appendChild(card);
+  });
+  
+  // Add More Files Card
+  const addCard = document.createElement("div");
+  addCard.className = "batch-add-card";
+  addCard.innerHTML = `
+    <i class="fi fi-rr-plus batch-add-icon" style="font-size: 24px;"></i>
+    <span style="font-size:12px; font-weight:700; color:var(--text-muted);">Add Images</span>
+  `;
+  addCard.addEventListener("click", () => {
+    fileInput.click();
+  });
+  batchFilesGrid.appendChild(addCard);
+}
+
+function removeBatchFile(id) {
+  const idx = batchFiles.findIndex(bf => bf.id === id);
+  if (idx > -1) {
+    URL.revokeObjectURL(batchFiles[idx].src);
+    batchFiles.splice(idx, 1);
+  }
+  
+  if (batchFiles.length === 0) {
+    resetEditorState();
+  } else {
+    infoName.textContent = `Batch Processing (${batchFiles.length} files)`;
+    renderBatchGrid();
+  }
+}
+
+function toggleBatchMode(active) {
+  const editTabsGrp = document.getElementById("edit-tabs-grp");
+  const singleActionsGrp = document.getElementById("single-actions-grp");
+  const previewPanel = document.getElementById("preview-panel");
+  const metadataBar = document.getElementById("metadata-bar");
+  
+  if (active) {
+    batchModeActive = true;
+    if (editTabsGrp) editTabsGrp.classList.add("hidden");
+    if (singleActionsGrp) singleActionsGrp.classList.add("hidden");
+    if (previewPanel) previewPanel.classList.add("hidden");
+    if (metadataBar) metadataBar.classList.add("hidden");
+    if (floatingTransformToolbar) floatingTransformToolbar.classList.add("hidden");
+    if (adjustmentsSidebar) adjustmentsSidebar.classList.add("hidden");
+    editorContainer.classList.remove("with-sidebar");
+    
+    if (batchPanel) batchPanel.classList.remove("hidden");
+    dropzone.classList.add("hidden");
+  } else {
+    batchModeActive = false;
+    if (editTabsGrp) editTabsGrp.classList.remove("hidden");
+    if (singleActionsGrp) singleActionsGrp.classList.remove("hidden");
+    if (batchPanel) batchPanel.classList.add("hidden");
+  }
+}
+
+// Side-bar switch bindings
+document.getElementById("batch-enable-resize")?.addEventListener("change", (e) => {
+  const content = document.getElementById("batch-resize-content");
+  if (e.target.checked) content.classList.remove("disabled");
+  else content.classList.add("disabled");
+});
+
+document.getElementById("batch-enable-convert")?.addEventListener("change", (e) => {
+  const content = document.getElementById("batch-convert-content");
+  if (e.target.checked) content.classList.remove("disabled");
+  else content.classList.add("disabled");
+});
+
+document.getElementById("batch-enable-compress")?.addEventListener("change", (e) => {
+  const content = document.getElementById("batch-compress-content");
+  if (e.target.checked) content.classList.remove("disabled");
+  else content.classList.add("disabled");
+});
+
+btnProcessBatch?.addEventListener("click", async () => {
+  if (batchFiles.length === 0) return;
+  
+  const enableResize = document.getElementById("batch-enable-resize").checked;
+  const lockAspect = document.getElementById("batch-lock-aspect").checked;
+  const enableConvert = document.getElementById("batch-enable-convert").checked;
+  const enableCompress = document.getElementById("batch-enable-compress").checked;
+  
+  if (enableResize) {
+    const userW = parseInt(document.getElementById("batch-width-input").value);
+    const userH = parseInt(document.getElementById("batch-height-input").value);
+    if (!userW && !userH) {
+      alert("Please specify a target width or height for resizing.");
+      return;
+    }
+  }
+  
+  if (enableCompress) {
+    const targetKB = parseInt(document.getElementById("batch-target-size").value);
+    if (!targetKB || targetKB <= 0) {
+      alert("Please specify a target file size limit (greater than 0 KB).");
+      return;
+    }
+  }
+  
+  const progressContainer = document.getElementById("batch-progress-container");
+  const progressStatus = document.getElementById("batch-progress-status");
+  const progressPercent = document.getElementById("batch-progress-percent");
+  const progressBar = document.getElementById("batch-progress-bar");
+  
+  progressContainer.classList.remove("hidden");
+  btnProcessBatch.disabled = true;
+  
+  const total = batchFiles.length;
+  const processed = [];
+  
+  try {
+    for (let i = 0; i < total; i++) {
+      const bf = batchFiles[i];
+      progressStatus.textContent = `Processing image ${i + 1} of ${total}...`;
+      
+      const percent = Math.round((i / total) * 100);
+      progressPercent.textContent = `${percent}%`;
+      progressBar.style.width = `${percent}%`;
+      
+      const result = await processBatchFile(bf, enableResize, lockAspect, enableConvert, enableCompress);
+      processed.push(result);
+    }
+    
+    progressStatus.textContent = "Downloading processed files...";
+    progressPercent.textContent = "100%";
+    progressBar.style.width = "100%";
+    
+    // Sequentially download processed files
+    for (let i = 0; i < processed.length; i++) {
+      const p = processed[i];
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(p.blob);
+      a.download = p.name;
+      a.click();
+      await new Promise(r => setTimeout(r, 250)); // small delay to prevent browser blockage
+    }
+    
+    setTimeout(() => {
+      progressContainer.classList.add("hidden");
+      btnProcessBatch.disabled = false;
+      showToast(`Batch processed: ${total} files downloaded!`);
+    }, 1000);
+    
+  } catch (err) {
+    console.error(err);
+    alert("Batch processing failed: " + err.message);
+    progressContainer.classList.add("hidden");
+    btnProcessBatch.disabled = false;
+  }
+});
+
+async function processBatchFile(bf, enableResize, lockAspect, enableConvert, enableCompress) {
+  const img = new Image();
+  await new Promise((resolve, reject) => {
+    img.onload = resolve;
+    img.onerror = reject;
+    img.src = bf.src;
+  });
+  
+  let targetW = bf.width;
+  let targetH = bf.height;
+  
+  if (enableResize) {
+    const userW = parseInt(document.getElementById("batch-width-input").value);
+    const userH = parseInt(document.getElementById("batch-height-input").value);
+    
+    if (lockAspect) {
+      if (userW) {
+        targetW = userW;
+        targetH = Math.round(userW / bf.aspectRatio);
+      } else if (userH) {
+        targetH = userH;
+        targetW = Math.round(userH * bf.aspectRatio);
+      }
+    } else {
+      if (userW) targetW = userW;
+      if (userH) targetH = userH;
+    }
+  }
+  
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  canvas.width = targetW;
+  canvas.height = targetH;
+  ctx.drawImage(img, 0, 0, targetW, targetH);
+  
+  let mimeType = bf.type;
+  let ext = bf.name.split('.').pop();
+  let baseName = bf.name.substring(0, bf.name.lastIndexOf('.')) || bf.name;
+  
+  if (enableConvert) {
+    const selectedFormat = document.getElementById("batch-format-select").value;
+    if (selectedFormat === "webp") {
+      mimeType = "image/webp";
+      ext = "webp";
+    } else if (selectedFormat === "png") {
+      mimeType = "image/png";
+      ext = "png";
+    } else if (selectedFormat === "jpeg") {
+      mimeType = "image/jpeg";
+      ext = "jpg";
+    }
+  }
+  
+  let finalBlob = null;
+  if (enableCompress) {
+    const targetKB = parseInt(document.getElementById("batch-target-size").value);
+    if (targetKB && targetKB > 0) {
+      const targetBytes = targetKB * 1024;
+      
+      let compMime = mimeType;
+      if (compMime !== "image/jpeg" && compMime !== "image/webp") {
+        compMime = "image/jpeg";
+        ext = "jpg";
+      }
+      
+      let low = 0.01;
+      let high = 0.99;
+      let bestBlob = null;
+      
+      for (let step = 0; step < 8; step++) {
+        const mid = (low + high) / 2;
+        const blob = await new Promise(r => canvas.toBlob(r, compMime, mid));
+        if (blob.size <= targetBytes) {
+          bestBlob = blob;
+          low = mid;
+        } else {
+          high = mid;
+        }
+      }
+      if (!bestBlob) {
+        bestBlob = await new Promise(r => canvas.toBlob(r, compMime, 0.01));
+      }
+      finalBlob = bestBlob;
+    }
+  }
+  
+  if (!finalBlob) {
+    finalBlob = await new Promise(r => canvas.toBlob(r, mimeType));
+  }
+  
+  return {
+    blob: finalBlob,
+    name: `${baseName}_processed.${ext}`
+  };
 }

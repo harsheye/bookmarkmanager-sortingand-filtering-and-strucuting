@@ -719,6 +719,289 @@
     :fullscreen .header {
       display: none !important;
     }
+
+    /* Batch Processor Styles */
+    .batch-panel {
+      display: flex;
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .batch-panel.hidden {
+      display: none !important;
+    }
+    .batch-workspace {
+      flex: 1;
+      padding: 30px;
+      overflow-y: auto;
+      min-height: 0;
+    }
+    .batch-files-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 20px;
+    }
+    .batch-file-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      position: relative;
+      transition: all 0.2s ease;
+    }
+    .batch-file-card:hover {
+      border-color: var(--accent-color);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 162, 237, 0.15);
+    }
+    .batch-file-thumb {
+      width: 120px;
+      height: 120px;
+      object-fit: contain;
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    .batch-file-info {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 4px;
+    }
+    .batch-file-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: #f1f5f9;
+      width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .batch-file-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .batch-file-remove {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      color: #f87171;
+      border-radius: 50%;
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 10px;
+      transition: all 0.2s;
+      z-index: 10;
+    }
+    .batch-file-remove:hover {
+      background: rgba(239, 68, 68, 0.2);
+      color: #fff;
+    }
+    .batch-sidebar {
+      width: 320px;
+      border-left: 1px solid var(--border-color);
+      background: rgba(11, 13, 20, 0.4);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      overflow-y: auto;
+      flex-shrink: 0;
+      box-sizing: border-box;
+    }
+    .batch-sidebar-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      padding-bottom: 12px;
+      margin-bottom: 8px;
+    }
+    .batch-op-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .batch-op-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+    }
+    .batch-op-label {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .batch-op-switch {
+      position: relative;
+      display: inline-block;
+      width: 34px;
+      height: 20px;
+    }
+    .batch-op-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .batch-op-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(255, 255, 255, 0.1);
+      transition: .2s;
+      border-radius: 20px;
+    }
+    .batch-op-slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .2s;
+      border-radius: 50%;
+    }
+    input:checked + .batch-op-slider {
+      background-color: var(--accent-color);
+    }
+    input:checked + .batch-op-slider:before {
+      transform: translateX(14px);
+    }
+    .batch-op-content {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-top: 4px;
+      transition: opacity 0.2s;
+    }
+    .batch-op-content.disabled {
+      opacity: 0.35;
+      pointer-events: none;
+    }
+    .batch-input-row {
+      display: flex;
+      gap: 12px;
+    }
+    .batch-input-group {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .batch-input-group label {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .batch-input {
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: inherit;
+      width: 100%;
+      box-sizing: border-box;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .batch-input:focus {
+      border-color: var(--accent-color);
+    }
+    .batch-select {
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: inherit;
+      width: 100%;
+      outline: none;
+      cursor: pointer;
+    }
+    .batch-select option {
+      background: #0f111a;
+      color: #fff;
+    }
+    .batch-progress-container {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .batch-progress-text {
+      font-size: 11.5px;
+      color: #94a3b8;
+      display: flex;
+      justify-content: space-between;
+    }
+    .batch-progress-track {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .batch-progress-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--accent-gradient);
+      border-radius: 3px;
+      transition: width 0.2s ease;
+    }
+    .batch-add-card {
+      background: rgba(255, 255, 255, 0.01);
+      border: 1px dashed rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      cursor: pointer;
+      min-height: 180px;
+      transition: all 0.2s;
+    }
+    .batch-add-card:hover {
+      border-color: var(--accent-color);
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .batch-add-icon {
+      font-size: 24px;
+      color: var(--text-muted);
+    }
+    .batch-add-card:hover .batch-add-icon {
+      color: var(--accent-color);
+    }
   </style>
 </head>
 <body>
@@ -740,21 +1023,23 @@
     </div>
 
     <!-- Edit Tabs (Center) -->
-    <div class="edit-tabs">
+    <div class="edit-tabs" id="edit-tabs-grp">
       <button class="tab-btn active" id="tab-transform"><i class="fi fi-rr-crop"></i> Transform</button>
       <button class="tab-btn" id="tab-adjustments"><i class="fi fi-rr-sliders"></i> Adjustments</button>
     </div>
 
     <div class="header-right">
-      <!-- Direct Tools in Header -->
-      <button class="btn btn-secondary" id="opt-open-resize"><i class="fi fi-rr-expand-arrows"></i> Resize</button>
-      <button class="btn btn-secondary" id="opt-open-compress"><i class="fi fi-rr-compress"></i> Compress</button>
-      
-      <!-- Export Format Group -->
-      <div class="export-group">
-        <button class="export-btn" id="opt-save-webp">WebP</button>
-        <button class="export-btn" id="opt-save-png">PNG</button>
-        <button class="export-btn" id="opt-save-jpeg">JPEG</button>
+      <div class="single-mode-actions" id="single-actions-grp" style="display: flex; gap: 12px; align-items: center;">
+        <!-- Direct Tools in Header -->
+        <button class="btn btn-secondary" id="opt-open-resize"><i class="fi fi-rr-expand-arrows"></i> Resize</button>
+        <button class="btn btn-secondary" id="opt-open-compress"><i class="fi fi-rr-compress"></i> Compress</button>
+        
+        <!-- Export Format Group -->
+        <div class="export-group">
+          <button class="export-btn" id="opt-save-webp">WebP</button>
+          <button class="export-btn" id="opt-save-png">PNG</button>
+          <button class="export-btn" id="opt-save-jpeg">JPEG</button>
+        </div>
       </div>
 
       <button class="btn btn-secondary" id="btn-cancel" style="border-color: rgba(239, 68, 68, 0.25); color: #f87171;"><i class="fi fi-rr-cross-small"></i> Cancel</button>
@@ -769,7 +1054,7 @@
         <svg class="dropzone-svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
         <h3>Paste or select image</h3>
         <p>Drop file here or press Ctrl+V to paste from clipboard</p>
-        <input type="file" id="file-input" class="drop-input" accept="image/*">
+        <input type="file" id="file-input" class="drop-input" accept="image/*" multiple>
       </div>
 
       <!-- Preview Image (Hidden initially) -->
@@ -783,6 +1068,107 @@
             <div class="crop-handle handle-tr" data-handle="tr"></div>
             <div class="crop-handle handle-bl" data-handle="bl"></div>
             <div class="crop-handle handle-br" data-handle="br"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Batch Processing Panel (Hidden initially) -->
+      <div class="batch-panel hidden" id="batch-panel">
+        <div class="batch-workspace">
+          <div class="batch-files-grid" id="batch-files-grid">
+            <!-- Dynamically populated cards -->
+          </div>
+        </div>
+        
+        <div class="batch-sidebar">
+          <div class="batch-sidebar-title">Batch Operations</div>
+          
+          <!-- 1. Resize Operation -->
+          <div class="batch-op-card">
+            <div class="batch-op-header" id="batch-op-header-resize">
+              <span class="batch-op-label">
+                <i class="fi fi-rr-expand-arrows"></i> Resize Dimensions
+              </span>
+              <label class="batch-op-switch">
+                <input type="checkbox" id="batch-enable-resize">
+                <span class="batch-op-slider"></span>
+              </label>
+            </div>
+            <div class="batch-op-content disabled" id="batch-resize-content">
+              <div class="batch-input-row">
+                <div class="batch-input-group">
+                  <label>Width (px)</label>
+                  <input type="number" class="batch-input" id="batch-width-input" placeholder="e.g. 1920">
+                </div>
+                <div class="batch-input-group">
+                  <label>Height (px)</label>
+                  <input type="number" class="batch-input" id="batch-height-input" placeholder="e.g. 1080">
+                </div>
+              </div>
+              <label class="aspect-lock-row" style="margin-top: 6px; font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+                <input type="checkbox" id="batch-lock-aspect" checked>
+                <span>Lock Aspect Ratio</span>
+              </label>
+            </div>
+          </div>
+          
+          <!-- 2. Convert Format Operation -->
+          <div class="batch-op-card">
+            <div class="batch-op-header" id="batch-op-header-convert">
+              <span class="batch-op-label">
+                <i class="fi fi-rr-picture"></i> Convert Format
+              </span>
+              <label class="batch-op-switch">
+                <input type="checkbox" id="batch-enable-convert">
+                <span class="batch-op-slider"></span>
+              </label>
+            </div>
+            <div class="batch-op-content disabled" id="batch-convert-content">
+              <div class="batch-input-group">
+                <label>Format</label>
+                <select class="batch-select" id="batch-format-select">
+                  <option value="webp">WebP (.webp)</option>
+                  <option value="png">PNG (.png)</option>
+                  <option value="jpeg">JPEG (.jpeg)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 3. Target Size Compression Operation -->
+          <div class="batch-op-card">
+            <div class="batch-op-header" id="batch-op-header-compress">
+              <span class="batch-op-label">
+                <i class="fi fi-rr-compress"></i> Target Compression
+              </span>
+              <label class="batch-op-switch">
+                <input type="checkbox" id="batch-enable-compress">
+                <span class="batch-op-slider"></span>
+              </label>
+            </div>
+            <div class="batch-op-content disabled" id="batch-compress-content">
+              <div class="batch-input-group">
+                <label>Target Size (KB)</label>
+                <input type="number" class="batch-input" id="batch-target-size" placeholder="e.g. 200" min="5">
+              </div>
+            </div>
+          </div>
+          
+          <!-- Process Action -->
+          <div style="margin-top: auto; display:flex; flex-direction:column; gap:12px;">
+            <button class="btn" id="btn-process-batch" style="width:100%; justify-content:center; padding:12px; font-size:13.5px; font-weight:700; background:var(--accent-gradient);">
+              <i class="fi fi-rr-download"></i> Process & Download Batch
+            </button>
+            
+            <div class="batch-progress-container hidden" id="batch-progress-container">
+              <div class="batch-progress-text">
+                <span id="batch-progress-status">Processing...</span>
+                <span id="batch-progress-percent">0%</span>
+              </div>
+              <div class="batch-progress-track">
+                <div class="batch-progress-bar" id="batch-progress-bar"></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
