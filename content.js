@@ -91,15 +91,25 @@ document.addEventListener("copy", (e) => {
 window.addEventListener("keydown", (e) => {
   const isA = e.key.toLowerCase() === "a" || e.code === "KeyA";
   const isP = e.key.toLowerCase() === "p" || e.code === "KeyP";
+  const isF = e.key.toLowerCase() === "f" || e.code === "KeyF";
   
   const toggleAltA = e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey && isA;
   const toggleCtrlShiftP = e.ctrlKey && e.shiftKey && !e.altKey && isP;
+  const toggleAutofill = e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && (isF || isA);
   
   if (toggleAltA || toggleCtrlShiftP) {
     e.preventDefault();
     e.stopPropagation();
     e.stopImmediatePropagation();
     toggleCommandPalette();
+    return;
+  }
+  
+  if (toggleAutofill) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    triggerAutofillForm();
     return;
   }
 
@@ -150,6 +160,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ status: "pong" });
   } else if (message.action === "toggle_command_center") {
     toggleCommandPalette();
+    sendResponse({ success: true });
+  } else if (message.action === "autofill_form") {
+    triggerAutofillForm();
     sendResponse({ success: true });
   }
   return true;
@@ -560,7 +573,7 @@ const CommandModeMetadata = {
   note_tools: { name: "Notes", icon: "📝", placeholder: "Create or search notes..." },
   boost_tools: { name: "Volume Boost", icon: "🔊", placeholder: "Select boost level..." },
   timer_tools: { name: "Timer", icon: "⏱", placeholder: "Set timer interval..." },
-  translate_tools: { name: "Translate", icon: "🗣", placeholder: "Select target language..." },
+  translate_tools: { name: "Translate", icon: "🗣", placeholder: "Select source language..." },
   help_tools: { name: "Help & Guide", icon: "💡", placeholder: "Browse guide..." },
   bookmark_tools: { name: "Bookmarks", icon: "🔖", placeholder: "Search bookmarks..." },
   download_tools: { name: "Downloads", icon: "📥", placeholder: "Search downloads..." },
@@ -1218,6 +1231,32 @@ function setupUIEventListeners() {
   ccBackBtn.addEventListener("click", () => {
     exitCommandMode();
   });
+
+  // Intercept image pastes in the search input to open in Image Studio
+  ccSearchInput.addEventListener("paste", async (e) => {
+    const items = e.clipboardData.items;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf("image") !== -1) {
+        e.preventDefault();
+        const file = items[i].getAsFile();
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          const base64 = event.target.result;
+          chrome.storage.local.set({
+            temp_pasted_image: base64,
+            temp_pasted_image_name: file.name || "pasted_image.png"
+          }, () => {
+            window.open(chrome.runtime.getURL("image.html"), "_blank");
+            closeCommandPalette();
+          });
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+    }
+  });
 }
 
 function updateSearchIcon(type) {
@@ -1797,22 +1836,22 @@ async function getCommandModeCandidates(modeId, filter) {
       break;
 
     case "translate_tools":
-      if (commandModeParams.targetLang) {
+      if (commandModeParams.sourceLang) {
         list = [
-          { id: "trans_exec", title: `Translate text to ${commandModeParams.targetLang.toUpperCase()}`, subtitle: "Type phrase in search input and execute", icon: Icons.globe, type: "subaction", run: () => runTranslateText() }
+          { id: "trans_exec", title: `Translate ${commandModeParams.sourceLang.toUpperCase()} to ENGLISH`, subtitle: "Type phrase in search input and execute", icon: Icons.globe, type: "subaction", run: () => runTranslateText() }
         ];
       } else {
-        const langs = ["French", "Spanish", "Japanese", "German", "Chinese", "Hindi", "Russian"];
+        const langs = ["French", "Spanish", "Japanese", "German", "Chinese", "Hindi", "Russian", "Auto-Detect"];
         langs.forEach(l => {
           list.push({
             id: "trans_lang_" + l.toLowerCase(),
-            title: `🗣 Translate to ${l}`,
-            subtitle: "Select language",
+            title: `🗣 Translate ${l} to English`,
+            subtitle: "Select source language",
             icon: Icons.globe,
             type: "subaction",
             run: () => {
-              commandModeParams.targetLang = l.toLowerCase();
-              ccSearchInput.placeholder = `Type text to translate to ${l}...`;
+              commandModeParams.sourceLang = l.toLowerCase();
+              ccSearchInput.placeholder = `Type ${l} text to translate to English...`;
               renderSearchResults("");
             }
           });
@@ -2267,7 +2306,7 @@ function runCustomTimer() {
 // Translation runner
 async function runTranslateText() {
   const text = ccSearchInput.value.trim();
-  const lang = commandModeParams.targetLang;
+  const lang = commandModeParams.sourceLang || "auto-detect";
   if (!text) {
     showToast("Type text in search input first!", "error");
     return;
@@ -2275,7 +2314,8 @@ async function runTranslateText() {
 
   try {
     showToast("Translating...", "success");
-    const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|${lang.substring(0, 2)}`);
+    const langPair = lang.startsWith("auto") ? "auto|en" : `${lang.substring(0, 2)}|en`;
+    const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langPair}`);
     const data = await res.json();
     const translated = data.responseData?.translatedText || text;
     showToast(`Translated: "${translated}"`, "success");
@@ -2891,6 +2931,32 @@ function triggerDeleteAction() {
 // MODULE REGISTRY DEFINITIONS
 // -------------------------------------------------------------
 
+// Open Image Studio Command
+CommandRegistry.register({
+  id: "open_image_studio",
+  name: "Image Studio",
+  aliases: ["image", "img", "pic"],
+  description: "Open Premium Image Studio for editing, resizing, converting, and compressing images.",
+  icon: Icons.crop,
+  execute: () => {
+    window.open(chrome.runtime.getURL("image.html"), "_blank");
+    closeCommandPalette();
+  }
+});
+
+// Open PDF Tools Command
+CommandRegistry.register({
+  id: "open_pdf_tools",
+  name: "PDF Tools",
+  aliases: ["pdf"],
+  description: "Open PDF Tools for merging, splitting, converting, or compressing PDF files.",
+  icon: Icons.globe,
+  execute: () => {
+    window.open(chrome.runtime.getURL("pdf.html"), "_blank");
+    closeCommandPalette();
+  }
+});
+
 // Bookmarks Search Command
 CommandRegistry.register({
   id: "search_bookmarks",
@@ -3170,25 +3236,23 @@ CommandRegistry.register({
   id: "translate_utility",
   name: "Translate Text",
   aliases: ["translate", "lang"],
-  description: "Translate phrases inline. Usage: translate hello to french",
+  description: "Translate foreign phrases inline to English. Usage: translate bonjour",
   icon: Icons.globe,
   execute: async () => {
-    const parts = activeQuery.split(" to ");
-    const phrasePart = parts[0].substring(9).trim(); // skip 'translate'
-    const targetLang = (parts[1] || "spanish").trim().toLowerCase();
-    if (!phrasePart) {
-      showToast("Usage: translate <text> to <language>", "error");
+    const cleanQuery = activeQuery.substring(9).trim(); // skip 'translate'
+    if (!cleanQuery) {
+      showToast("Usage: translate <text>", "error");
       return;
     }
 
     try {
-      showToast("Translating...", "success");
-      const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(phrasePart)}&langpair=en|${targetLang.substring(0, 2)}`);
+      showToast("Translating to English...", "success");
+      const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(cleanQuery)}&langpair=auto|en`);
       const data = await res.json();
-      const translated = data.responseData?.translatedText || phrasePart;
+      const translated = data.responseData?.translatedText || cleanQuery;
       showToast(`Translated: "${translated}"`, "success");
     } catch(e) {
-      showToast(`Could not translate. Text: "${phrasePart}" to ${targetLang}`, "error");
+      showToast(`Could not translate. Text: "${cleanQuery}" to English`, "error");
     }
   }
 });
@@ -3460,6 +3524,19 @@ CommandRegistry.register({
   icon: Icons.folder,
   execute: () => {
     chrome.runtime.sendMessage({ action: "open_dashboard", view: "wizard" });
+    closeCommandPalette();
+  }
+});
+
+// Autofill Form Fields Command
+CommandRegistry.register({
+  id: "autofill_form_fields",
+  name: "Auto-fill Form Fields",
+  aliases: ["autofill", "fill", "form"],
+  description: "Populate forms and Google Forms with your personal/academic profile.",
+  icon: Icons.file,
+  execute: () => {
+    triggerAutofillForm();
     closeCommandPalette();
   }
 });
@@ -4012,4 +4089,368 @@ async function applyPaletteSettings() {
   if (config.blur === "none") blurVal = "0px";
   else if (config.blur === "20px") blurVal = "20px";
   style.setProperty("--cc-backdrop-blur", blurVal);
+}
+
+// ─── Label → profile key mapping ─────────────────────────────────────────────
+const LABEL_MAP = [
+  // UID / Roll Number
+  [/\buid\b/i,                        'uid'],
+  [/university roll/i,                'rollNo'],
+  [/roll\s*number/i,                  'rollNo'],
+  [/enrollment\s*(no|number|id)?/i,   'uid'],
+  [/registration\s*(no|number|id)?/i, 'uid'],
+
+  // Name
+  [/student\s*full\s*name/i,   'fullName'],
+  [/full\s*name/i,             'fullName'],
+  [/candidate\s*name/i,        'fullName'],
+  [/applicant\s*name/i,        'fullName'],
+  [/^name\s*\*?$/i,            'fullName'],
+  [/first\s*name/i,            'firstName'],
+  [/last\s*name/i,             'lastName'],
+  [/surname/i,                 'lastName'],
+
+  // Gender
+  [/gender/i,                  'gender'],
+  [/student\s*gender/i,        'gender'],
+
+  // Email
+  [/personal\s*email/i,        'email'],
+  [/email\s*(id|address)?/i,   'email'],
+  [/e-?mail/i,                 'email'],
+
+  // Contact
+  [/primary\s*mobile/i,        'mobile'],
+  [/mobile\s*(number|no)?/i,   'mobile'],
+  [/phone\s*(number|no)?/i,    'mobile'],
+  [/contact\s*(number|no)?/i,  'mobile'],
+  [/whatsapp/i,                'mobile'],
+
+  // College
+  [/college\s*name/i,          'college'],
+  [/institution\s*name/i,      'college'],
+  [/university\s*name/i,       'college'],
+  [/school\s*name/i,           'college'],
+  [/specify\s*college/i,       'collegeOther'],
+  [/other\s*college/i,         'collegeOther'],
+  [/college\s*(name\s*)?other/i,'collegeOther'],
+
+  // Batch / Year
+  [/year\s*of\s*passing/i,     'batch'],
+  [/passing\s*year/i,          'batch'],
+  [/graduation\s*year/i,       'batch'],
+  [/batch\s*(year)?/i,         'batch'],
+
+  // Course / Program
+  [/course\s*\*?$/i,           'program'],
+  [/program\s*(name)?\s*\*?$/i,'program'],
+  [/degree\s*\*?/i,            'program'],
+
+  // Stream / Branch
+  [/current\s*stream/i,        'stream'],
+  [/stream\s*\*?$/i,           'stream'],
+  [/branch\s*\*?/i,            'stream'],
+  [/specialization/i,          'stream'],
+  [/discipline/i,              'stream'],
+  [/department/i,              'stream'],
+
+  // Percentages
+  [/10th?\s*(percentage|%|marks|score)/i,  'tenth'],
+  [/ssc\s*(percentage|%|marks)/i,          'tenth'],
+  [/matric/i,                              'tenth'],
+  [/12th?\s*(percentage|%|marks|score)/i,  'twelfth'],
+  [/hsc\s*(percentage|%|marks)/i,          'twelfth'],
+  [/inter(mediate)?\s*(percentage|%)?/i,   'twelfth'],
+  [/graduation\s*(percentage|%|cgpa|gpa)/i,'grad'],
+  [/ug\s*(percentage|%|cgpa)/i,            'grad'],
+  [/\bcgpa\b/i,                            'grad'],
+  [/\bgpa\b/i,                             'grad'],
+  [/aggregate\s*(percentage|%|cgpa)/i,     'grad'],
+  [/current\s*(cgpa|percentage|gpa)/i,     'grad'],
+
+  // Backlog
+  [/active\s*backlog\b(?!.*count|.*number|.*no)/i, 'backlog'],
+  [/any\s*(active\s*)?backlog/i,                   'backlog'],
+  [/no\s*of\s*active\s*backlog/i,                  'backlogCount'],
+  [/number\s*of\s*(active\s*)?backlog/i,            'backlogCount'],
+  [/backlog\s*(count|number|no)/i,                  'backlogCount'],
+
+  // Position
+  [/position\s*applying/i,     'position'],
+  [/job\s*(role|position|title)/i, 'position'],
+  [/role\s*applying/i,         'position'],
+  [/applied\s*(for|role)/i,    'position'],
+
+  // Location
+  [/job\s*location/i,          'jobLocation'],
+  [/preferred\s*location/i,    'jobLocation'],
+  [/work\s*location/i,         'jobLocation'],
+  [/location\s*(preference)?/i,'jobLocation'],
+
+  // Japanese
+  [/japanese\s*language\s*cert/i,    'japaneseCert'],
+  [/have\s*you\s*japanese/i,         'japaneseCert'],
+  [/jlpt\s*cert(ification)?/i,       'japaneseCert'],
+  [/valid\s*jlpt/i,                  'jlptValid'],
+  [/jlpt\s*level/i,                  'jlptLevel'],
+  [/fluent\s*in\s*japanese/i,        'japaneseFluent'],
+  [/japanese.*fluent/i,              'japaneseFluent'],
+];
+
+const IMPORTANT_MESSAGE_TEXTS = [
+  /i understand that after submit/i,
+  /i confirm that if i miss/i,
+  /consent form/i,
+  /registration is mandatory/i,
+];
+
+const UNDERTAKING_TEXTS = [
+  /job description understanding/i,
+  /placement process compliance/i,
+  /ethical conduct/i,
+  /consent and participation/i,
+  /i hereby confirm/i,
+  /i pledge to conduct/i,
+  /i acknowledge that/i,
+  /undertaking/i,
+];
+
+function getFormQuestions() {
+  const questions = [];
+  const questionBlocks = document.querySelectorAll('[role="listitem"], .freebirdFormviewerComponentsQuestionBaseRoot');
+
+  questionBlocks.forEach(block => {
+    const labelEl = block.querySelector('[role="heading"], .freebirdFormviewerComponentsQuestionBaseTitle, .M7eMe');
+    if (!labelEl) return;
+    const label = labelEl.textContent.trim().replace(/\s*\*\s*$/, '').trim();
+    questions.push({ label, block });
+  });
+
+  return questions;
+}
+
+function matchLabel(label) {
+  for (const [pattern, key] of LABEL_MAP) {
+    if (pattern instanceof RegExp ? pattern.test(label) : label.toLowerCase().includes(pattern)) {
+      return key;
+    }
+  }
+  return null;
+}
+
+function triggerEvents(el, value) {
+  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+  const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
+
+  if (el.tagName === 'INPUT' && nativeInputValueSetter) {
+    nativeInputValueSetter.call(el, value);
+  } else if (el.tagName === 'TEXTAREA' && nativeTextAreaValueSetter) {
+    nativeTextAreaValueSetter.call(el, value);
+  } else {
+    el.value = value;
+  }
+
+  ['input', 'change', 'blur', 'keyup'].forEach(ev =>
+    el.dispatchEvent(new Event(ev, { bubbles: true }))
+  );
+}
+
+function fillTextInput(block, value, highlight) {
+  const input = block.querySelector('input[type="text"], input[type="email"], input[type="tel"], input[type="number"], textarea');
+  if (!input || !value) return false;
+  
+  // Format UID as uppercase alphanumeric
+  const isUID = input.id?.includes('uid') || input.name?.includes('uid') || input.getAttribute('aria-labelledby')?.includes('uid') || block.textContent.toLowerCase().includes('uid');
+  if (isUID) {
+    value = value.toString().replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  }
+
+  triggerEvents(input, value);
+  if (highlight) flashElement(input);
+  return true;
+}
+
+function fillDropdown(block, value, highlight) {
+  if (!value) return false;
+
+  const dropdown = block.querySelector('[role="listbox"], [role="combobox"]');
+  if (dropdown) {
+    const openBtn = block.querySelector('.exportSelect, [role="combobox"]');
+    if (openBtn) openBtn.click();
+
+    setTimeout(() => {
+      const options = document.querySelectorAll('[role="option"]');
+      for (const opt of options) {
+        const text = opt.textContent.trim();
+        if (normalizeVal(text) === normalizeVal(value) ||
+            text.toLowerCase().includes(value.toLowerCase())) {
+          opt.click();
+          if (highlight) flashElement(opt);
+          return;
+        }
+      }
+      document.body.click();
+    }, 200);
+    return true;
+  }
+
+  const select = block.querySelector('select');
+  if (select) {
+    for (const opt of select.options) {
+      if (normalizeVal(opt.text) === normalizeVal(value) ||
+          opt.value.toLowerCase() === value.toLowerCase()) {
+        select.value = opt.value;
+        triggerEvents(select, opt.value);
+        if (highlight) flashElement(select);
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function fillRadio(block, value, highlight) {
+  if (!value) return false;
+
+  const radios = block.querySelectorAll('[role="radio"], input[type="radio"]');
+  for (const radio of radios) {
+    const label = radio.closest('label')?.textContent.trim() ||
+                  radio.nextElementSibling?.textContent.trim() ||
+                  radio.getAttribute('data-value') || '';
+
+    if (normalizeVal(label) === normalizeVal(value) ||
+        label.toLowerCase().includes(value.toLowerCase())) {
+      radio.click();
+      if (highlight) flashElement(radio.closest('[role="radio"]') || radio);
+      return true;
+    }
+  }
+  return false;
+}
+
+function handleConsentCheckboxes(block, profile, highlight) {
+  const text = block.textContent.trim();
+  let shouldCheck = false;
+
+  if (profile.autoImportantMsg !== false && IMPORTANT_MESSAGE_TEXTS.some(p => p.test(text))) {
+    shouldCheck = true;
+  }
+  if (profile.autoUndertaking !== false && UNDERTAKING_TEXTS.some(p => p.test(text))) {
+    shouldCheck = true;
+  }
+
+  if (!shouldCheck) return false;
+
+  const checkboxes = block.querySelectorAll('[role="checkbox"], input[type="checkbox"]');
+  let checked = false;
+  checkboxes.forEach(cb => {
+    const isChecked = cb.getAttribute('aria-checked') === 'true' || cb.checked;
+    if (!isChecked) {
+      cb.click();
+      checked = true;
+      if (highlight) flashElement(cb);
+    }
+  });
+
+  return checked;
+}
+
+function normalizeVal(str) {
+  return str.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function flashElement(el) {
+  if (!el) return;
+  const original = el.style.boxShadow;
+  el.style.transition = 'box-shadow 0.3s';
+  el.style.boxShadow = '0 0 0 3px #6c63ff88';
+  setTimeout(() => { el.style.boxShadow = original; }, 800);
+}
+
+function fillForm(profile) {
+  const questions = getFormQuestions();
+  let filled = 0, skipped = 0;
+
+  questions.forEach(({ label, block }) => {
+    const key = matchLabel(label);
+
+    if (profile.fillCheckboxes !== false) {
+      if (handleConsentCheckboxes(block, profile, profile.showHighlight !== false)) {
+        filled++;
+        return;
+      }
+    }
+
+    if (!key) { skipped++; return; }
+
+    const value = profile[key];
+    if (!value && value !== 0) { skipped++; return; }
+
+    const highlight = profile.showHighlight !== false;
+
+    const hasRadio = block.querySelector('[role="radio"], input[type="radio"]');
+    const hasCheckbox = block.querySelector('[role="checkbox"], input[type="checkbox"]');
+    const hasDropdown = block.querySelector('[role="listbox"], [role="combobox"], select');
+    const hasText = block.querySelector('input[type="text"], input[type="email"], input[type="tel"], input[type="number"], textarea');
+
+    let success = false;
+
+    if (hasRadio && profile.fillRadios !== false) {
+      success = fillRadio(block, value, highlight);
+    } else if (hasDropdown && profile.fillDropdowns !== false) {
+      success = fillDropdown(block, value, highlight);
+    } else if (hasText && profile.fillText !== false) {
+      success = fillTextInput(block, value, highlight);
+    } else if (hasCheckbox && profile.fillCheckboxes !== false) {
+      success = fillRadio(block, value, highlight);
+    }
+
+    if (success) filled++;
+    else skipped++;
+  });
+
+  return { filled, skipped, total: questions.length };
+}
+
+function triggerAutofillForm() {
+  chrome.storage.local.get(["gformProfile", "autofill_profile"], (res) => {
+    let profile = res.gformProfile;
+    if (!profile || Object.keys(profile).length === 0) {
+      profile = res.autofill_profile || {};
+    }
+    
+    const hasValues = profile && Object.values(profile).some(val => val && val.toString().trim() !== "");
+    if (!profile || !hasValues) {
+      alert("No Autofill Profile configured!\n\nPlease open the Dashboard, go to the Settings tab, and fill out your Autofill Profile details first.");
+      return;
+    }
+    
+    // Normalize keys
+    if (!profile.uid && profile.rollNumber) profile.uid = profile.rollNumber;
+    if (!profile.rollNo && profile.rollNumber) profile.rollNo = profile.rollNumber;
+    if (!profile.mobile && profile.contact) profile.mobile = profile.contact;
+    if (!profile.grad && profile.graduationPercent) profile.grad = profile.graduationPercent;
+    
+    // For LABEL_MAP mapping consistency, ensure both sets of keys exist
+    if (profile.rollNo && !profile.rollNumber) profile.rollNumber = profile.rollNo;
+    if (profile.mobile && !profile.contact) profile.contact = profile.mobile;
+    if (profile.grad && !profile.graduationPercent) profile.graduationPercent = profile.grad;
+
+    // Set default flags
+    if (profile.fillCheckboxes === undefined) profile.fillCheckboxes = true;
+    if (profile.fillRadios === undefined) profile.fillRadios = true;
+    if (profile.fillDropdowns === undefined) profile.fillDropdowns = true;
+    if (profile.fillText === undefined) profile.fillText = true;
+    if (profile.autoImportantMsg === undefined) profile.autoImportantMsg = true;
+    if (profile.autoUndertaking === undefined) profile.autoUndertaking = true;
+    if (profile.showHighlight === undefined) profile.showHighlight = true;
+    
+    const result = fillForm(profile);
+    if (result && result.filled > 0) {
+      showToast(`Autofilled ${result.filled} fields successfully!`, "success");
+    } else {
+      showToast("No matching fields found to autofill.", "error");
+    }
+  });
 }

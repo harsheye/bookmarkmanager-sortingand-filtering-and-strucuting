@@ -1262,3 +1262,19 @@ async function processBatchFile(bf, enableResize, lockAspect, enableConvert, ena
     name: `${baseName}_processed.${ext}`
   };
 }
+
+// 12. Retrieve Pasted Image from Command Palette
+chrome.storage.local.get(["temp_pasted_image", "temp_pasted_image_name"], (res) => {
+  if (res.temp_pasted_image) {
+    fetch(res.temp_pasted_image)
+      .then(r => r.blob())
+      .then(blob => {
+        blob.name = res.temp_pasted_image_name || "pasted_image.png";
+        handleImageFile(blob);
+      })
+      .catch(err => console.error("Error loading pasted image:", err));
+      
+    // Clear storage
+    chrome.storage.local.remove(["temp_pasted_image", "temp_pasted_image_name"]);
+  }
+});
