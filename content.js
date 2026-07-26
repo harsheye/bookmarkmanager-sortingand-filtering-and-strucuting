@@ -1308,10 +1308,12 @@ async function handleSearchChange(query) {
   
   if (!currentCommandMode) {
     if (cleanQ === "/image") {
-      enterCommandMode("image_tools");
+      window.open(chrome.runtime.getURL("image.html"), "_blank");
+      closeCommandPalette();
       return;
     } else if (cleanQ === "/pdf") {
-      enterCommandMode("pdf_tools");
+      window.open(chrome.runtime.getURL("pdf.html"), "_blank");
+      closeCommandPalette();
       return;
     } else if (cleanQ === "/note") {
       enterCommandMode("note_tools");
