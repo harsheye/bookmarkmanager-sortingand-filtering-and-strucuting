@@ -2475,13 +2475,14 @@ function renderResultsUI() {
     listEl.appendChild(itemEl);
   });
 
-  if (visibleItems[selectedIndex]) {
-    ccBreadcrumbs.innerHTML = `Command Palette › <span class="cc-breadcrumb-badge">${visibleItems[selectedIndex].title}</span>`;
-    if (isSubmenuOpen) {
-      renderSubmenuActions();
-    }
+  if (currentCommandMode) {
+    const metadata = CommandModeMetadata[currentCommandMode];
+    ccBreadcrumbs.innerHTML = `Command Palette › <span class="cc-breadcrumb-badge">${metadata ? metadata.name : currentCommandMode}</span>`;
   } else {
     ccBreadcrumbs.innerHTML = "Command Palette";
+  }
+  if (isSubmenuOpen) {
+    renderSubmenuActions();
   }
 }
 
@@ -2500,11 +2501,14 @@ function moveSelection(direction) {
     }
   });
 
-  if (visibleItems[selectedIndex]) {
-    ccBreadcrumbs.innerHTML = `Command Palette › <span class="cc-breadcrumb-badge">${visibleItems[selectedIndex].title}</span>`;
-    if (isSubmenuOpen) {
-      renderSubmenuActions();
-    }
+  if (currentCommandMode) {
+    const metadata = CommandModeMetadata[currentCommandMode];
+    ccBreadcrumbs.innerHTML = `Command Palette › <span class="cc-breadcrumb-badge">${metadata ? metadata.name : currentCommandMode}</span>`;
+  } else {
+    ccBreadcrumbs.innerHTML = "Command Palette";
+  }
+  if (isSubmenuOpen) {
+    renderSubmenuActions();
   }
 }
 
