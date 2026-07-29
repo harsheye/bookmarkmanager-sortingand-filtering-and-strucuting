@@ -177,6 +177,11 @@ body {
   flex-direction: column;
   position: relative;
   overflow: hidden;
+  height: calc(100vh - 40px) !important;
+  min-height: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
 }
 
 /* Stepper navigation */
@@ -284,9 +289,15 @@ body {
   justify-content: flex-end;
   align-items: center;
   gap: 16px;
-  padding-top: 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-  margin-top: auto;
+  padding: 16px 24px;
+  background: rgba(12, 10, 24, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  margin-top: auto !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
+  z-index: 10;
 }
 
 .step-scroll-content::-webkit-scrollbar {
@@ -5273,4 +5284,72 @@ body.reduced-motion * {
 .cookies-resizer.is-resizing { background: var(--color-primary); opacity: 0.5; }
 
 
+/* Vertical Stepper & Wizard Layout */
+.vertical-stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  position: relative;
+  flex-grow: 1;
+}
 
+.step-vertical-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  z-index: 3;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.step-vertical-item .step-num {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.step-vertical-item .step-vertical-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: color 0.3s ease;
+}
+
+.step-vertical-item .step-vertical-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+/* Active & Completed States */
+.step-vertical-item.active .step-num {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+  box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+}
+
+.step-vertical-item.completed .step-num {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: white;
+}
+
+.step-vertical-item.active .step-vertical-label {
+  color: white;
+  font-weight: 600;
+}
+
+.step-vertical-item.completed .step-vertical-label {
+  color: var(--color-success);
+}

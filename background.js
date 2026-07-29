@@ -16,6 +16,22 @@ chrome.commands.onCommand.addListener((command) => {
         toggleCenterInTab(tabs[0].id);
       }
     });
+  } else if (command === "autofill-form") {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0] && tabs[0].id) {
+        chrome.tabs.sendMessage(tabs[0].id, { action: "autofill_form" }).catch(err => {
+          console.warn("Failed to send autofill command:", err);
+        });
+      }
+    });
+  } else if (command === "capture-video-frame") {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0] && tabs[0].id) {
+        chrome.tabs.sendMessage(tabs[0].id, { action: "capture_video_frame" }).catch(err => {
+          console.warn("Failed to send capture command:", err);
+        });
+      }
+    });
   }
 });
 
@@ -283,6 +299,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   // --- DOWNLOADS API PROXY ---
+  if (message.action === "download_video_frame") {
+    chrome.downloads.download({
+      url: message.dataUrl,
+      filename: `video_frame_${message.timestamp}.png`,
+      saveAs: false
+    });
+    return;
+  }
+
   if (message.action === "get_downloads") {
     chrome.downloads.search({ query: message.query || "", limit: 30 }, (downloads) => {
       sendResponse(downloads || []);

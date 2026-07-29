@@ -6,6 +6,12 @@ const mergeFileInput = document.getElementById("merge-file-input");
 const mergeFileList = document.getElementById("merge-file-list");
 const btnMergeRun = document.getElementById("btn-merge-run");
 
+// Image elements
+const imageDropzone = document.getElementById("image-dropzone");
+const imageFileInput = document.getElementById("image-file-input");
+const imageFileList = document.getElementById("image-file-list");
+const btnImageRun = document.getElementById("btn-image-run");
+
 // Compress elements
 const compressDropzone = document.getElementById("compress-dropzone");
 const compressFileInput = document.getElementById("compress-file-input");
@@ -32,6 +38,7 @@ const btnRotateRun = document.getElementById("btn-rotate-run");
 const toastNotify = document.getElementById("toast-notify");
 
 let mergeFiles = [];
+let imageFiles = [];
 let compressFile = null;
 let splitFile = null;
 let rotateFile = null;
@@ -44,6 +51,9 @@ window.switchTab = function(mode) {
   if (mode === 'merge') {
     document.getElementById("btn-tab-merge").classList.add("active");
     document.getElementById("tab-merge").classList.add("active");
+  } else if (mode === 'image') {
+    document.getElementById("btn-tab-image").classList.add("active");
+    document.getElementById("tab-image").classList.add("active");
   } else if (mode === 'compress') {
     document.getElementById("btn-tab-compress").classList.add("active");
     document.getElementById("tab-compress").classList.add("active");
@@ -56,10 +66,23 @@ window.switchTab = function(mode) {
   }
 };
 
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.mode) {
+      window.switchTab(btn.dataset.mode);
+    }
+  });
+});
+
 // Bind file uploads
 setupDragAndDrop(mergeDropzone, mergeFileInput, (files) => {
   mergeFiles = [...mergeFiles, ...Array.from(files).filter(f => f.type === "application/pdf" || f.name.endsWith(".pdf"))];
   renderMergeFiles();
+});
+
+setupDragAndDrop(imageDropzone, imageFileInput, (files) => {
+  imageFiles = [...imageFiles, ...Array.from(files).filter(f => f.type === "image/png" || f.type === "image/jpeg" || f.name.match(/\.(png|jpe?g)$/i))];
+  renderImageFiles();
 });
 
 setupDragAndDrop(compressDropzone, compressFileInput, (files) => {
@@ -129,7 +152,11 @@ function renderMergeFiles() {
           <span class="file-name">${f.name}</span>
           <span class="file-size">(${(f.size / 1024 / 1024).toFixed(2)} MB)</span>
         </div>
-        <button class="file-action-btn" onclick="removeMergeFile(${index})">✕</button>
+        <div style="display:flex; gap:8px; align-items:center;">
+          ${index > 0 ? `<button class="file-action-btn merge-up-btn" data-index="${index}" title="Move Up">↑</button>` : `<div style="width:28px"></div>`}
+          ${index < mergeFiles.length - 1 ? `<button class="file-action-btn merge-down-btn" data-index="${index}" title="Move Down">↓</button>` : `<div style="width:28px"></div>`}
+          <button class="file-action-btn merge-remove-btn" data-index="${index}" title="Remove">✕</button>
+        </div>
       </div>
     `).join("");
     mergeDropzone.style.display = "none";
@@ -145,6 +172,66 @@ window.removeMergeFile = function(index) {
   renderMergeFiles();
 };
 
+window.moveMergeFileUp = function(index) {
+  if (index > 0) {
+    const temp = mergeFiles[index];
+    mergeFiles[index] = mergeFiles[index - 1];
+    mergeFiles[index - 1] = temp;
+    renderMergeFiles();
+  }
+};
+
+window.moveMergeFileDown = function(index) {
+  if (index < mergeFiles.length - 1) {
+    const temp = mergeFiles[index];
+    mergeFiles[index] = mergeFiles[index + 1];
+    mergeFiles[index + 1] = temp;
+    renderMergeFiles();
+  }
+};
+
+mergeFileList.addEventListener('click', (e) => {
+  if (e.target.classList.contains('merge-remove-btn')) {
+    window.removeMergeFile(parseInt(e.target.dataset.index, 10));
+  } else if (e.target.classList.contains('merge-up-btn')) {
+    window.moveMergeFileUp(parseInt(e.target.dataset.index, 10));
+  } else if (e.target.classList.contains('merge-down-btn')) {
+    window.moveMergeFileDown(parseInt(e.target.dataset.index, 10));
+  }
+});
+
+// Render Image Files
+function renderImageFiles() {
+  if (imageFiles.length > 0) {
+    imageFileList.innerHTML = imageFiles.map((f, index) => `
+      <div class="file-row">
+        <div class="file-info">
+          <span>🖼️</span>
+          <span class="file-name">${f.name}</span>
+          <span class="file-size">(${(f.size / 1024 / 1024).toFixed(2)} MB)</span>
+        </div>
+        <button class="file-action-btn image-remove-btn" data-index="${index}">✕</button>
+      </div>
+    `).join("");
+    imageDropzone.style.display = "none";
+  } else {
+    imageFileList.innerHTML = "";
+    imageDropzone.style.display = "flex";
+  }
+  btnImageRun.style.display = imageFiles.length > 0 ? "block" : "none";
+}
+
+window.removeImageFile = function(index) {
+  imageFiles.splice(index, 1);
+  renderImageFiles();
+};
+
+imageFileList.addEventListener('click', (e) => {
+  if (e.target.classList.contains('image-remove-btn')) {
+    window.removeImageFile(parseInt(e.target.dataset.index, 10));
+  }
+});
+
 // Render Compress File
 function renderCompressFile() {
   if (compressFile) {
@@ -155,7 +242,7 @@ function renderCompressFile() {
           <span class="file-name">${compressFile.name}</span>
           <span class="file-size">(${(compressFile.size / 1024 / 1024).toFixed(2)} MB)</span>
         </div>
-        <button class="file-action-btn" onclick="removeCompressFile()">✕</button>
+        <button class="file-action-btn compress-remove-btn">✕</button>
       </div>
     `;
     compressDropzone.style.display = "none";
@@ -171,6 +258,12 @@ window.removeCompressFile = function() {
   renderCompressFile();
 };
 
+compressFileList.addEventListener('click', (e) => {
+  if (e.target.classList.contains('compress-remove-btn')) {
+    window.removeCompressFile();
+  }
+});
+
 // Render Split File
 function renderSplitFile() {
   if (splitFile) {
@@ -181,7 +274,7 @@ function renderSplitFile() {
           <span class="file-name">${splitFile.name}</span>
           <span class="file-size">(${(splitFile.size / 1024 / 1024).toFixed(2)} MB)</span>
         </div>
-        <button class="file-action-btn" onclick="removeSplitFile()">✕</button>
+        <button class="file-action-btn split-remove-btn">✕</button>
       </div>
     `;
     splitDropzone.style.display = "none";
@@ -199,6 +292,12 @@ window.removeSplitFile = function() {
   renderSplitFile();
 };
 
+splitFileList.addEventListener('click', (e) => {
+  if (e.target.classList.contains('split-remove-btn')) {
+    window.removeSplitFile();
+  }
+});
+
 // Render Rotate File
 function renderRotateFile() {
   if (rotateFile) {
@@ -209,7 +308,7 @@ function renderRotateFile() {
           <span class="file-name">${rotateFile.name}</span>
           <span class="file-size">(${(rotateFile.size / 1024 / 1024).toFixed(2)} MB)</span>
         </div>
-        <button class="file-action-btn" onclick="removeRotateFile()">✕</button>
+        <button class="file-action-btn rotate-remove-btn">✕</button>
       </div>
     `;
     rotateDropzone.style.display = "none";
@@ -226,6 +325,12 @@ window.removeRotateFile = function() {
   rotateFile = null;
   renderRotateFile();
 };
+
+rotateFileList.addEventListener('click', (e) => {
+  if (e.target.classList.contains('rotate-remove-btn')) {
+    window.removeRotateFile();
+  }
+});
 
 // Execute Merge
 btnMergeRun.addEventListener("click", async () => {
@@ -260,6 +365,49 @@ btnMergeRun.addEventListener("click", async () => {
   }
 });
 
+// Execute Image to PDF
+btnImageRun.addEventListener("click", async () => {
+  if (imageFiles.length === 0) return;
+  btnImageRun.textContent = "Converting Images...";
+  btnImageRun.disabled = true;
+
+  try {
+    const { PDFDocument } = window.PDFLib;
+    const pdfDoc = await PDFDocument.create();
+
+    for (const file of imageFiles) {
+      const buffer = await file.arrayBuffer();
+      let image;
+      if (file.type === "image/png" || file.name.toLowerCase().endsWith(".png")) {
+        image = await pdfDoc.embedPng(buffer);
+      } else {
+        image = await pdfDoc.embedJpg(buffer);
+      }
+      const page = pdfDoc.addPage([image.width, image.height]);
+      page.drawImage(image, {
+        x: 0,
+        y: 0,
+        width: image.width,
+        height: image.height,
+      });
+    }
+
+    const pdfBytes = await pdfDoc.save();
+    downloadPdf(pdfBytes, "images_converted.pdf");
+    
+    showToast("Images Converted Successfully!");
+    btnImageRun.textContent = "Convert to PDF";
+    btnImageRun.disabled = false;
+    imageFiles = [];
+    renderImageFiles();
+  } catch(e) {
+    alert("Error converting images to PDF");
+    console.error(e);
+    btnImageRun.textContent = "Failed. Try again";
+    btnImageRun.disabled = false;
+  }
+});
+
 // Execute Compress
 btnCompressRun.addEventListener("click", async () => {
   if (!compressFile) return;
@@ -270,7 +418,14 @@ btnCompressRun.addEventListener("click", async () => {
     const { PDFDocument } = window.PDFLib;
     const buffer = await compressFile.arrayBuffer();
     const doc = await PDFDocument.load(buffer);
-    const compressedBytes = await doc.save({ useObjectStreams: true });
+    
+    const level = document.getElementById("compress-level").value;
+    const saveOptions = { useObjectStreams: true };
+    if (level === "low") {
+      saveOptions.useObjectStreams = false;
+    }
+    
+    const compressedBytes = await doc.save(saveOptions);
     
     downloadPdf(compressedBytes, "compressed_document.pdf");
     
@@ -400,3 +555,4 @@ function downloadPdf(bytes, filename) {
   a.download = filename;
   a.click();
 }
+

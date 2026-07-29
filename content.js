@@ -74,9 +74,119 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }, 150);
   }
+
+  // Initialize the hover video screenshot overlay
+  chrome.storage.local.get(['video_screenshot_enabled'], (res) => {
+    if (res.video_screenshot_enabled !== false) {
+      initVideoOverlay();
+    }
+  });
 });
 
-// Global copy listener for Clipboard History
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.video_screenshot_enabled !== undefined) {
+    if (changes.video_screenshot_enabled.newValue === false) {
+      removeVideoOverlay();
+    } else {
+      initVideoOverlay();
+    }
+  }
+});
+
+// Video Screenshot Overlay Logic
+let hoveredVideo = null;
+let captureBtn = null;
+let hideCaptureBtnTimeout = null;
+
+function initVideoOverlay() {
+  if (document.getElementById('cc-video-capture-btn')) return;
+
+  captureBtn = document.createElement('button');
+  captureBtn.id = 'cc-video-capture-btn';
+  captureBtn.innerHTML = '📷';
+  captureBtn.title = "Capture Video Frame";
+  captureBtn.style.cssText = `
+    position: fixed;
+    z-index: 2147483647;
+    background: transparent;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    padding: 8px;
+    font-size: 24px;
+    cursor: pointer;
+    display: none;
+    transition: transform 0.2s, background 0.2s;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.8);
+    line-height: 1;
+  `;
+
+  captureBtn.addEventListener('mouseenter', () => {
+    captureBtn.style.background = 'rgba(0, 0, 0, 0.4)';
+    captureBtn.style.transform = 'scale(1.1)';
+  });
+  captureBtn.addEventListener('mouseleave', () => {
+    captureBtn.style.background = 'transparent';
+    captureBtn.style.transform = 'scale(1)';
+  });
+
+  captureBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (hoveredVideo) {
+      captureVideoFrame(hoveredVideo);
+    }
+  });
+
+  document.body.appendChild(captureBtn);
+  document.addEventListener('mousemove', handleVideoMouseMove, { passive: true });
+}
+
+function removeVideoOverlay() {
+  document.removeEventListener('mousemove', handleVideoMouseMove);
+  if (captureBtn && captureBtn.parentNode) {
+    captureBtn.parentNode.removeChild(captureBtn);
+  }
+  captureBtn = null;
+  hoveredVideo = null;
+  clearTimeout(hideCaptureBtnTimeout);
+}
+
+function handleVideoMouseMove(e) {
+  if (!captureBtn) return;
+  if (e.target === captureBtn) {
+    clearTimeout(hideCaptureBtnTimeout);
+    return;
+  }
+
+  let videoEl = e.target.tagName === 'VIDEO' ? e.target : null;
+    
+    // For sites like YouTube that overlay transparent divs on top of videos
+    if (!videoEl) {
+       const els = document.elementsFromPoint(e.clientX, e.clientY);
+       videoEl = els.find(el => el.tagName === 'VIDEO');
+    }
+
+    if (videoEl) {
+      hoveredVideo = videoEl;
+      const rect = videoEl.getBoundingClientRect();
+      
+      // Only show if the video is reasonably sized
+      if (rect.width > 200 && rect.height > 150) {
+        captureBtn.style.display = 'block';
+        captureBtn.style.top = (rect.top + 16) + 'px';
+        captureBtn.style.left = (rect.left + 16) + 'px';
+        
+        clearTimeout(hideCaptureBtnTimeout);
+      }
+    } else {
+      clearTimeout(hideCaptureBtnTimeout);
+      hideCaptureBtnTimeout = setTimeout(() => {
+        if (captureBtn) captureBtn.style.display = 'none';
+        hoveredVideo = null;
+      }, 150);
+    }
+}
 document.addEventListener("copy", (e) => {
   const selection = window.getSelection().toString();
   if (selection) {
@@ -164,9 +274,71 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   } else if (message.action === "autofill_form") {
     triggerAutofillForm();
     sendResponse({ success: true });
+  } else if (message.action === "capture_video_frame") {
+    chrome.storage.local.get(['video_screenshot_enabled'], (res) => {
+      if (res.video_screenshot_enabled !== false) {
+        captureVideoFrame();
+      }
+    });
+    sendResponse({ success: true });
   }
   return true;
 });
+
+function captureVideoFrame(targetVideo = null) {
+  let bestVideo = targetVideo;
+
+  if (!bestVideo) {
+    const videos = Array.from(document.querySelectorAll('video'));
+    if (videos.length === 0) {
+      console.warn("No video elements found on the page.");
+      return;
+    }
+    
+    // Find the largest playing video, or just the largest video if none are playing
+    bestVideo = videos[0];
+  let maxArea = 0;
+  
+  for (const v of videos) {
+    const area = v.videoWidth * v.videoHeight;
+    // Prefer playing videos
+    if (!v.paused && area > 0) {
+      bestVideo = v;
+      break;
+    }
+    if (area > maxArea) {
+      maxArea = area;
+      bestVideo = v;
+    }
+  }
+  }
+
+  if (bestVideo.videoWidth === 0 || bestVideo.videoHeight === 0) {
+    console.warn("Video does not have valid dimensions.");
+    return;
+  }
+
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = bestVideo.videoWidth;
+    canvas.height = bestVideo.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bestVideo, 0, 0, canvas.width, canvas.height);
+    
+    const dataUrl = canvas.toDataURL('image/png');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    
+    chrome.runtime.sendMessage({ 
+      action: "download_video_frame", 
+      dataUrl: dataUrl, 
+      timestamp: timestamp 
+    });
+    
+  } catch (err) {
+    console.error("Failed to capture video frame:", err);
+    alert("Could not capture video frame. This is usually due to CORS restrictions on the video stream (the video is hosted on a different domain without CORS headers).");
+  }
+}
 
 // Load stats for scoring
 function preloadStats() {
@@ -1664,21 +1836,21 @@ async function renderSearchResults(query) {
               if (tabCandidates.length > 0) {
                 tabCandidates.sort((a, b) => b.score - a.score);
                 results = tabCandidates;
-              } else {
-                // E. Default Google Search Fallback
-                results = [{
-                  id: "google_search_fallback",
-                  title: `Search Google for "${query}"`,
-                  subtitle: "Search web using Google",
-                  icon: Icons.search,
-                  type: "google_search",
-                  searchQuery: query,
-                  score: 1
-                }];
               }
             }
           }
         }
+        
+        // Always append Google Search Fallback if there is a query
+        results.push({
+          id: "google_search_fallback",
+          title: `Search Google for "${query}"`,
+          subtitle: "Search web using Google",
+          icon: Icons.search,
+          type: "google_search",
+          searchQuery: query,
+          score: 1
+        });
       }
 
       scored = results;
@@ -1863,30 +2035,53 @@ async function getCommandModeCandidates(modeId, filter) {
 
     case "help_tools":
       const guideText = `SMART COMMAND PALETTE GUIDE
-      
-Keyboard Shortcuts:
-• Alt+A           : Open / Close Palette
+
+--- GLOBAL SHORTCUTS ---
+• Alt+A           : Open / Close Palette Overlay
 • Ctrl+Shift+P    : Alternative Open hotkey
+• Alt+Shift+A     : Auto-fill Form Fields with Profile
+• Alt+C           : Capture Video Frame (Downloads playing video frame)
+
+--- PALETTE NAVIGATION ---
 • Up / Down Arrow : Navigate results list
 • Enter           : Execute / Run action
-• Alt+Enter       : Open in new browser tab
-• Alt+K           : Open sliding Action Sheet
-• Backspace       : Exit sub-command modes
+• Alt+Enter       : Open result in new browser tab
+• Alt+K           : Open sliding Action Sheet (for advanced options)
+• Backspace       : Exit sub-command modes / Go back
 • Esc             : Close palette
 
-Prefix Commands (type directly in search):
-• note          : Enter Note Manager
-• boost         : Set Audio Booster gain (100% - 300%)
-• pdf           : Compress or merge PDF documents
-• image         : Resize, convert, or download clipboard images
-• timer         : Start countdown or Pomodoro (e.g. timer 25)
-• translate     : Translate text inline (e.g. translate hello to french)
-• collections   : Browse custom workspace collections
-• /youtube <q>  : Search YouTube media
+--- BUILT-IN WORKSPACES & TOOLS ---
+Type these prefixes directly into the search bar:
+• /image         : Open Image Editor (Resize, format conversion, etc.)
+• /pdf           : Open PDF Workspace (Merge, compress, split, rotate, convert)
+• /note          : Note Manager (Create, edit, copy notes inline)
+• /boost         : Volume Booster (Set gain from 100% to 300% for active tab)
+• /timer         : Start countdown or Pomodoro timer (e.g., timer 25)
+• /translate     : Translate text inline (e.g., translate hello to french)
+• /bookmarks     : Search, edit, and manage browser bookmarks
+• /history       : Search browser history
+• /downloads     : Search and open downloaded files
+• /tabs          : Switch, pin, mute, or close active browser tabs
+• /mappings      : Manage custom keyword to URL shortcuts (e.g., add: g https://google.com)
+• /wizard        : Open the Smart Bookmark Sorter Onboarding Wizard
+• /collections   : Browse custom workspace collections
+
+--- MEDIA SEARCH SHORTCUTS ---
+Quickly search media sites directly from the palette:
+• /youtube <q>  : Search YouTube
 • /twitch <q>   : Search Twitch streaming media
 • /mkvdrama <q> : Search MKV Drama series
 • /bollyflix <q>: Search Bollyflix catalog
-• /katmovies <q>: Search KatMovieHD catalog`;
+• /katmovies <q>: Search KatMovieHD catalog
+
+--- BOOKMARK EXPLORER (DASHBOARD) ---
+When inside the full Dashboard Explorer, you can use these filters:
+• /t <query>    : Filter bookmarks by Title only
+• /u <query>    : Filter bookmarks by URL string only
+• /c <category> : Filter by category (e.g., movies, study, software, adult, sports)
+• /d <domain>   : Filter by domain name (e.g., github.com)
+• /sort <type>  : Sort current visible items by "name", "date", or "url"
+• /undo         : Restore your original bookmarks positions (or /restore)`;
 
       list = [
         { id: "help_view_back", title: "‹ Back to Search", subtitle: "Return to general search results", icon: Icons.crop, type: "subaction", run: () => exitCommandMode() },

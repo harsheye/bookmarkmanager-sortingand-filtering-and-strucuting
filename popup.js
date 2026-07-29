@@ -48,6 +48,44 @@ function setupEventListeners() {
     window.close(); // Close popup
   });
 
+  // Autofill Active Form
+  const autofillBtn = document.getElementById('autofill-form-btn');
+  if (autofillBtn) {
+    autofillBtn.addEventListener('click', () => {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]) {
+          // Attempt to communicate with the tab first
+          chrome.tabs.sendMessage(tabs[0].id, { action: "autofill_form" }, (res) => {
+            if (chrome.runtime.lastError) {
+              // Fallback: Dynamically inject content.js
+              chrome.scripting.executeScript({
+                target: { tabId: tabs[0].id },
+                files: ['content.js']
+              }, () => {
+                if (chrome.runtime.lastError) {
+                  alert('Could not autofill: ' + chrome.runtime.lastError.message);
+                } else {
+                  // Wait 150ms for init, then send message again
+                  setTimeout(() => {
+                    chrome.tabs.sendMessage(tabs[0].id, { action: "autofill_form" }, (res2) => {
+                      if (chrome.runtime.lastError) {
+                        alert('Could not autofill: Content script failed to initialize. Please refresh the page and try again.');
+                      } else {
+                        window.close();
+                      }
+                    });
+                  }, 150);
+                }
+              });
+            } else {
+              window.close();
+            }
+          });
+        }
+      });
+    });
+  }
+
   // Quick Undo
   document.getElementById('quick-restore-btn').addEventListener('click', async () => {
     if (!lastBackup) return;
@@ -104,6 +142,19 @@ function setupEventListeners() {
       restoreBtn.classList.add('hidden');
     }
   });
+
+  // Video Screenshot Toggle
+  const screenshotToggle = document.getElementById('toggle-video-screenshot');
+  if (screenshotToggle) {
+    // Load initial state (default to true)
+    chrome.storage.local.get(['video_screenshot_enabled'], (res) => {
+      screenshotToggle.checked = res.video_screenshot_enabled !== false;
+    });
+
+    screenshotToggle.addEventListener('change', (e) => {
+      chrome.storage.local.set({ video_screenshot_enabled: e.target.checked });
+    });
+  }
 }
 
 function setupSoundBoost() {

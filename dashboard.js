@@ -257,6 +257,13 @@ function goToStep(stepNum) {
     }
   });
 
+  // Update vertical progress line height
+  const vertProgress = document.getElementById('stepper-vertical-progress');
+  if (vertProgress) {
+    const pct = ((stepNum - 1) / 3) * 100;
+    vertProgress.style.height = `${pct}%`;
+  }
+
   // Toggle "Scan Again" button in the header
   const navScanBtn = document.getElementById('nav-scan-btn');
   if (navScanBtn) {
@@ -323,6 +330,9 @@ function startScanAndSort() {
       addLog('Flattening tree hierarchy...');
       const parentFolderBlockName = parentFolderNameInput.value.trim() || 'Smart Sorted Bookmarks';
       
+      const includeFoldersCheckbox = document.getElementById('include-folders-toggle');
+      const includeFolders = includeFoldersCheckbox ? includeFoldersCheckbox.checked : true;
+      
       function traverse(node) {
         // If bookmark has a URL, it is a bookmark item (leaf node)
         if (node.url) {
@@ -331,6 +341,13 @@ function startScanAndSort() {
         
         // If it has children, traverse them
         if (node.children) {
+          // If it is not a top-level system root folder and includeFolders is false, skip it
+          const isSystemRoot = node.id === '0' || node.parentId === '0';
+          if (!isSystemRoot && !includeFolders) {
+            addLog(`Skipped folder: "${node.title || 'Untitled Folder'}"`, 'info');
+            return;
+          }
+
           // Prevent sorting already sorted folder recursively
           if (node.title === parentFolderBlockName || node.title === 'Smart Sorted Bookmarks') {
             addLog(`Skipped scanning existing sorted folder: "${node.title}"`, 'warn');
@@ -721,7 +738,7 @@ function renderPreview() {
       </div>
     `;
 
-    const childrenContainer = domainDiv.querySelector(`#domain-children-${domainKey}`);
+    const childrenContainer = domainDiv.querySelector(`[id="domain-children-${domainKey}"]`);
     const domainCheckbox = domainDiv.querySelector('.domain-checkbox');
     const folderToggle = domainDiv.querySelector('.folder-header');
     const toggleIcon = domainDiv.querySelector('.folder-toggle-icon');
@@ -1110,9 +1127,11 @@ async function restoreOriginalBookmarks() {
     if (navRestoreBtn) navRestoreBtn.disabled = true;
 
     try {
-      await BookmarkManager.restoreSpecificBackup(latest);
-      showToast('Your bookmarks have been successfully restored!', 'success');
-      goToStep(1);
+      const success = await BookmarkManager.restoreSpecificBackup(latest);
+      if (success) {
+        showToast('Your bookmarks have been successfully restored!', 'success');
+        goToStep(1);
+      }
     } catch (err) {
       console.error(err);
       showToast('Error during restoration: ' + err.message, 'error');
@@ -1291,6 +1310,8 @@ const BookmarkManager = {
     this.tabCookies = document.getElementById('tab-cookies');
     this.tabNotes = document.getElementById('tab-notes');
     this.tabSettings = document.getElementById('tab-settings');
+    this.tabAutofill = document.getElementById('tab-autofill');
+    this.autofillViewContainer = document.getElementById('autofill-view-container');
 
     // Settings Panel
     this.settingsViewContainer = document.getElementById('settings-view-container');
@@ -1422,6 +1443,9 @@ const BookmarkManager = {
     if (this.tabSettings) {
       this.tabSettings.addEventListener('click', () => this.switchView('settings'));
     }
+    if (this.tabAutofill) {
+      this.tabAutofill.addEventListener('click', () => this.switchView('autofill'));
+    }
 
     if (this.settingsThresholdSlider) {
       this.settingsThresholdSlider.addEventListener('input', (e) => {
@@ -1437,6 +1461,42 @@ const BookmarkManager = {
 
     if (this.settingsSaveBtn) {
       this.settingsSaveBtn.addEventListener('click', () => this.saveSettingsFromManager());
+    }
+    const autofillSaveBtn = document.getElementById('autofill-save-btn');
+    if (autofillSaveBtn) {
+      autofillSaveBtn.addEventListener('click', () => this.saveAutofillProfile());
+    }
+    const elCollege = document.getElementById('autofill-college');
+    if (elCollege) {
+      elCollege.addEventListener('change', (e) => {
+        const container = document.getElementById('autofill-college-other-container');
+        if (container) {
+          container.style.display = e.target.value === 'Other' ? 'flex' : 'none';
+        }
+      });
+    }
+    const elBacklog = document.getElementById('autofill-backlog');
+    if (elBacklog) {
+      elBacklog.addEventListener('change', (e) => {
+        const container = document.getElementById('autofill-backlog-count-container');
+        if (container) {
+          container.style.display = e.target.value === 'Yes' ? 'flex' : 'none';
+        }
+      });
+    }
+    const exportBtn = document.getElementById('autofill-export-btn');
+    if (exportBtn) {
+      exportBtn.addEventListener('click', () => this.exportAutofillProfile());
+    }
+    const importBtn = document.getElementById('autofill-import-btn');
+    const importFile = document.getElementById('autofill-import-file');
+    if (importBtn && importFile) {
+      importBtn.addEventListener('click', () => importFile.click());
+      importFile.addEventListener('change', (e) => this.importAutofillProfile(e));
+    }
+    const clearBtn = document.getElementById('autofill-clear-btn');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => this.clearAutofillProfile());
     }
 
     // Search and Command Logic
@@ -1868,6 +1928,10 @@ const BookmarkManager = {
     const restructureBtn = document.getElementById('restructure-btn');
     if (restructureBtn) restructureBtn.classList.add('hidden');
     if (this.viewDbBtn) this.viewDbBtn.classList.add('hidden');
+
+    // Hide workspace floating button on wizard page
+    const workspaceFloat = document.querySelector('.workspace-floating-menu-container');
+    if (workspaceFloat) workspaceFloat.classList.add('hidden');
   },
 
   showManager() {
@@ -1880,6 +1944,10 @@ const BookmarkManager = {
     const restructureBtn = document.getElementById('restructure-btn');
     if (restructureBtn) restructureBtn.classList.remove('hidden');
     if (this.viewDbBtn) this.viewDbBtn.classList.remove('hidden');
+
+    // Restore workspace floating button visibility
+    const workspaceFloat = document.querySelector('.workspace-floating-menu-container');
+    if (workspaceFloat) workspaceFloat.classList.remove('hidden');
     
     this.refreshLibrary(); // refresh table contents
   },
@@ -3193,14 +3261,21 @@ const BookmarkManager = {
 
   showHelpOverlay() {
     alert(`💡 Smart Bookmark Manager Command Help:\n\n` +
-          `• /help or /?  : Show this help dialog.\n` +
+          `--- DASHBOARD FILTERS ---\n` +
           `• /t <query>    : Filter bookmarks by Title only.\n` +
           `• /u <query>    : Filter bookmarks by URL string only.\n` +
           `• /c <category> : Filter by category (e.g. movies, study, software, adult, sports).\n` +
           `• /d <domain>   : Filter by domain name (e.g. github.com).\n` +
           `• /sort <type>  : Sort current visible items by "name", "date", or "url".\n` +
           `• /wizard       : Open the Smart Sorter Onboarding Wizard.\n` +
-          `• /undo         : Restore your original bookmarks positions.\n\n` +
+          `• /undo         : Restore your original bookmarks positions (or /restore).\n\n` +
+          `--- GLOBAL SHORTCUTS ---\n` +
+          `• Alt+A         : Toggle floating Command Palette on any page.\n` +
+          `• Alt+Shift+A   : Auto-fill Form Fields on any page.\n` +
+          `• Alt+C         : Capture Video Frame.\n\n` +
+          `--- PALETTE PREFIXES ---\n` +
+          `Use these in the floating Command Palette (Alt+A):\n` +
+          `• /image, /pdf, /note, /boost, /timer, /translate, /tabs, /history, /downloads, /mappings\n\n` +
           `Simply type the command followed by a space and your search terms.`);
     this.searchInput.value = '';
     this.hideSuggestions();
@@ -3572,7 +3647,7 @@ const BookmarkManager = {
 
   async restoreSpecificBackup(backup) {
     const confirmRestore = confirm(`Are you sure you want to revert the organization "${backup.parentFolderName}" created on ${new Date(backup.timestamp).toLocaleString()}? This will move all sorted bookmarks back to their exact original slots.`);
-    if (!confirmRestore) return;
+    if (!confirmRestore) return false;
     
     const restorePointBtn = document.getElementById(`restore-btn-${backup.id}`);
     let originalText = '';
@@ -3613,20 +3688,35 @@ const BookmarkManager = {
       }
       
       // 3. Remove from bookmarks_backups list in storage
-      chrome.storage.local.get('bookmarks_backups', async (result) => {
-        const backups = result.bookmarks_backups || [];
-        const filtered = backups.filter(b => b.id !== backup.id);
-        await chrome.storage.local.set({ 'bookmarks_backups': filtered });
-        
-        this.renderBackupsList();
-        this.refreshLibrary();
-        checkExistingBackup(); // update step 4 status
-        alert('Restore complete! Your bookmarks have been successfully reverted.');
+      await new Promise((resolve, reject) => {
+        chrome.storage.local.get('bookmarks_backups', async (result) => {
+          try {
+            const backups = result.bookmarks_backups || [];
+            const filtered = backups.filter(b => b.id !== backup.id);
+            await chrome.storage.local.set({ 'bookmarks_backups': filtered });
+            
+            this.renderBackupsList();
+            this.refreshLibrary();
+            checkExistingBackup(); // update step 4 status
+            alert('Restore complete! Your bookmarks have been successfully reverted.');
+            resolve();
+          } catch (e) {
+            reject(e);
+          }
+        });
       });
+      
+      return true;
       
     } catch (err) {
       console.error(err);
       alert('Error during restoration: ' + err.message);
+      throw err;
+    } finally {
+      if (restorePointBtn) {
+        restorePointBtn.disabled = false;
+        restorePointBtn.textContent = originalText;
+      }
     }
   },
 
@@ -3707,6 +3797,7 @@ const BookmarkManager = {
     if (viewName === 'cookies' && this.tabCookies) this.tabCookies.classList.add('active');
     if (viewName === 'notes' && this.tabNotes) this.tabNotes.classList.add('active');
     if (viewName === 'settings' && this.tabSettings) this.tabSettings.classList.add('active');
+    if (viewName === 'autofill' && this.tabAutofill) this.tabAutofill.classList.add('active');
     
     // Update Search Bar Placeholder
     if (this.searchInput) {
@@ -3724,6 +3815,9 @@ const BookmarkManager = {
         this.searchInput.disabled = false;
       } else if (viewName === 'settings') {
         this.searchInput.placeholder = "Settings Panel - search disabled";
+        this.searchInput.disabled = true;
+      } else if (viewName === 'autofill') {
+        this.searchInput.placeholder = "Form Autofill - search disabled";
         this.searchInput.disabled = true;
       }
       this.searchInput.value = '';
@@ -3754,6 +3848,7 @@ const BookmarkManager = {
       if (notesEl) notesEl.classList.add('hidden');
       if (cookiesEl) cookiesEl.classList.add('hidden');
       if (this.historyViewContainer) this.historyViewContainer.classList.add('hidden');
+      if (this.autofillViewContainer) this.autofillViewContainer.classList.add('hidden');
     } else if (viewName === 'notes') {
       if (managerViewEl) managerViewEl.classList.remove('hidden');
       if (tableEl) tableEl.classList.add('hidden');
@@ -3761,6 +3856,7 @@ const BookmarkManager = {
       if (notesEl) notesEl.classList.remove('hidden');
       if (cookiesEl) cookiesEl.classList.add('hidden');
       if (this.historyViewContainer) this.historyViewContainer.classList.add('hidden');
+      if (this.autofillViewContainer) this.autofillViewContainer.classList.add('hidden');
     } else if (viewName === 'history') {
       if (managerViewEl) managerViewEl.classList.remove('hidden');
       if (tableEl) tableEl.classList.add('hidden');
@@ -3768,6 +3864,7 @@ const BookmarkManager = {
       if (notesEl) notesEl.classList.add('hidden');
       if (cookiesEl) cookiesEl.classList.add('hidden');
       if (this.historyViewContainer) this.historyViewContainer.classList.remove('hidden');
+      if (this.autofillViewContainer) this.autofillViewContainer.classList.add('hidden');
       
       // Force Timeline View as the default layout
       this.historyViewMode = 'timeline';
@@ -3794,6 +3891,18 @@ const BookmarkManager = {
       if (notesEl) notesEl.classList.add('hidden');
       if (this.historyViewContainer) this.historyViewContainer.classList.add('hidden');
       if (cookiesEl) cookiesEl.classList.remove('hidden');
+      if (this.autofillViewContainer) this.autofillViewContainer.classList.add('hidden');
+    } else if (viewName === 'autofill') {
+      if (managerViewEl) managerViewEl.classList.remove('hidden');
+      if (tableEl) tableEl.classList.add('hidden');
+      if (settingsEl) settingsEl.classList.add('hidden');
+      if (notesEl) notesEl.classList.add('hidden');
+      if (this.historyViewContainer) this.historyViewContainer.classList.add('hidden');
+      if (cookiesEl) cookiesEl.classList.add('hidden');
+      if (this.autofillViewContainer) {
+        this.autofillViewContainer.classList.remove('hidden');
+        this.loadAutofillProfile();
+      }
     } else {
       if (managerViewEl) managerViewEl.classList.remove('hidden');
       if (tableEl) tableEl.classList.remove('hidden');
@@ -3801,6 +3910,7 @@ const BookmarkManager = {
       if (notesEl) notesEl.classList.add('hidden');
       if (cookiesEl) cookiesEl.classList.add('hidden');
       if (this.historyViewContainer) this.historyViewContainer.classList.add('hidden');
+      if (this.autofillViewContainer) this.autofillViewContainer.classList.add('hidden');
     }
 
     // ─── Smart Page-Aware Sidebar Behavior ───
@@ -3846,6 +3956,12 @@ const BookmarkManager = {
     
     // Refresh content
     this.refreshViewContent();
+    // Toggle Workspace floating button visibility based on view
+    const workspaceFloat = document.querySelector('.workspace-floating-menu-container');
+    if (workspaceFloat) {
+      workspaceFloat.classList.toggle('hidden', viewName !== 'bookmarks' && viewName !== 'history' && viewName !== 'notes');
+    }
+
     this.renderFloatingMenu();
   },
 
@@ -4483,6 +4599,259 @@ const BookmarkManager = {
       showToast('Settings successfully updated and saved!', 'success');
       this.switchView('bookmarks');
     });
+  },
+
+  loadAutofillProfile() {
+    chrome.storage.local.get(["gformProfile", "autofill_profile"], (res) => {
+      let profile = res.gformProfile;
+      if (!profile || Object.keys(profile).length === 0) {
+        profile = res.autofill_profile || {};
+      }
+      
+      const elUid = document.getElementById('autofill-uid');
+      const elFirst = document.getElementById('autofill-first-name');
+      const elLast = document.getElementById('autofill-last-name');
+      const elFull = document.getElementById('autofill-full-name');
+      const elGender = document.getElementById('autofill-gender');
+      const elEmail = document.getElementById('autofill-email');
+      const elMobile = document.getElementById('autofill-mobile');
+      const elRoll = document.getElementById('autofill-roll-no');
+      const elCollege = document.getElementById('autofill-college');
+      const elCollegeOther = document.getElementById('autofill-college-other');
+      const elProgram = document.getElementById('autofill-program');
+      const elBatch = document.getElementById('autofill-batch');
+      const elStream = document.getElementById('autofill-stream');
+      const elTenth = document.getElementById('autofill-tenth');
+      const elTwelfth = document.getElementById('autofill-twelfth');
+      const elGrad = document.getElementById('autofill-grad');
+      const elBacklog = document.getElementById('autofill-backlog');
+      const elBacklogCount = document.getElementById('autofill-backlog-count');
+
+      const elPosition = document.getElementById('autofill-position');
+      const elJobLocation = document.getElementById('autofill-job-location');
+      const elJapaneseCert = document.getElementById('autofill-japanese-cert');
+      const elJapaneseFluent = document.getElementById('autofill-japanese-fluent');
+      const elJlptValid = document.getElementById('autofill-jlpt-valid');
+      const elJlptLevel = document.getElementById('autofill-jlpt-level');
+
+      const elAutoUndertaking = document.getElementById('autofill-auto-undertaking');
+      const elAutoImportantMsg = document.getElementById('autofill-auto-important-msg');
+      const elFillText = document.getElementById('autofill-fill-text');
+      const elFillDropdowns = document.getElementById('autofill-fill-dropdowns');
+      const elFillRadios = document.getElementById('autofill-fill-radios');
+      const elFillCheckboxes = document.getElementById('autofill-fill-checkboxes');
+      const elShowHighlight = document.getElementById('autofill-show-highlight');
+
+      if (elUid) elUid.value = profile.uid || profile.rollNumber || "";
+      if (elFirst) elFirst.value = profile.firstName || "";
+      if (elLast) elLast.value = profile.lastName || "";
+      if (elFull) elFull.value = profile.fullName || "";
+      if (elGender) elGender.value = profile.gender || "";
+      if (elEmail) elEmail.value = profile.email || "";
+      if (elMobile) elMobile.value = profile.mobile || profile.contact || "";
+      if (elRoll) elRoll.value = profile.rollNo || profile.rollNumber || "";
+      if (elCollege) elCollege.value = profile.college || "";
+      if (elCollegeOther) elCollegeOther.value = profile.collegeOther || "";
+      if (elProgram) elProgram.value = profile.program || "";
+      if (elBatch) elBatch.value = profile.batch || "";
+      if (elStream) elStream.value = profile.stream || "";
+      if (elTenth) elTenth.value = profile.tenth || "";
+      if (elTwelfth) elTwelfth.value = profile.twelfth || "";
+      if (elGrad) elGrad.value = profile.grad || profile.graduationPercent || "";
+      if (elBacklog) elBacklog.value = profile.backlog || "";
+      if (elBacklogCount) elBacklogCount.value = profile.backlogCount || "0";
+
+      if (elPosition) elPosition.value = profile.position || "";
+      if (elJobLocation) elJobLocation.value = profile.jobLocation || "";
+      if (elJapaneseCert) elJapaneseCert.value = profile.japaneseCert || "";
+      if (elJapaneseFluent) elJapaneseFluent.value = profile.japaneseFluent || "";
+      if (elJlptValid) elJlptValid.value = profile.jlptValid || "";
+      if (elJlptLevel) elJlptLevel.value = profile.jlptLevel || "";
+
+      if (elAutoUndertaking) elAutoUndertaking.checked = profile.autoUndertaking !== false;
+      if (elAutoImportantMsg) elAutoImportantMsg.checked = profile.autoImportantMsg !== false;
+      if (elFillText) elFillText.checked = profile.fillText !== false;
+      if (elFillDropdowns) elFillDropdowns.checked = profile.fillDropdowns !== false;
+      if (elFillRadios) elFillRadios.checked = profile.fillRadios !== false;
+      if (elFillCheckboxes) elFillCheckboxes.checked = profile.fillCheckboxes !== false;
+      if (elShowHighlight) elShowHighlight.checked = profile.showHighlight !== false;
+
+      // Handle visibility of conditional containers
+      const collegeContainer = document.getElementById('autofill-college-other-container');
+      if (collegeContainer) {
+        collegeContainer.style.display = (profile.college === 'Other') ? 'flex' : 'none';
+      }
+      const backlogContainer = document.getElementById('autofill-backlog-count-container');
+      if (backlogContainer) {
+        backlogContainer.style.display = (profile.backlog === 'Yes') ? 'flex' : 'none';
+      }
+    });
+  },
+
+  saveAutofillProfile() {
+    const elUid = document.getElementById('autofill-uid');
+    const elFirst = document.getElementById('autofill-first-name');
+    const elLast = document.getElementById('autofill-last-name');
+    const elFull = document.getElementById('autofill-full-name');
+    const elGender = document.getElementById('autofill-gender');
+    const elEmail = document.getElementById('autofill-email');
+    const elMobile = document.getElementById('autofill-mobile');
+    const elRoll = document.getElementById('autofill-roll-no');
+    const elCollege = document.getElementById('autofill-college');
+    const elCollegeOther = document.getElementById('autofill-college-other');
+    const elProgram = document.getElementById('autofill-program');
+    const elBatch = document.getElementById('autofill-batch');
+    const elStream = document.getElementById('autofill-stream');
+    const elTenth = document.getElementById('autofill-tenth');
+    const elTwelfth = document.getElementById('autofill-twelfth');
+    const elGrad = document.getElementById('autofill-grad');
+    const elBacklog = document.getElementById('autofill-backlog');
+    const elBacklogCount = document.getElementById('autofill-backlog-count');
+
+    const elPosition = document.getElementById('autofill-position');
+    const elJobLocation = document.getElementById('autofill-job-location');
+    const elJapaneseCert = document.getElementById('autofill-japanese-cert');
+    const elJapaneseFluent = document.getElementById('autofill-japanese-fluent');
+    const elJlptValid = document.getElementById('autofill-jlpt-valid');
+    const elJlptLevel = document.getElementById('autofill-jlpt-level');
+
+    const elAutoUndertaking = document.getElementById('autofill-auto-undertaking');
+    const elAutoImportantMsg = document.getElementById('autofill-auto-important-msg');
+    const elFillText = document.getElementById('autofill-fill-text');
+    const elFillDropdowns = document.getElementById('autofill-fill-dropdowns');
+    const elFillRadios = document.getElementById('autofill-fill-radios');
+    const elFillCheckboxes = document.getElementById('autofill-fill-checkboxes');
+    const elShowHighlight = document.getElementById('autofill-show-highlight');
+
+    const profile = {
+      uid: elUid ? elUid.value.trim() : "",
+      firstName: elFirst ? elFirst.value.trim() : "",
+      lastName: elLast ? elLast.value.trim() : "",
+      fullName: elFull ? elFull.value.trim() : "",
+      gender: elGender ? elGender.value : "",
+      email: elEmail ? elEmail.value.trim() : "",
+      mobile: elMobile ? elMobile.value.trim() : "",
+      rollNo: elRoll ? elRoll.value.trim() : "",
+      college: elCollege ? elCollege.value.trim() : "",
+      collegeOther: elCollegeOther ? elCollegeOther.value.trim() : "",
+      program: elProgram ? elProgram.value : "",
+      batch: elBatch ? elBatch.value : "",
+      stream: elStream ? elStream.value : "",
+      tenth: elTenth ? elTenth.value.trim() : "",
+      twelfth: elTwelfth ? elTwelfth.value.trim() : "",
+      grad: elGrad ? elGrad.value.trim() : "",
+      backlog: elBacklog ? elBacklog.value : "",
+      backlogCount: elBacklogCount ? elBacklogCount.value : "0",
+
+      position: elPosition ? elPosition.value.trim() : "",
+      jobLocation: elJobLocation ? elJobLocation.value : "",
+      japaneseCert: elJapaneseCert ? elJapaneseCert.value : "",
+      japaneseFluent: elJapaneseFluent ? elJapaneseFluent.value : "",
+      jlptValid: elJlptValid ? elJlptValid.value : "",
+      jlptLevel: elJlptLevel ? elJlptLevel.value : "",
+
+      autoUndertaking: elAutoUndertaking ? elAutoUndertaking.checked : true,
+      autoImportantMsg: elAutoImportantMsg ? elAutoImportantMsg.checked : true,
+      fillText: elFillText ? elFillText.checked : true,
+      fillDropdowns: elFillDropdowns ? elFillDropdowns.checked : true,
+      fillRadios: elFillRadios ? elFillRadios.checked : true,
+      fillCheckboxes: elFillCheckboxes ? elFillCheckboxes.checked : true,
+      showHighlight: elShowHighlight ? elShowHighlight.checked : true
+    };
+    
+    // Also build a gformProfile compatible object so both keys are synchronized
+    const gformProfile = {
+      ...profile,
+      contact: profile.mobile,
+      rollNumber: profile.rollNo,
+      graduationPercent: profile.grad
+    };
+    
+    chrome.storage.local.set({ 'autofill_profile': profile, 'gformProfile': gformProfile }, () => {
+      if (typeof showToast === 'function') {
+        showToast('Autofill profile successfully saved!', 'success');
+      } else {
+        alert('Autofill profile successfully saved!');
+      }
+      this.switchView('bookmarks');
+    });
+  },
+
+  exportAutofillProfile() {
+    chrome.storage.local.get("gformProfile", ({ gformProfile }) => {
+      const blob = new Blob([JSON.stringify(gformProfile || {}, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'gform-profile.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      if (typeof showToast === 'function') showToast('Profile exported successfully!', 'success');
+    });
+  },
+
+  importAutofillProfile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        
+        // Ensure gformProfile and autofill_profile are both written
+        const gformProfile = data;
+        const autofill_profile = {
+          uid: data.uid || data.rollNumber || "",
+          firstName: data.firstName || "",
+          lastName: data.lastName || "",
+          fullName: data.fullName || "",
+          gender: data.gender || "",
+          email: data.email || "",
+          mobile: data.mobile || data.contact || "",
+          rollNo: data.rollNo || data.rollNumber || "",
+          college: data.college || "",
+          collegeOther: data.collegeOther || "",
+          program: data.program || "",
+          batch: data.batch || "",
+          stream: data.stream || "",
+          tenth: data.tenth || "",
+          twelfth: data.twelfth || "",
+          grad: data.grad || data.graduationPercent || "",
+          backlog: data.backlog || "",
+          backlogCount: data.backlogCount || "0",
+          position: data.position || "",
+          jobLocation: data.jobLocation || "",
+          japaneseCert: data.japaneseCert || "",
+          japaneseFluent: data.japaneseFluent || "",
+          jlptValid: data.jlptValid || "",
+          jlptLevel: data.jlptLevel || "",
+          autoUndertaking: data.autoUndertaking !== false,
+          autoImportantMsg: data.autoImportantMsg !== false,
+          fillText: data.fillText !== false,
+          fillDropdowns: data.fillDropdowns !== false,
+          fillRadios: data.fillRadios !== false,
+          fillCheckboxes: data.fillCheckboxes !== false,
+          showHighlight: data.showHighlight !== false
+        };
+
+        chrome.storage.local.set({ gformProfile, autofill_profile }, () => {
+          this.loadAutofillProfile();
+          if (typeof showToast === 'function') showToast('Profile imported successfully ✓', 'success');
+        });
+      } catch (err) {
+        if (typeof showToast === 'function') showToast('Invalid JSON file format.', 'error');
+      }
+    };
+    reader.readAsText(file);
+  },
+
+  clearAutofillProfile() {
+    if (confirm('Clear all saved profile data?')) {
+      chrome.storage.local.remove(['gformProfile', 'autofill_profile'], () => {
+        this.loadAutofillProfile();
+        if (typeof showToast === 'function') showToast('All profile data cleared.', 'success');
+      });
+    }
   },
 
   applySettings(settings) {

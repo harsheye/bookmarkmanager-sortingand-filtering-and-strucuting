@@ -328,7 +328,7 @@
       opacity: 1;
     }
   </style>
-  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+  <script src="pdf-lib.min.js"></script>
 </head>
 <body>
   <div class="glow-bg">
@@ -348,10 +348,11 @@
   </div>
 
   <div class="tabs-header">
-    <button class="tab-btn active" id="btn-tab-merge" onclick="switchTab('merge')">🧩 Merge PDFs</button>
-    <button class="tab-btn" id="btn-tab-compress" onclick="switchTab('compress')">📉 Compress PDF</button>
-    <button class="tab-btn" id="btn-tab-split" onclick="switchTab('split')">✂️ Split PDF</button>
-    <button class="tab-btn" id="btn-tab-rotate" onclick="switchTab('rotate')">🔄 Rotate PDF</button>
+    <button class="tab-btn active" id="btn-tab-merge" data-mode="merge">🧩 Merge PDFs</button>
+    <button class="tab-btn" id="btn-tab-image" data-mode="image">🖼️ Image to PDF</button>
+    <button class="tab-btn" id="btn-tab-compress" data-mode="compress">📉 Compress PDF</button>
+    <button class="tab-btn" id="btn-tab-split" data-mode="split">✂️ Split PDF</button>
+    <button class="tab-btn" id="btn-tab-rotate" data-mode="rotate">🔄 Rotate PDF</button>
   </div>
 
   <div class="workspace-card">
@@ -367,6 +368,18 @@
       <button class="btn-execute" id="btn-merge-run" style="display: none;">Merge PDF Files</button>
     </div>
 
+    <!-- Image to PDF Tab -->
+    <div id="tab-image" class="tab-content">
+      <div class="dropzone-container" id="image-dropzone">
+        <div style="font-size: 36px; filter: drop-shadow(0 0 10px rgba(139, 92, 246, 0.3));">📥</div>
+        <div style="font-weight: 700; font-size: 16px; margin-top: 15px; color:#fff;">Select or Drop Images to Convert</div>
+        <div style="font-size: 12.5px; color: var(--text-muted); margin-top: 6px;">Convert PNG or JPG images into a PDF document</div>
+        <input type="file" id="image-file-input" class="drop-input" accept="image/png, image/jpeg" multiple>
+      </div>
+      <div class="file-list" id="image-file-list"></div>
+      <button class="btn-execute" id="btn-image-run" style="display: none;">Convert to PDF</button>
+    </div>
+
     <!-- Compress Tab -->
     <div id="tab-compress" class="tab-content">
       <div class="dropzone-container" id="compress-dropzone">
@@ -376,6 +389,18 @@
         <input type="file" id="compress-file-input" class="drop-input" accept=".pdf">
       </div>
       <div class="file-list" id="compress-file-list"></div>
+      
+      <div class="controls-panel" id="compress-controls" style="display: none;">
+        <div class="control-row">
+          <label for="compress-level">Compression Level</label>
+          <select class="input-num" id="compress-level" style="background:#131522; color:white; border:1px solid rgba(255,255,255,0.1);">
+            <option value="low">Low (Fast, larger file size)</option>
+            <option value="middle" selected>Middle (Balanced)</option>
+            <option value="extreme">Extreme (Maximum compression)</option>
+          </select>
+        </div>
+      </div>
+      
       <button class="btn-execute" id="btn-compress-run" style="display: none;">Compress PDF File</button>
     </div>
 

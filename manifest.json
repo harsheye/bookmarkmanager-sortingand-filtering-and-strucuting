@@ -41,7 +41,8 @@
         "db.js",
         "content.js"
       ],
-      "run_at": "document_start"
+      "run_at": "document_start",
+      "all_frames": true
     }
   ],
   "commands": {
@@ -51,6 +52,20 @@
         "mac": "Alt+A"
       },
       "description": "Toggle the Productivity Command Palette overlay"
+    },
+    "autofill-form": {
+      "suggested_key": {
+        "default": "Alt+Shift+A",
+        "mac": "Alt+Shift+A"
+      },
+      "description": "Auto-fill Form Fields with Profile"
+    },
+    "capture-video-frame": {
+      "suggested_key": {
+        "default": "Alt+C",
+        "mac": "Alt+C"
+      },
+      "description": "Capture the current frame of the playing video"
     }
   },
   "icons": {

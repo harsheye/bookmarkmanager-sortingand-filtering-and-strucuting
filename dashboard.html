@@ -79,6 +79,10 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="tab-icon tab-icon-notes"><path d="M19,0H5A5.006,5.006,0,0,0,0,5V19a5.006,5.006,0,0,0,5,5H19a5.006,5.006,0,0,0,5-5V5A5.006,5.006,0,0,0,19,0Zm3,19a3,3,0,0,1-3,3H5a3,3,0,0,1-3-3V5A3,3,0,0,1,5,3H19a3,3,0,0,1,3,3Zm-4-7H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm0-4H6a1,1,0,0,0,0,2H18a1,1,0,0,0,0-2Zm-5,8H6a1,1,0,0,0,0,2h7a1,1,0,0,0,0-2Z"/></svg>
             <span class="tab-label">Notes Manager</span>
           </div>
+          <div class="sidebar-tab" id="tab-autofill" title="Form Autofill">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="tab-icon" style="margin-right: 8px; width: 16px; height: 16px;"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10H7v-2h10v2zm0-4H7V7h10v2zm0 8H7v-2h10v2z"/></svg>
+            <span class="tab-label">Form Autofill</span>
+          </div>
           <div class="sidebar-tab" id="tab-settings" title="Settings">
             <i class="fi fi-br-settings-sliders tab-icon tab-icon-settings"></i>
             <span class="tab-label">Settings</span>
@@ -191,6 +195,7 @@
             <span class="tree-empty-icon">🔍</span>
             <span id="empty-state-text">No bookmarks found.</span>
           </div>
+        </div>
 
           <!-- Settings View Container -->
           <div id="settings-view-container" class="settings-view-panel hidden" style="padding: 0; display: flex; flex-direction: column; height: 100%; color: white; overflow: hidden;">
@@ -860,6 +865,363 @@
       </div>
     </div>
 
+    <!-- Form Autofill View Container -->
+    <div id="autofill-view-container" class="settings-view-panel hidden" style="padding: 24px; display: flex; flex-direction: column; height: 100%; color: white; overflow-y: auto;">
+      
+      <!-- Header -->
+      <div class="settings-dashboard-header" style="border-bottom: 1px solid var(--border-color); padding-bottom: 16px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
+        <div>
+          <h2 style="font-size: 20px; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 10px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            Form Autofill Profile
+          </h2>
+          <p style="font-size: 12.5px; color: var(--text-muted); margin: 6px 0 0 0;">Manage your student profile. The extension will automatically populate matching fields on registration forms and Google Forms.</p>
+        </div>
+        <button id="autofill-save-btn" class="btn btn-primary" style="display: flex; align-items: center; gap: 6px; padding: 10px 18px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Save Profile
+        </button>
+      </div>
+
+      <!-- Settings Grid Layout -->
+      <div class="settings-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+        
+        <!-- Left Column -->
+        <div style="display: flex; flex-direction: column; gap: 24px;">
+          <!-- CARD 1: Personal Information -->
+          <div class="settings-card" style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px;">
+            <h3 style="font-size: 15px; font-weight: 700; color: white; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px;">👤 Personal Information</h3>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label for="autofill-first-name" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">First Name</label>
+                <input type="text" id="autofill-first-name" class="text-input" style="width: 100%; min-width: 0;" placeholder="e.g. HARSH">
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label for="autofill-last-name" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Last Name</label>
+                <input type="text" id="autofill-last-name" class="text-input" style="width: 100%; min-width: 0;" placeholder="e.g. KUMAR">
+              </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px;">
+              <label for="autofill-full-name" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Full Name</label>
+              <input type="text" id="autofill-full-name" class="text-input" style="width: 100%; min-width: 0;" placeholder="e.g. HARSH KUMAR">
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label for="autofill-gender" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Gender</label>
+                <select id="autofill-gender" class="text-input" style="width: 100%; min-width: 0; background: #07080c; color: white;">
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label for="autofill-mobile" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Mobile Number</label>
+                <input type="text" id="autofill-mobile" class="text-input" style="width: 100%; min-width: 0;" placeholder="e.g. 9876543210">
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD 2: Academic Scores -->
+          <div class="settings-card" style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px;">
+            <h3 style="font-size: 15px; font-weight: 700; color: white; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px;">📊 Academic Scores & History</h3>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label for="autofill-tenth" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">10th Percentage / CGPA</label>
+                <input type="text" id="autofill-tenth" class="text-input" style="width: 100%; min-width: 0;" placeholder="e.g. 92.4%">
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label for="autofill-twelfth" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">12th Percentage</label>
+                <input type="text" id="autofill-twelfth" class="text-input" style="width: 100%; min-width: 0;" placeholder="e.g. 88.5%">
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label for="autofill-grad" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Graduation CGPA</label>
+                <input type="text" id="autofill-grad" class="text-input" style="width: 100%; min-width: 0;" placeholder="e.g. 8.42">
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label for="autofill-backlog" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Active Backlogs</label>
+                <select id="autofill-backlog" class="text-input" style="width: 100%; min-width: 0; background: #07080c; color: white;">
+                  <option value="No">No</option>
+                  <option value="Yes">Yes</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Backlog Count (conditional row) -->
+            <div id="autofill-backlog-count-container" style="display: none; flex-direction: column; gap: 6px; margin-top: 16px;">
+              <label for="autofill-backlog-count" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Number of Active Backlogs</label>
+              <select id="autofill-backlog-count" class="text-input" style="width: 100%; min-width: 0; background: #07080c; color: white;">
+                <option value="0">0</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="5+">5+</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- CARD 3: Placement Preferences -->
+          <div class="settings-card" style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px;">
+            <h3 style="font-size: 15px; font-weight: 700; color: white; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px;">💼 Placement & Job Preferences</h3>
+            
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label for="autofill-position" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Position Applying For</label>
+                <input type="text" id="autofill-position" class="text-input" style="width: 100%; min-width: 0;" placeholder="e.g. Software Engineer / NA">
+              </div>
+              
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label for="autofill-job-location" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Preferred Job Location</label>
+                <select id="autofill-job-location" class="text-input" style="width: 100%; min-width: 0; background: #07080c; color: white;">
+                  <option value="">Select Preferred Location</option>
+                  <option value="Chennai">Chennai</option>
+                  <option value="Bangalore">Bangalore</option>
+                  <option value="Hyderabad">Hyderabad</option>
+                  <option value="Pune">Pune</option>
+                  <option value="Mumbai">Mumbai</option>
+                  <option value="Delhi">Delhi</option>
+                  <option value="Remote">Remote</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column -->
+        <div style="display: flex; flex-direction: column; gap: 24px;">
+          <!-- CARD 4: University Information -->
+          <div class="settings-card" style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px;">
+            <h3 style="font-size: 15px; font-weight: 700; color: white; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px;">🎓 University Information</h3>
+            
+            <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px;">
+              <label for="autofill-email" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Email Address</label>
+              <input type="text" id="autofill-email" class="text-input" style="width: 100%; min-width: 0;" placeholder="e.g. student@college.edu">
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label for="autofill-uid" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">UID (Alphanumeric/Caps only)</label>
+                <input type="text" id="autofill-uid" class="text-input" style="width: 100%; min-width: 0;" placeholder="e.g. 23BCS1011">
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label for="autofill-roll-no" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">University Roll Number</label>
+                <input type="text" id="autofill-roll-no" class="text-input" style="width: 100%; min-width: 0;" placeholder="e.g. 2011987654">
+              </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px;">
+              <label for="autofill-college" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">College Name</label>
+              <select id="autofill-college" class="text-input" style="width: 100%; min-width: 0; background: #07080c; color: white;">
+                <option value="">Select College</option>
+                <option value="Chandigarh Group of Colleges">Chandigarh Group of Colleges</option>
+                <option value="Chandigarh University">Chandigarh University</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <div id="autofill-college-other-container" style="display: none; flex-direction: column; gap: 6px; margin-bottom: 16px;">
+              <label for="autofill-college-other" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Specify College</label>
+              <input type="text" id="autofill-college-other" class="text-input" style="width: 100%; min-width: 0;" placeholder="Enter college name">
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label for="autofill-program" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Program / Degree</label>
+                <select id="autofill-program" class="text-input" style="width: 100%; min-width: 0; background: #07080c; color: white;">
+                  <option value="">Select Program</option>
+                  <option value="B.E">B.E</option>
+                  <option value="B.E+M.E (Integrated)">B.E+M.E (Integrated)</option>
+                  <option value="B.Tech">B.Tech</option>
+                  <option value="M.Tech">M.Tech</option>
+                  <option value="MCA">MCA</option>
+                  <option value="MBA">MBA</option>
+                </select>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label for="autofill-batch" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Batch</label>
+                <select id="autofill-batch" class="text-input" style="width: 100%; min-width: 0; background: #07080c; color: white;">
+                  <option value="">Select Batch</option>
+                  <option value="2025">2025</option>
+                  <option value="2026">2026</option>
+                  <option value="2027">2027</option>
+                  <option value="2028">2028</option>
+                  <option value="2029">2029</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <label for="autofill-stream" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Stream / Specialization</label>
+              <select id="autofill-stream" class="text-input" style="width: 100%; min-width: 0; background: #07080c; color: white;">
+                <option value="">Select Stream</option>
+                <option value="BDA">BDA</option>
+                <option value="IoT">IoT</option>
+                <option value="AIML">AIML</option>
+                <option value="IS">IS</option>
+                <option value="CC">CC</option>
+                <option value="CSBS">CSBS</option>
+                <option value="GG">GG</option>
+                <option value="Blockchain">Blockchain</option>
+                <option value="Devops">Devops</option>
+                <option value="AIDataSci">AIDataSci</option>
+                <option value="CSE">CSE</option>
+                <option value="IT">IT</option>
+                <option value="ECE">ECE</option>
+                <option value="ME">ME</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- CARD 5: Japanese Language Details -->
+          <div class="settings-card" style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px;">
+            <h3 style="font-size: 15px; font-weight: 700; color: white; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px;">🇯🇵 Japanese Language Proficiency</h3>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label for="autofill-japanese-cert" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Japanese Certification?</label>
+                <select id="autofill-japanese-cert" class="text-input" style="width: 100%; min-width: 0; background: #07080c; color: white;">
+                  <option value="">Select</option>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label for="autofill-japanese-fluent" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Fluent in Japanese?</label>
+                <select id="autofill-japanese-fluent" class="text-input" style="width: 100%; min-width: 0; background: #07080c; color: white;">
+                  <option value="">Select</option>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label for="autofill-jlpt-valid" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Valid JLPT Cert?</label>
+                <select id="autofill-jlpt-valid" class="text-input" style="width: 100%; min-width: 0; background: #07080c; color: white;">
+                  <option value="">Select</option>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label for="autofill-jlpt-level" style="font-size: 12px; font-weight: 600; color: var(--text-muted);">JLPT Level</label>
+                <select id="autofill-jlpt-level" class="text-input" style="width: 100%; min-width: 0; background: #07080c; color: white;">
+                  <option value="">Select Level</option>
+                  <option value="N1">N1</option>
+                  <option value="N2">N2</option>
+                  <option value="N3">N3</option>
+                  <option value="N4">N4</option>
+                  <option value="N5">N5</option>
+                  <option value="NA">NA</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD 6: Autofill Options & Undertakings -->
+          <div class="settings-card" style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px;">
+            <h3 style="font-size: 15px; font-weight: 700; color: white; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px;">⚙️ Autofill Options & Consents</h3>
+            
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              <label class="switch-row">
+                <div class="switch-text">
+                  <span>Auto-accept all undertakings</span>
+                  <small>Auto-check Job Description Agreement, Placement Compliance, Ethical Conduct, and Participation Commitment.</small>
+                </div>
+                <input type="checkbox" id="autofill-auto-undertaking" checked>
+                <span class="switch-slider"></span>
+              </label>
+
+              <label class="switch-row">
+                <div class="switch-text">
+                  <span>Auto-fill "Important Message" consent</span>
+                  <small>Auto-check confirmations and mandatory registration fields.</small>
+                </div>
+                <input type="checkbox" id="autofill-auto-important-msg" checked>
+                <span class="switch-slider"></span>
+              </label>
+
+              <label class="switch-row">
+                <div class="switch-text">
+                  <span>Fill text inputs</span>
+                  <small>Automatically populate text inputs, email addresses, phone numbers, and textareas.</small>
+                </div>
+                <input type="checkbox" id="autofill-fill-text" checked>
+                <span class="switch-slider"></span>
+              </label>
+
+              <label class="switch-row">
+                <div class="switch-text">
+                  <span>Fill dropdowns</span>
+                  <small>Select matching options in custom Google Form listboxes or native select dropdowns.</small>
+                </div>
+                <input type="checkbox" id="autofill-fill-dropdowns" checked>
+                <span class="switch-slider"></span>
+              </label>
+
+              <label class="switch-row">
+                <div class="switch-text">
+                  <span>Select radio buttons</span>
+                  <small>Select matching choices in single-choice questions.</small>
+                </div>
+                <input type="checkbox" id="autofill-fill-radios" checked>
+                <span class="switch-slider"></span>
+              </label>
+
+              <label class="switch-row">
+                <div class="switch-text">
+                  <span>Check checkboxes</span>
+                  <small>Check yes/no checkboxes and other multi-select elements.</small>
+                </div>
+                <input type="checkbox" id="autofill-fill-checkboxes" checked>
+                <span class="switch-slider"></span>
+              </label>
+
+              <label class="switch-row">
+                <div class="switch-text">
+                  <span>Show fill animation (highlight)</span>
+                  <small>Flash a subtle visual highlight border on elements as they are being filled.</small>
+                </div>
+                <input type="checkbox" id="autofill-show-highlight" checked>
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+
+            <!-- Data Management (Import / Export / Clear) -->
+            <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; gap: 10px;">
+              <button id="autofill-export-btn" class="btn btn-secondary" style="flex: 1; padding: 10px; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Export Profile
+              </button>
+              <button id="autofill-import-btn" class="btn btn-secondary" style="flex: 1; padding: 10px; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Import Profile
+              </button>
+              <input type="file" id="autofill-import-file" accept=".json" style="display: none;">
+            </div>
+            
+            <div style="margin-top: 10px;">
+              <button id="autofill-clear-btn" class="btn btn-danger" style="width: 100%; padding: 10px; font-size: 12px; font-weight: 600; border-color: #ff336633; color: #ff3366; background: rgba(255,51,102,0.03); display: flex; align-items: center; justify-content: center; gap: 6px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                Clear Profile Data
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
     <!-- Notes Manager View Container -->
     <div id="notes-view-container" class="notes-view hidden">
             <div class="notes-workspace-layout">
@@ -954,7 +1316,7 @@
                 <span style="font-size: 40px; display: block; margin-bottom: 12px;">📝</span>
                 <span>Select a note from the sidebar or click "New Note" to begin writing.</span>
               </div>
-            </div>
+            </main>
             
             <!-- Git-style Version Diff Overlay Modal -->
             <div id="notes-diff-overlay" class="notes-diff-overlay hidden">
@@ -1238,223 +1600,274 @@
               </div>
             </div>
           </div>
-        </div>
       </section>
     </div>
 
     <!-- VIEW 2: SMART WIZARD (Hidden by default) -->
-    <div id="wizard-view" class="wizard-card glass-panel hidden">
-      <!-- Progress Indicator -->
-      <div class="stepper">
-        <div class="step active" id="step-ind-1">
-          <span class="step-num">1</span>
-          <span class="step-label">Configure</span>
+    <!-- VIEW 2: SMART WIZARD (Hidden by default) -->
+    <div id="wizard-view" class="hidden" style="display: flex; gap: 24px; height: calc(100vh - 40px); width: 100%; box-sizing: border-box;">
+      
+      <!-- Left Panel: Vertical Stepper -->
+      <aside class="wizard-sidebar glass-panel" style="width: 320px; min-width: 320px; display: flex; flex-direction: column; padding: 40px 30px; box-sizing: border-box; justify-content: flex-start; gap: 32px; border-radius: 18px; height: 100%; position: relative;">
+        <div class="wizard-sidebar-header" style="margin-bottom: 10px;">
+          <h2 style="font-size: 20px; font-weight: 700; margin: 0; color: white;">Smart Sorter</h2>
+          <p style="font-size: 12.5px; color: var(--text-muted); margin: 6px 0 0 0;">Follow these steps to clean and organize your library.</p>
         </div>
-        <div class="step-line" id="line-1"></div>
-        <div class="step" id="step-ind-2">
-          <span class="step-num">2</span>
-          <span class="step-label">Scan</span>
-        </div>
-        <div class="step-line" id="line-2"></div>
-        <div class="step" id="step-ind-3">
-          <span class="step-num">3</span>
-          <span class="step-label">Preview</span>
-        </div>
-        <div class="step-line" id="line-3"></div>
-        <div class="step" id="step-ind-4">
-          <span class="step-num">4</span>
-          <span class="step-label">Complete</span>
-        </div>
-      </div>
 
-      <!-- STEP 1: Welcome & Settings -->
-      <section id="step-1" class="wizard-step active-step">
-        <div class="step-scroll-content">
-          <div class="step-header">
-            <h1>Tidy Up Your Browser Bookmarks</h1>
-            <p class="subtitle">Organize cluttered links into smart, themed folders. Local, secure, and fully customizable.</p>
+        <div class="vertical-stepper">
+          <!-- Connecting line background -->
+          <div class="stepper-vertical-line" style="position: absolute; left: 18px; top: 18px; bottom: 18px; width: 2px; background: rgba(255,255,255,0.06); z-index: 1;"></div>
+          <!-- Active highlight line -->
+          <div id="stepper-vertical-progress" style="position: absolute; left: 18px; top: 18px; width: 2px; height: 0%; background: linear-gradient(to bottom, var(--color-primary), var(--color-success)); z-index: 2; transition: height 0.4s ease;"></div>
+
+          <div class="step-vertical-item active" id="step-ind-1">
+            <span class="step-num">1</span>
+            <div class="step-vertical-details" style="display: flex; flex-direction: column; gap: 2px;">
+              <span class="step-vertical-label">Configure</span>
+              <span class="step-vertical-sub">Choose rules & threshold</span>
+            </div>
+          </div>
+          <!-- Keep hidden line elements to satisfy line-1, line-2, line-3 queries in JS -->
+          <div id="line-1" style="display: none;"></div>
+
+          <div class="step-vertical-item" id="step-ind-2">
+            <span class="step-num">2</span>
+            <div class="step-vertical-details" style="display: flex; flex-direction: column; gap: 2px;">
+              <span class="step-vertical-label">Scan</span>
+              <span class="step-vertical-sub">Analyze bookmarks library</span>
+            </div>
+          </div>
+          <div id="line-2" style="display: none;"></div>
+
+          <div class="step-vertical-item" id="step-ind-3">
+            <span class="step-num">3</span>
+            <div class="step-vertical-details" style="display: flex; flex-direction: column; gap: 2px;">
+              <span class="step-vertical-label">Preview</span>
+              <span class="step-vertical-sub">Review proposed folders</span>
+            </div>
+          </div>
+          <div id="line-3" style="display: none;"></div>
+
+          <div class="step-vertical-item" id="step-ind-4">
+            <span class="step-num">4</span>
+            <div class="step-vertical-details" style="display: flex; flex-direction: column; gap: 2px;">
+              <span class="step-vertical-label">Complete</span>
+              <span class="step-vertical-sub">Organized successfully</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right Panel: Step Contents -->
+      <div class="wizard-card glass-panel" style="flex-grow: 1; display: flex; flex-direction: column; padding: 40px; box-sizing: border-box; border-radius: 18px; height: 100%; min-height: 0; overflow: hidden; width: auto !important; max-width: none !important; margin: 0 !important;">
+        <!-- STEP 1: Welcome & Settings -->
+        <section id="step-1" class="wizard-step active-step">
+          <div class="step-scroll-content">
+            <div class="settings-grid">
+              <!-- Left Column: Categories -->
+              <div class="settings-box">
+                <h2>1. Choose Categories to Organize</h2>
+                <p class="box-desc">Select which themed folders to automatically create:</p>
+                <div class="categories-list scrollbar-custom" id="categories-container">
+                  <!-- Dynamically populated from rules.js -->
+                </div>
+              </div>
+
+              <!-- Right Column: Settings -->
+              <div class="settings-box">
+                <h2>2. Domain Folder Settings</h2>
+                <p class="box-desc">If you have multiple bookmarks from the same website, we'll create a dedicated folder for it.</p>
+                
+                <div class="control-group">
+                  <label for="threshold-slider" class="slider-label">
+                    <span>Minimum Bookmarks for Domain Folder:</span>
+                    <span id="threshold-val" class="badge">3</span>
+                  </label>
+                  <input type="range" id="threshold-slider" min="2" max="10" value="3" class="slider">
+                  <span class="slider-hint">Example: If you have 3 or more bookmarks from "github.com", they get grouped into a "GitHub" folder.</span>
+                </div>
+
+                <!-- Include Existing Folders Toggle -->
+                <div class="control-group" style="margin-top: 20px; display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.02); padding: 12px 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05);">
+                  <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <span style="font-size: 13px; font-weight: 600; color: white;">Include Bookmarks Inside Existing Folders</span>
+                    <span class="slider-hint" style="margin: 0; font-size: 11px;">If unchecked, folders already on your bar will be skipped during sorting.</span>
+                  </div>
+                  <label class="switch" style="margin-left: 10px; flex-shrink: 0;">
+                    <input type="checkbox" id="include-folders-toggle" checked>
+                    <span class="slider-switch"></span>
+                  </label>
+                </div>
+
+                <!-- Custom Folder Naming / Target Path Selection -->
+                <div class="control-group" style="margin-top: 20px;">
+                  <label for="parent-folder-name" class="slider-label">
+                    <span>Smart Sorting Parent Folder:</span>
+                  </label>
+                  <input type="text" id="parent-folder-name" value="Bookmarks Bar" class="text-input" style="width: 100%; margin-top: 8px;">
+                  <span class="slider-hint">Enter "Bookmarks Bar" to sort directly inside your root bookmarks bar, or specify a custom main folder.</span>
+                </div>
+
+                <div class="info-alert" style="margin-top: 25px;">
+                  <span class="alert-icon">🔒</span>
+                  <p class="alert-text"><strong>Privacy Guarantee:</strong> All analysis and restructuring happens entirely inside your browser. No data ever leaves your computer.</p>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div class="settings-grid">
-            <!-- Left Column: Categories -->
-            <div class="settings-box">
-              <h2>1. Choose Categories to Organize</h2>
-              <p class="box-desc">Select which themed folders to automatically create:</p>
-              <div class="categories-list" id="categories-container">
-                <!-- Dynamically populated from rules.js -->
+          <div class="step-sticky-footer">
+            <button id="wizard-cancel-btn-1" class="btn btn-secondary">Cancel</button>
+            <button id="start-scan-btn" class="btn btn-primary btn-large">
+              <span>Scan & Sort Bookmarks</span> <span class="btn-arrow">→</span>
+            </button>
+          </div>
+        </section>
+
+        <!-- STEP 2: Scanning & Analyzing -->
+        <section id="step-2" class="wizard-step">
+          <div class="step-scroll-content">
+            <div class="settings-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: stretch; height: 100%;">
+              <!-- Left Column: Status, Spinner, Stats -->
+              <div class="settings-box" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 20px; padding: 20px;">
+                <div class="spinner-outer" style="margin-bottom: 10px;">
+                  <div class="spinner-inner"></div>
+                  <div class="spinner-center">
+                    <span id="scan-pct">0%</span>
+                  </div>
+                </div>
+
+                <div class="scanning-status" style="width: 100%;">
+                  <h2 id="scanning-title" style="font-size: 20px; margin-bottom: 8px;">Scanning bookmarks library...</h2>
+                  <p id="scanning-sub" style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">Preparing secure snapshot before processing.</p>
+                  
+                  <div class="live-stats" style="display: flex; gap: 12px; width: 100%;">
+                    <div class="stat-bubble" style="padding: 10px 16px;">
+                      <span class="stat-label" style="font-size: 10px;">Total Found</span>
+                      <span class="stat-number" id="stat-total" style="font-size: 18px;">0</span>
+                    </div>
+                    <div class="stat-bubble" style="padding: 10px 16px;">
+                      <span class="stat-label" style="font-size: 10px;">Folders To Create</span>
+                      <span class="stat-number" id="stat-folders" style="font-size: 18px;">0</span>
+                    </div>
+                    <div class="stat-bubble" style="padding: 10px 16px;">
+                      <span class="stat-label" style="font-size: 10px;">Matched Links</span>
+                      <span class="stat-number" id="stat-matched" style="font-size: 18px;">0</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right Column: Scan Log -->
+              <div class="settings-box" style="display: flex; flex-direction: column; gap: 12px; height: 100%;">
+                <h2 style="font-size: 14px; font-weight: 700; color: var(--accent-color); margin: 0; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid rgba(255,255,255,0.04); padding-bottom: 8px;">Activity Console</h2>
+                <div class="scan-log glass-panel" id="scan-log" style="flex: 1; min-height: 250px; height: 100%; max-height: 100%; border: 1px solid rgba(255, 255, 255, 0.05); overflow-y: auto;">
+                  <div class="log-line">Initializing Bookmark Sorter engine...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="step-sticky-footer" id="scan-next-action" style="display: none;">
+            <button id="scan-next-btn" class="btn btn-primary btn-large" style="width: 100%;">
+              <span>Continue to Preview</span> <span class="btn-arrow">→</span>
+            </button>
+          </div>
+        </section>
+
+        <!-- STEP 3: Interactive Preview & Edit -->
+        <section id="step-3" class="wizard-step">
+          <div class="step-scroll-content">
+            <div class="step-header">
+              <h1>Review Proposed Folder Structure</h1>
+              <p class="subtitle">Expand folders to see bookmarks. Uncheck items to exclude them, or rename folders to your liking.</p>
+            </div>
+
+            <!-- Toolbar -->
+            <div class="preview-toolbar">
+              <div class="toolbar-stats" style="margin-left: auto;">
+                <span class="badge badge-purple" id="preview-stat-count">0 items selected</span>
               </div>
             </div>
 
-            <!-- Right Column: Settings -->
-            <div class="settings-box">
-              <h2>2. Domain Folder Settings</h2>
-              <p class="box-desc">If you have multiple bookmarks from the same website, we'll create a dedicated folder for it.</p>
-              
-              <div class="control-group">
-                <label for="threshold-slider" class="slider-label">
-                  <span>Minimum Bookmarks for Domain Folder:</span>
-                  <span id="threshold-val" class="badge">3</span>
+            <!-- Scrollable Tree Preview Container -->
+            <div class="tree-preview-container glass-panel">
+              <div class="tree-root-header">
+                <label class="checkbox-container" onclick="event.stopPropagation()">
+                  <input type="checkbox" id="select-all-preview" checked>
+                  <span class="checkmark"></span>
                 </label>
-                <input type="range" id="threshold-slider" min="2" max="10" value="3" class="slider">
-                <span class="slider-hint">Example: If you have 3 or more bookmarks from "github.com", they get grouped into a "GitHub" folder.</span>
+                <span class="tree-root-icon">📂</span>
+                <span class="tree-root-name" id="tree-root-name-label">Smart Sorted Bookmarks</span>
               </div>
-
-              <div class="info-alert">
-                <span class="alert-icon">🔒</span>
-                <p class="alert-text"><strong>Privacy Guarantee:</strong> All analysis and restructuring happens entirely inside your browser. No data ever leaves your computer.</p>
+              <div class="tree-body" id="tree-preview-body">
+                <!-- Dynamically populated preview of proposed folders and links -->
               </div>
             </div>
           </div>
-        </div>
 
-        <div class="step-sticky-footer">
-          <button id="wizard-cancel-btn-1" class="btn btn-secondary">Cancel</button>
-          <button id="start-scan-btn" class="btn btn-primary btn-large">
-            <span>Scan & Sort Bookmarks</span> <span class="btn-arrow">→</span>
-          </button>
-        </div>
-      </section>
+          <div class="step-sticky-footer split-actions">
+            <button id="prev-step-btn" class="btn btn-secondary">
+              <span>←</span> Adjust Settings
+            </button>
+            <button id="apply-sort-btn" class="btn btn-success btn-large">
+              <span>Apply Organization</span> <span>✓</span>
+            </button>
+          </div>
+        </section>
 
-      <!-- STEP 2: Scanning & Analyzing -->
-      <section id="step-2" class="wizard-step">
-        <div class="step-scroll-content">
-          <div class="scanning-container">
-            <div class="spinner-outer">
-              <div class="spinner-inner"></div>
-              <div class="spinner-center">
-                <span id="scan-pct">0%</span>
-              </div>
-            </div>
-
-            <div class="scanning-status">
-              <h2 id="scanning-title">Scanning bookmarks library...</h2>
-              <p id="scanning-sub">Preparing secure snapshot before processing.</p>
-              
-              <div class="live-stats">
-                <div class="stat-bubble">
-                  <span class="stat-label">Total Found</span>
-                  <span class="stat-number" id="stat-total">0</span>
-                </div>
-                <div class="stat-bubble">
-                  <span class="stat-label">Folders To Create</span>
-                  <span class="stat-number" id="stat-folders">0</span>
-                </div>
-                <div class="stat-bubble">
-                  <span class="stat-label">Matched Links</span>
-                  <span class="stat-number" id="stat-matched">0</span>
+        <!-- STEP 4: Success & Backup Restore -->
+        <section id="step-4" class="wizard-step">
+          <div class="step-scroll-content">
+            <div class="success-container">
+              <div class="success-checkmark">
+                <div class="check-icon">
+                  <span class="icon-line line-tip"></span>
+                  <span class="icon-line line-long"></span>
+                  <div class="icon-circle"></div>
+                  <div class="icon-fix"></div>
                 </div>
               </div>
 
-              <div class="scan-log glass-panel" id="scan-log">
-                <div class="log-line">Initializing Bookmark Sorter engine...</div>
+              <div class="success-details">
+                <h1>Organization Complete!</h1>
+                <p class="subtitle">Your bookmarks have been neatly sorted. You can find them under the folder you specified.</p>
+
+                <div class="success-stats-grid">
+                  <div class="success-stat-card glass-panel">
+                    <span class="succ-num" id="succ-folders">0</span>
+                    <span class="succ-label">Folders Created</span>
+                  </div>
+                  <div class="success-stat-card glass-panel">
+                    <span class="succ-num" id="succ-moved">0</span>
+                    <span class="succ-label">Bookmarks Moved</span>
+                  </div>
+                </div>
+
+                <div class="safety-net glass-panel">
+                  <h3>⚡ Don't like the new arrangement?</h3>
+                  <p>We saved a local backup of your bookmarks right before sorting. Click below to restore your exact original bookmarks tree instantly.</p>
+                  <div class="backup-actions">
+                    <button id="restore-btn" class="btn btn-danger">
+                      <span>↩️</span> Undo & Restore Original Bookmarks
+                    </button>
+                  </div>
+                  <p class="backup-time-stamp" id="backup-timestamp-text">Backup created: Just now</p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div class="step-sticky-footer" id="scan-next-action" style="display: none;">
-          <button id="scan-next-btn" class="btn btn-primary btn-large" style="width: 100%;">
-            <span>Continue to Preview</span> <span class="btn-arrow">→</span>
-          </button>
-        </div>
-      </section>
-
-      <!-- STEP 3: Interactive Preview & Edit -->
-      <section id="step-3" class="wizard-step">
-        <div class="step-scroll-content">
-          <div class="step-header">
-            <h1>Review Proposed Folder Structure</h1>
-            <p class="subtitle">Expand folders to see bookmarks. Uncheck items to exclude them, or rename folders to your liking.</p>
+          <div class="step-sticky-footer">
+            <button id="finish-btn" class="btn btn-primary">
+              Go to Bookmark Manager
+            </button>
+            <button id="restart-btn" class="btn btn-secondary">
+              Sort Again / Change Settings
+            </button>
           </div>
-
-          <!-- Custom Folder Naming / Target Path Selection -->
-          <div class="preview-toolbar">
-            <div class="toolbar-input">
-              <label for="parent-folder-name">Parent Folder Name:</label>
-              <input type="text" id="parent-folder-name" value="Bookmarks Bar" class="text-input">
-            </div>
-            <div class="toolbar-stats">
-              <span class="badge badge-purple" id="preview-stat-count">0 items selected</span>
-            </div>
-          </div>
-
-          <!-- Scrollable Tree Preview Container -->
-          <div class="tree-preview-container glass-panel">
-            <div class="tree-root-header">
-              <label class="checkbox-container" onclick="event.stopPropagation()">
-                <input type="checkbox" id="select-all-preview" checked>
-                <span class="checkmark"></span>
-              </label>
-              <span class="tree-root-icon">📂</span>
-              <span class="tree-root-name" id="tree-root-name-label">Smart Sorted Bookmarks</span>
-            </div>
-            <div class="tree-body" id="tree-preview-body">
-              <!-- Dynamically populated preview of proposed folders and links -->
-            </div>
-          </div>
-        </div>
-
-        <div class="step-sticky-footer split-actions">
-          <button id="prev-step-btn" class="btn btn-secondary">
-            <span>←</span> Adjust Settings
-          </button>
-          <button id="apply-sort-btn" class="btn btn-success btn-large">
-            <span>Apply Organization</span> <span>✅</span>
-          </button>
-        </div>
-      </section>
-
-      <!-- STEP 4: Success & Backup Restore -->
-      <section id="step-4" class="wizard-step">
-        <div class="step-scroll-content">
-          <div class="success-container">
-            <div class="success-checkmark">
-              <div class="check-icon">
-                <span class="icon-line line-tip"></span>
-                <span class="icon-line line-long"></span>
-                <div class="icon-circle"></div>
-                <div class="icon-fix"></div>
-              </div>
-            </div>
-
-            <div class="success-details">
-              <h1>Organization Complete!</h1>
-              <p class="subtitle">Your bookmarks have been neatly sorted. You can find them under the folder you specified.</p>
-
-              <div class="success-stats-grid">
-                <div class="success-stat-card glass-panel">
-                  <span class="succ-num" id="succ-folders">0</span>
-                  <span class="succ-label">Folders Created</span>
-                </div>
-                <div class="success-stat-card glass-panel">
-                  <span class="succ-num" id="succ-moved">0</span>
-                  <span class="succ-label">Bookmarks Moved</span>
-                </div>
-              </div>
-
-              <div class="safety-net glass-panel">
-                <h3>⚡ Don't like the new arrangement?</h3>
-                <p>We saved a local backup of your bookmarks right before sorting. Click below to restore your exact original bookmarks tree instantly.</p>
-                <div class="backup-actions">
-                  <button id="restore-btn" class="btn btn-danger">
-                    <span>↩️</span> Undo & Restore Original Bookmarks
-                  </button>
-                </div>
-                <p class="backup-time-stamp" id="backup-timestamp-text">Backup created: Just now</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="step-sticky-footer">
-          <button id="finish-btn" class="btn btn-primary">
-            Go to Bookmark Manager
-          </button>
-          <button id="restart-btn" class="btn btn-secondary">
-            Sort Again / Change Settings
-          </button>
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
   </div>
 
