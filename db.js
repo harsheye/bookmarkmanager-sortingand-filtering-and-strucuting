@@ -1,6 +1,6 @@
 // IndexedDB Storage Engine for Smart Command Palette
 const DB_NAME = "SmartCommandPaletteDB";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const isContentScript = typeof window !== "undefined" && window.location.protocol !== "chrome-extension:";
 
@@ -35,6 +35,10 @@ class CommandPaletteDB {
           const store = db.createObjectStore("clipboard", { keyPath: "id", autoIncrement: true });
           store.createIndex("timestamp", "timestamp", { unique: false });
         }
+        if (!db.objectStoreNames.contains("screenshots")) {
+          const store = db.createObjectStore("screenshots", { keyPath: "id", autoIncrement: true });
+          store.createIndex("timestamp", "timestamp", { unique: false });
+        }
         if (!db.objectStoreNames.contains("settings")) {
           db.createObjectStore("settings", { keyPath: "key" });
         }
@@ -48,7 +52,17 @@ class CommandPaletteDB {
       };
 
       request.onsuccess = (e) => {
-        resolve(e.target.result);
+        const db = e.target.result;
+        db.onversionchange = () => {
+          db.close();
+          console.warn("Database is outdated, please reload the page.");
+        };
+        resolve(db);
+      };
+
+      request.onblocked = (e) => {
+        console.warn("Database upgrade blocked. Please close other tabs.");
+        reject(new Error("Database upgrade blocked. Please close all other extension tabs (like the Dashboard or Editor) and refresh this page."));
       };
 
       request.onerror = (e) => {
@@ -166,6 +180,51 @@ class CommandPaletteDB {
     return new Promise((resolve, reject) => {
       const tx = db.transaction("clipboard", "readonly");
       const store = tx.objectStore("clipboard");
+      const index = store.index("timestamp");
+      const results = [];
+
+      index.openCursor(null, "prev").onsuccess = (e) => {
+        const cursor = e.target.result;
+        if (cursor && results.length < limit) {
+          results.push(cursor.value);
+          cursor.continue();
+        } else {
+          resolve(results);
+        }
+      };
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  // Screenshots
+  static async addScreenshot(dataUrl, metadata = {}) {
+    if (isContentScript) {
+      return new Promise((resolve) => {
+        chrome.runtime.sendMessage({ action: "db_op", op: "put", storeName: "screenshots", data: {
+          content: dataUrl,
+          timestamp: Date.now(),
+          ...metadata
+        } }, resolve);
+      });
+    }
+    const item = {
+      content: dataUrl,
+      timestamp: Date.now(),
+      ...metadata
+    };
+    return this.put("screenshots", item);
+  }
+
+  static async getScreenshots(limit = 100) {
+    if (isContentScript) {
+      return new Promise((resolve) => {
+        chrome.runtime.sendMessage({ action: "db_op", op: "getScreenshots", limit }, resolve);
+      });
+    }
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("screenshots", "readonly");
+      const store = tx.objectStore("screenshots");
       const index = store.index("timestamp");
       const results = [];
 

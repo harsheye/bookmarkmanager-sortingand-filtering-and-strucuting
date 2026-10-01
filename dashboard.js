@@ -55,6 +55,44 @@ const backupTimestampText = document.getElementById('backup-timestamp-text');
 
 // State Variables
 let allBookmarks = [];
+let displayedBookmarks = [];
+
+let EXT_SETTINGS = {
+  enableClipboard: true,
+  enableScreenshots: true,
+  enableCookies: true,
+  enableDashboard: true
+};
+
+chrome.storage.local.get(['app_settings'], (res) => {
+  if (res.app_settings) {
+    EXT_SETTINGS = { ...EXT_SETTINGS, ...res.app_settings };
+    applySettingsToDashboard();
+  }
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.app_settings) {
+    EXT_SETTINGS = { ...EXT_SETTINGS, ...changes.app_settings.newValue };
+    applySettingsToDashboard();
+  }
+});
+
+function applySettingsToDashboard() {
+  const tabCookies = document.getElementById('tab-cookies');
+  if (tabCookies) {
+    tabCookies.style.display = EXT_SETTINGS.enableCookies ? '' : 'none';
+  }
+  // Redirect if dashboard is disabled entirely
+  if (!EXT_SETTINGS.enableDashboard && window.location.pathname.includes('dashboard.html')) {
+    // Optionally clear the page or show a message
+    document.body.innerHTML = `
+      <div style="display:flex; height:100vh; align-items:center; justify-content:center; flex-direction:column; background:#000; color:#fff; font-family:sans-serif;">
+        <h2>Dashboard is disabled in settings</h2>
+        <button onclick="chrome.runtime.sendMessage({ action: 'open_page', page: 'settings.html' })" style="padding:10px 20px; background:#8b5cf6; color:#fff; border:none; border-radius:6px; cursor:pointer;">Open Settings</button>
+      </div>`;
+  }
+}
 let proposedGroups = {};
 let activeCategories = [];
 let scanProgress = 0;
@@ -86,6 +124,9 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     
     document.addEventListener('mouseup', () => {
+      if (isDragSelecting) {
+        BookmarkManager.updateMultiActionsUI();
+      }
       isDragSelecting = false;
     });
     
@@ -1547,6 +1588,77 @@ const BookmarkManager = {
     // Add Bookmark
     this.addBookmarkBtn.addEventListener('click', () => this.openAddModal());
     
+    // Multi-Select Actions
+    const managerSelectAll = document.getElementById('manager-select-all');
+    if (managerSelectAll) {
+      managerSelectAll.addEventListener('change', (e) => {
+        if (e.target.checked) {
+          this.currentVisibleItems.forEach(item => this.selectedItemIds.add(item.id));
+        } else {
+          this.selectedItemIds.clear();
+        }
+        
+        if (this.bookmarksBody) {
+          this.bookmarksBody.querySelectorAll('tr').forEach(tr => {
+            const id = tr.dataset.itemId;
+            const cb = tr.querySelector('.manager-row-checkbox');
+            if (this.selectedItemIds.has(id)) {
+              tr.classList.add('selected-row');
+              if (cb) cb.checked = true;
+            } else {
+              tr.classList.remove('selected-row');
+              if (cb) cb.checked = false;
+            }
+          });
+        }
+        this.updateMultiActionsUI();
+      });
+    }
+
+    const managerOpenSelected = document.getElementById('manager-open-selected');
+    if (managerOpenSelected) {
+      managerOpenSelected.addEventListener('click', () => {
+        const urls = Array.from(this.selectedItemIds).map(id => {
+          const item = this.currentVisibleItems.find(i => i.id === id);
+          return item ? item.url : null;
+        }).filter(url => url); // Only open things that have URLs
+        
+        urls.forEach(url => window.open(url, '_blank'));
+      });
+    }
+
+    const managerDeleteSelected = document.getElementById('manager-delete-selected');
+    if (managerDeleteSelected) {
+      managerDeleteSelected.addEventListener('click', async () => {
+        const ids = Array.from(this.selectedItemIds);
+        if (confirm(`Are you sure you want to delete ${ids.length} item(s)?`)) {
+          
+          const deletePromises = ids.map(id => {
+            return new Promise((resolve) => {
+              const item = this.currentVisibleItems.find(i => i.id === id);
+              if (item && item.url) {
+                chrome.bookmarks.remove(id, resolve);
+              } else {
+                chrome.bookmarks.removeTree(id, resolve);
+              }
+            });
+          });
+          
+          await Promise.all(deletePromises);
+          
+          this.selectedItemIds.clear();
+          this.updateMultiActionsUI();
+          
+          await this.refreshLibrary();
+          
+          if (this.searchInput && this.searchInput.value) {
+            this.handleSearchInput(this.searchInput.value);
+          } else {
+            this.loadFolderContents(this.activeFolderId);
+          }
+        }
+      });
+    }
     // Restructure Library
     const restructureBtn = document.getElementById('restructure-btn');
     if (restructureBtn) {
@@ -2660,6 +2772,7 @@ const BookmarkManager = {
       }
 
       tr.innerHTML = `
+        <td style="text-align:center;"><input type="checkbox" class="manager-row-checkbox" style="cursor:pointer;" data-id="${item.id}" ${this.selectedItemIds.has(item.id) ? 'checked' : ''}></td>
         <td>${nameCellContent}</td>
         <td style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:1px;" title="${item.url || ''}">${urlCellContent}</td>
         <td class="table-actions-cell">
@@ -2692,7 +2805,7 @@ const BookmarkManager = {
 
       // Selection click logic on mouse down
       tr.addEventListener('mousedown', (e) => {
-        if (e.target.closest('a') || e.target.closest('button')) return;
+        if (e.target.closest('a') || e.target.closest('button') || e.target.closest('input')) return;
         
         const itemId = item.id;
         
@@ -2748,6 +2861,7 @@ const BookmarkManager = {
           tr.classList.add('selected-row');
           this.lastClickedId = itemId;
         }
+        this.updateMultiActionsUI();
       });
 
       // Drag start listener (packs all selected bookmark IDs with Google Drive custom drag ghost bubble)
@@ -2799,8 +2913,49 @@ const BookmarkManager = {
         this.deleteItem(item);
       });
 
+      const cb = tr.querySelector('.manager-row-checkbox');
+      if (cb) {
+        cb.addEventListener('change', (e) => {
+          if (e.target.checked) {
+            this.selectedItemIds.add(item.id);
+            tr.classList.add('selected-row');
+          } else {
+            this.selectedItemIds.delete(item.id);
+            tr.classList.remove('selected-row');
+          }
+          this.updateMultiActionsUI();
+        });
+      }
+
       this.bookmarksBody.appendChild(tr);
     });
+    
+    this.updateMultiActionsUI();
+  },
+
+  updateMultiActionsUI() {
+    const multiActions = document.getElementById('manager-multi-actions');
+    const selectAllCb = document.getElementById('manager-select-all');
+    if (!multiActions || !selectAllCb) return;
+    
+    // update checkboxes in DOM
+    if (this.bookmarksBody) {
+      this.bookmarksBody.querySelectorAll('.manager-row-checkbox').forEach(cb => {
+        cb.checked = this.selectedItemIds.has(cb.dataset.id);
+      });
+    }
+    
+    if (this.selectedItemIds.size > 0) {
+      multiActions.classList.remove('hidden');
+      if (this.currentVisibleItems && this.currentVisibleItems.length > 0) {
+        selectAllCb.checked = (this.selectedItemIds.size === this.currentVisibleItems.length);
+        selectAllCb.indeterminate = (this.selectedItemIds.size > 0 && this.selectedItemIds.size < this.currentVisibleItems.length);
+      }
+    } else {
+      multiActions.classList.add('hidden');
+      selectAllCb.checked = false;
+      selectAllCb.indeterminate = false;
+    }
   },
 
   async buildBreadcrumbs(folderId) {

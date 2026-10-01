@@ -9,6 +9,26 @@ let ccBreadcrumbs = null;
 let ccSubmenu = null;
 let ccAudioMeter = null;
 
+// Global settings
+let EXT_SETTINGS = {
+  enableClipboard: true,
+  enableScreenshots: true,
+  enableCookies: true,
+  enableDashboard: true
+};
+
+chrome.storage.local.get(['app_settings'], (res) => {
+  if (res.app_settings) {
+    EXT_SETTINGS = { ...EXT_SETTINGS, ...res.app_settings };
+  }
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.app_settings) {
+    EXT_SETTINGS = { ...EXT_SETTINGS, ...changes.app_settings.newValue };
+  }
+});
+
 // Command Mode UI elements
 let ccBackBtn = null;
 let ccCommandTagContainer = null;
@@ -76,16 +96,14 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Initialize the hover video screenshot overlay
-  chrome.storage.local.get(['video_screenshot_enabled'], (res) => {
-    if (res.video_screenshot_enabled !== false) {
-      initVideoOverlay();
-    }
-  });
+  if (EXT_SETTINGS.enableScreenshots) {
+    initVideoOverlay();
+  }
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes.video_screenshot_enabled !== undefined) {
-    if (changes.video_screenshot_enabled.newValue === false) {
+  if (area === 'local' && changes.app_settings) {
+    if (changes.app_settings.newValue && changes.app_settings.newValue.enableScreenshots === false) {
       removeVideoOverlay();
     } else {
       initVideoOverlay();
@@ -202,10 +220,14 @@ window.addEventListener("keydown", (e) => {
   const isA = e.key.toLowerCase() === "a" || e.code === "KeyA";
   const isP = e.key.toLowerCase() === "p" || e.code === "KeyP";
   const isF = e.key.toLowerCase() === "f" || e.code === "KeyF";
+  const isB = e.key.toLowerCase() === "b" || e.code === "KeyB";
+  const isC = e.key.toLowerCase() === "c" || e.code === "KeyC";
   
   const toggleAltA = e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey && isA;
   const toggleCtrlShiftP = e.ctrlKey && e.shiftKey && !e.altKey && isP;
   const toggleAutofill = e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && (isF || isA);
+  const toggleCtrlAltB = e.altKey && e.ctrlKey && !e.shiftKey && !e.metaKey && isB;
+  const toggleAltC = e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey && isC;
   
   if (toggleAltA || toggleCtrlShiftP) {
     e.preventDefault();
@@ -220,6 +242,26 @@ window.addEventListener("keydown", (e) => {
     e.stopPropagation();
     e.stopImmediatePropagation();
     triggerAutofillForm();
+    return;
+  }
+
+  if (toggleCtrlAltB) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    if (window === window.top) {
+      toggleVideoRecording();
+    }
+    return;
+  }
+
+  if (toggleAltC) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    if (window === window.top && EXT_SETTINGS.enableScreenshots) {
+      captureVideoFrame();
+    }
     return;
   }
 
@@ -275,11 +317,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     triggerAutofillForm();
     sendResponse({ success: true });
   } else if (message.action === "capture_video_frame") {
-    chrome.storage.local.get(['video_screenshot_enabled'], (res) => {
-      if (res.video_screenshot_enabled !== false) {
-        captureVideoFrame();
-      }
-    });
+    if (EXT_SETTINGS.enableScreenshots) {
+      captureVideoFrame();
+    }
+    sendResponse({ success: true });
+  } else if (message.action === "record_video_toggle") {
+    if (window === window.top) {
+      toggleVideoRecording();
+    }
     sendResponse({ success: true });
   }
   return true;
@@ -328,15 +373,21 @@ function captureVideoFrame(targetVideo = null) {
     const dataUrl = canvas.toDataURL('image/png');
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     
-    chrome.runtime.sendMessage({ 
-      action: "download_video_frame", 
-      dataUrl: dataUrl, 
-      timestamp: timestamp 
-    });
+    triggerClipboardImageDownload(dataUrl, `frame_${timestamp}.png`);
     
   } catch (err) {
-    console.error("Failed to capture video frame:", err);
-    alert("Could not capture video frame. This is usually due to CORS restrictions on the video stream (the video is hosted on a different domain without CORS headers).");
+    console.warn("Failed to capture video frame (CORS restriction). Falling back to viewport screenshot...", err);
+    showToast("CORS blocked direct frame capture. Falling back to viewport screenshot...", "info");
+    
+    // Fallback to visible tab capture
+    chrome.runtime.sendMessage({ action: "capture_visible" }, (res) => {
+      if (res && res.dataUrl) {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        triggerClipboardImageDownload(res.dataUrl, `fallback_frame_${timestamp}.png`);
+      } else {
+        alert("Could not capture video frame due to CORS restrictions, and fallback screenshot failed.");
+      }
+    });
   }
 }
 
@@ -1011,6 +1062,8 @@ function createCommandPalette() {
       font-family: inherit;
       height: 24px;
       line-height: 24px;
+      padding: 0;
+      margin: 0;
     }
     .cc-search-input::placeholder {
       color: #4b5563;
@@ -1032,11 +1085,11 @@ function createCommandPalette() {
     }
     .cc-results-container {
       flex: 1;
-      max-height: calc(52px * var(--cc-max-results, 8) + 30px);
+      height: calc(52px * 5 + 30px);
       overflow-y: auto;
+      overscroll-behavior: contain;
       padding: 8px 0;
-      display: flex;
-      flex-direction: column;
+      display: block;
       min-width: 0;
     }
     .cc-group-header {
@@ -1309,15 +1362,18 @@ function createCommandPalette() {
     .cc-autocomplete-shadow {
       position: absolute;
       left: 0;
-      top: 0;
+      top: 50%;
+      transform: translateY(-50%);
       color: rgba(255, 255, 255, 0.25);
-      font-size: 15px;
+      font-size: calc(var(--cc-font-size-base, 13px) + 2px);
       font-family: inherit;
       pointer-events: none;
       white-space: pre;
       line-height: 24px;
       height: 24px;
       font-weight: 400;
+      padding: 0;
+      margin: 0;
     }
   `;
   ccShadow.appendChild(style);
@@ -1860,7 +1916,7 @@ async function renderSearchResults(query) {
   // Safety Check before Rendering
   if (requestId !== currentSearchRequestId || currentCommandMode !== startedInMode) return;
 
-  visibleItems = scored.slice(0, 5);
+  visibleItems = scored;
   renderResultsUI();
   updateAutocompleteShadow(query);
 
@@ -2670,6 +2726,11 @@ function renderResultsUI() {
     listEl.appendChild(itemEl);
   });
 
+  const selectedEl = listEl.children[selectedIndex];
+  if (selectedEl) {
+    selectedEl.scrollIntoView({ block: "nearest" });
+  }
+
   if (currentCommandMode) {
     const metadata = CommandModeMetadata[currentCommandMode];
     ccBreadcrumbs.innerHTML = `Command Palette › <span class="cc-breadcrumb-badge">${metadata ? metadata.name : currentCommandMode}</span>`;
@@ -3264,13 +3325,189 @@ CommandRegistry.register({
   id: "settings_manager",
   name: "Settings",
   aliases: ["settings", "config", "preferences"],
-  description: "Configure command palette width, font size, theme, backdrop blur, etc.",
+  description: "Configure extension settings and toggle features.",
   icon: "⚙️",
   execute: () => {
-    enterCommandMode("settings_tools");
+    chrome.runtime.sendMessage({ action: "open_page", page: "settings.html" });
+    closeCommandPalette();
   }
 });
 
+// Cookie Manager Command
+CommandRegistry.register({
+  id: "manage_cookies",
+  name: "Cookie Manager",
+  aliases: ["cookie", "cookies"],
+  description: "Open the Cookie Manager dashboard to view and manage browser cookies.",
+  icon: Icons.tag,
+  execute: () => {
+    if (!EXT_SETTINGS.enableCookies) { showToast("Cookie manager is disabled in Settings", "error"); return; }
+    chrome.runtime.sendMessage({ action: "open_page", page: "dashboard.html?view=cookies" });
+    closeCommandPalette();
+  }
+});
+
+// Screenshots Gallery Command
+CommandRegistry.register({
+  id: "search_screenshots",
+  name: "View Screenshot Gallery",
+  aliases: ["screenshots", "gallery"],
+  description: "Browse, view, and download all your captured screenshots and recordings.",
+  icon: Icons.crop,
+  execute: () => {
+    if (!EXT_SETTINGS.enableScreenshots) { showToast("Gallery is disabled in Settings", "error"); return; }
+    chrome.runtime.sendMessage({ action: "open_page", page: "screenshots.html" });
+    closeCommandPalette();
+  }
+});
+
+// Video Element Recording Command
+let mediaRecorder = null;
+let recordedChunks = [];
+CommandRegistry.register({
+  id: "record_video",
+  name: "Start/Stop Video Recording",
+  aliases: ["record", "video", "capture video"],
+  description: "Record the playing video directly, allowing you to switch tabs while recording.",
+  icon: Icons.monitor,
+  execute: async () => {
+    closeCommandPalette();
+    toggleVideoRecording();
+  }
+});
+
+let recordingIndicator = null;
+
+// Auto-stop recording when tab closes — background already has chunks, just signal finalize
+window.addEventListener('beforeunload', () => {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+    // Fire-and-forget: tell background to finalize with whatever chunks it has
+    chrome.runtime.sendMessage({ action: "recording_finalize", sourceUrl: window.location.href }).catch(()=>{});
+  }
+});
+
+async function toggleVideoRecording() {
+  if (!EXT_SETTINGS.enableScreenshots) { showToast("Video Recording is disabled in Settings", "error"); return; }
+  
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    mediaRecorder.stop();
+    showToast("Stopping recording...", "info");
+    if (recordingIndicator) {
+      recordingIndicator.remove();
+      recordingIndicator = null;
+    }
+    // onstop will send the final chunk + finalize
+    return;
+  }
+  try {
+    const videos = Array.from(document.querySelectorAll('video'));
+    const targetVideo = videos.find(v => !v.paused && !v.ended && v.readyState > 2) || videos[0];
+
+    let stream;
+    try {
+      if (!targetVideo) {
+        throw new Error("No video element found in this frame.");
+      }
+      
+      if (typeof targetVideo.captureStream === 'function') {
+        stream = targetVideo.captureStream();
+      } else if (typeof targetVideo.mozCaptureStream === 'function') {
+        stream = targetVideo.mozCaptureStream();
+      } else {
+        throw new Error("captureStream is not supported.");
+      }
+      
+      // If the stream has no tracks, it likely failed due to CORS silently
+      if (!stream || stream.getVideoTracks().length === 0) {
+        throw new Error("Stream has no video tracks (CORS protection likely).");
+      }
+    } catch (e) {
+      console.warn("Video capture failed or not found, falling back to display media:", e);
+      showToast("Select this tab in the popup to record.", "info");
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: "browser" },
+        audio: true,
+        preferCurrentTab: true
+      });
+    }
+
+    // Tell background to start accumulating chunks
+    chrome.runtime.sendMessage({ action: "recording_start", sourceUrl: window.location.href }).catch(()=>{});
+
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+    recordedChunks = [];
+    
+    // Stream each chunk to background as base64 so it survives tab close
+    mediaRecorder.ondataavailable = e => {
+      if (e.data.size > 0) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          chrome.runtime.sendMessage({ action: "recording_chunk", chunk: reader.result }).catch(()=>{});
+        };
+        reader.readAsDataURL(e.data);
+      }
+    };
+    
+    mediaRecorder.onstop = () => {
+      // Stop all tracks to remove the screen share banner
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      mediaRecorder = null;
+      // Tell background to finalize and save
+      chrome.runtime.sendMessage({ action: "recording_finalize", sourceUrl: window.location.href }, (res) => {
+        if (chrome.runtime.lastError) {
+          showToast("Failed to save recording", "error");
+        } else {
+          showToast("Video recording saved to gallery!", "success");
+        }
+      });
+    };
+    
+    // Start with 2-second timeslice so chunks stream to background periodically
+    mediaRecorder.start(2000);
+    chrome.runtime.sendMessage({ action: "set_recording_state", isRecording: true }).catch(()=>{});
+    showToast("Video recording started! Press Ctrl+Alt+B or click the red dot to stop.", "success");
+    
+    // Create recording indicator UI — minimal red dot, click to stop
+    recordingIndicator = document.createElement('div');
+    recordingIndicator.style.cssText = `
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      width: 16px;
+      height: 16px;
+      background: #ef4444;
+      border-radius: 50%;
+      z-index: 999999;
+      cursor: pointer;
+      box-shadow: 0 0 8px #ef4444;
+      animation: cc-pulse-red 1.5s infinite;
+    `;
+    recordingIndicator.title = 'Click to stop recording';
+    recordingIndicator.addEventListener('click', () => {
+      toggleVideoRecording();
+    });
+    
+    // Add pulsing animation if not exists
+    if (!document.getElementById('cc-record-anim')) {
+      const style = document.createElement('style');
+      style.id = 'cc-record-anim';
+      style.textContent = `
+        @keyframes cc-pulse-red {
+          0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+          70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+          100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(recordingIndicator);
+  } catch (err) {
+    console.error(err);
+    showToast("Failed to start recording. " + (err.message || ""), "error");
+  }
+  }
 // Tab Management Commands
 CommandRegistry.register({
   id: "close_current_tab",
@@ -4013,11 +4250,21 @@ function openAnnotationCanvas(imageBlob) {
 }
 
 function triggerClipboardImageDownload(dataUrl, filename) {
-  const a = document.createElement("a");
-  a.href = dataUrl;
-  a.download = filename;
-  a.click();
-  showToast("Image saved!", "success");
+  if (EXT_SETTINGS.enableScreenshots && typeof CommandPaletteDB !== 'undefined' && CommandPaletteDB) {
+    const exactUrl = window.location.href;
+    CommandPaletteDB.addScreenshot(dataUrl, { sourceUrl: exactUrl }).then(() => {
+      showToast("Screenshot saved to gallery!", "success");
+    }).catch(err => {
+      console.error(err);
+      showToast("Failed to save screenshot.", "error");
+    });
+  } else {
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = filename;
+    a.click();
+    showToast("Image saved!", "success");
+  }
 }
 
 // -------------------------------------------------------------

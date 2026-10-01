@@ -143,17 +143,45 @@ function setupEventListeners() {
     }
   });
 
-  // Video Screenshot Toggle
-  const screenshotToggle = document.getElementById('toggle-video-screenshot');
-  if (screenshotToggle) {
-    // Load initial state (default to true)
-    chrome.storage.local.get(['video_screenshot_enabled'], (res) => {
-      screenshotToggle.checked = res.video_screenshot_enabled !== false;
+  // Master Toggles
+  const DEFAULT_SETTINGS = {
+    enableClipboard: true,
+    enableScreenshots: true,
+    enableCookies: true,
+    enableDashboard: true
+  };
+
+  const toggles = {
+    clipboard: document.getElementById('toggle-clipboard'),
+    screenshots: document.getElementById('toggle-screenshots'),
+    cookies: document.getElementById('toggle-cookies'),
+    dashboard: document.getElementById('toggle-dashboard')
+  };
+
+  if (toggles.clipboard && toggles.screenshots && toggles.cookies && toggles.dashboard) {
+    chrome.storage.local.get(['app_settings'], (res) => {
+      const settings = { ...DEFAULT_SETTINGS, ...res.app_settings };
+      toggles.clipboard.checked = settings.enableClipboard;
+      toggles.screenshots.checked = settings.enableScreenshots;
+      toggles.cookies.checked = settings.enableCookies;
+      toggles.dashboard.checked = settings.enableDashboard;
     });
 
-    screenshotToggle.addEventListener('change', (e) => {
-      chrome.storage.local.set({ video_screenshot_enabled: e.target.checked });
-    });
+    const saveSettings = () => {
+      chrome.storage.local.set({
+        app_settings: {
+          enableClipboard: toggles.clipboard.checked,
+          enableScreenshots: toggles.screenshots.checked,
+          enableCookies: toggles.cookies.checked,
+          enableDashboard: toggles.dashboard.checked
+        }
+      });
+    };
+
+    toggles.clipboard.addEventListener('change', saveSettings);
+    toggles.screenshots.addEventListener('change', saveSettings);
+    toggles.cookies.addEventListener('change', saveSettings);
+    toggles.dashboard.addEventListener('change', saveSettings);
   }
 }
 

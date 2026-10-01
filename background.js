@@ -8,6 +8,61 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 
+let currentRecordingTabId = null;
+let currentRecordingState = 'idle';
+let recordingChunks = []; // base64 data URL strings streamed from content script
+let recordingSourceUrl = '';
+
+// Convert a base64 data URL to a Uint8Array
+function dataUrlToUint8Array(dataUrl) {
+  const base64 = dataUrl.split(',')[1];
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+// Assemble accumulated chunks into a video blob and save to gallery DB
+async function finalizeRecording(sourceUrl) {
+  if (recordingChunks.length === 0) {
+    currentRecordingState = 'idle';
+    currentRecordingTabId = null;
+    return;
+  }
+  
+  const parts = recordingChunks.map(dataUrlToUint8Array);
+  const blob = new Blob(parts, { type: 'video/webm' });
+  
+  // Convert final blob to data URL for DB storage
+  const reader = new FileReader();
+  const dataUrl = await new Promise(resolve => {
+    reader.onloadend = () => resolve(reader.result);
+    reader.readAsDataURL(blob);
+  });
+  
+  await CommandPaletteDB.put("screenshots", {
+    id: Date.now().toString() + Math.random().toString(36).substring(2, 8),
+    content: dataUrl,
+    timestamp: Date.now(),
+    sourceUrl: sourceUrl || recordingSourceUrl || 'unknown',
+    type: 'video'
+  });
+  
+  recordingChunks = [];
+  recordingSourceUrl = '';
+  currentRecordingState = 'idle';
+  currentRecordingTabId = null;
+}
+
+// If the recording tab is closed, save whatever chunks we have
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (tabId === currentRecordingTabId && recordingChunks.length > 0) {
+    finalizeRecording(recordingSourceUrl).catch(err => {
+      console.error("Failed to save recording on tab close:", err);
+    });
+  }
+});
+
 // Listen for global command hotkey (Alt+Space)
 chrome.commands.onCommand.addListener((command) => {
   if (command === "toggle-command-center") {
@@ -98,6 +153,13 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 });
 
+// Force reload all extension tabs on update to prevent IndexedDB upgrade deadlocks
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.tabs.query({ url: chrome.runtime.getURL("*") }, (tabs) => {
+    tabs.forEach(tab => chrome.tabs.reload(tab.id));
+  });
+});
+
 // Listener for messages from popup or content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "db_op") {
@@ -105,9 +167,52 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // Keep message channel open for asynchronous response
   }
 
+  if (message.action === "set_recording_state") {
+    currentRecordingState = message.isRecording ? 'recording' : 'idle';
+    if (message.isRecording && sender.tab) {
+      currentRecordingTabId = sender.tab.id;
+    } else if (!message.isRecording) {
+      currentRecordingTabId = null;
+    }
+    sendResponse({ success: true });
+    return;
+  }
+
+  if (message.action === "recording_start") {
+    recordingChunks = [];
+    recordingSourceUrl = message.sourceUrl || '';
+    if (sender.tab) currentRecordingTabId = sender.tab.id;
+    currentRecordingState = 'recording';
+    sendResponse({ success: true });
+    return;
+  }
+
+  if (message.action === "recording_chunk") {
+    if (message.chunk) recordingChunks.push(message.chunk);
+    sendResponse({ success: true });
+    return;
+  }
+
+  if (message.action === "recording_finalize") {
+    const url = message.sourceUrl || recordingSourceUrl;
+    finalizeRecording(url).then(() => {
+      sendResponse({ success: true });
+    }).catch(err => {
+      console.error("Finalize recording error:", err);
+      sendResponse({ error: err.message });
+    });
+    return true; // keep channel open for async
+  }
+
   if (message.action === "open_dashboard") {
     const targetUrl = "dashboard.html" + (message.view ? "?view=" + message.view : "");
     chrome.tabs.create({ url: targetUrl });
+    sendResponse({ success: true });
+    return;
+  }
+
+  if (message.action === "open_page") {
+    chrome.tabs.create({ url: message.page });
     sendResponse({ success: true });
     return;
   }
@@ -473,6 +578,8 @@ function handleDbOp(message, sendResponse) {
     CommandPaletteDB.clear(storeName).then(sendResponse);
   } else if (op === "getClipboardHistory") {
     CommandPaletteDB.getClipboardHistory(limit).then(sendResponse);
+  } else if (op === "getScreenshots") {
+    CommandPaletteDB.getScreenshots(limit).then(sendResponse);
   } else if (op === "getNotes") {
     CommandPaletteDB.getNotes().then(sendResponse);
   }

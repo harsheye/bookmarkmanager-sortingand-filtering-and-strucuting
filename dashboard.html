@@ -145,7 +145,11 @@
           <div class="breadcrumbs" id="explorer-breadcrumbs">
             <span class="breadcrumb-item active" data-folder-id="0">Library</span>
           </div>
-          <div class="explorer-actions">
+          <div class="explorer-actions" style="display: flex; gap: 10px; align-items: center;">
+             <div id="manager-multi-actions" class="hidden" style="display: flex; gap: 8px;">
+               <button id="manager-open-selected" class="btn btn-primary btn-small"><i class="fi fi-rr-expand"></i> Open Selected</button>
+               <button id="manager-delete-selected" class="btn btn-danger btn-small"><i class="fi fi-rr-trash"></i> Delete Selected</button>
+             </div>
              <button id="add-bookmark-btn" class="btn btn-success btn-small" style="display: flex; align-items: center; gap: 6px;">
                <i class="fi fi-br-plus"></i> Add Bookmark
              </button>
@@ -182,7 +186,8 @@
           <table class="bookmarks-table" id="bookmarks-table">
             <thead>
               <tr>
-                <th id="th-name" style="width: 65%; cursor: pointer; user-select: none; position: relative;">Name <span id="sort-icon-name"></span><div class="col-resizer"></div></th>
+                <th style="width: 40px; text-align: center;"><input type="checkbox" id="manager-select-all" style="cursor:pointer;"></th>
+                <th id="th-name" style="width: 60%; cursor: pointer; user-select: none; position: relative;">Name <span id="sort-icon-name"></span><div class="col-resizer"></div></th>
                 <th id="th-url" style="width: 25%; cursor: pointer; user-select: none;">URL <span id="sort-icon-url"></span></th>
                 <th style="width: 10%; text-align: center;">Actions</th>
               </tr>

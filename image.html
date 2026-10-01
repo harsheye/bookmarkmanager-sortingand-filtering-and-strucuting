@@ -1030,12 +1030,14 @@
 
     <div class="header-right">
       <div class="single-mode-actions" id="single-actions-grp" style="display: flex; gap: 12px; align-items: center;">
+        <button class="btn btn-secondary" id="btn-revert" title="Revert to Original"><i class="fi fi-rr-time-past"></i> Revert</button>
         <!-- Direct Tools in Header -->
         <button class="btn btn-secondary" id="opt-open-resize"><i class="fi fi-rr-expand-arrows"></i> Resize</button>
         <button class="btn btn-secondary" id="opt-open-compress"><i class="fi fi-rr-compress"></i> Compress</button>
         
         <!-- Export Format Group -->
         <div class="export-group">
+          <button class="export-btn" id="opt-copy-clipboard" title="Copy to Clipboard"><i class="fi fi-rr-copy"></i> Copy</button>
           <button class="export-btn" id="opt-save-webp">WebP</button>
           <button class="export-btn" id="opt-save-png">PNG</button>
           <button class="export-btn" id="opt-save-jpeg">JPEG</button>
@@ -1324,12 +1326,18 @@
       <div class="modal-header">📉 Compress Image File Size</div>
       <div class="modal-body">
         <div class="input-group">
-          <label for="target-size-input">Target File Size (KB)</label>
-          <input type="number" class="input-num" id="target-size-input" placeholder="e.g. 100" min="5" max="10000">
+          <label>Target File Size</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="number" id="target-size-input" class="input-num" value="500" min="1" step="any" style="flex: 1;">
+            <select id="target-size-unit" class="input-num" style="width: 80px; cursor: pointer;">
+              <option value="KB">KB</option>
+              <option value="MB">MB</option>
+            </select>
+          </div>
         </div>
-        <div style="font-size: 11px; color: var(--text-muted); line-height: 1.45;">
+        <p style="font-size: 13px; color: var(--text-muted); margin-top: 12px; line-height: 1.5;">
           Iterative compression will run client-side to decrease image quality until the file size falls below the target limit.
-        </div>
+        </p>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" id="btn-close-compress">Cancel</button>

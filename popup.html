@@ -69,14 +69,40 @@
       </div>
       
       <!-- Feature Toggles -->
-      <div class="sound-boost-container" style="margin-top: 10px;">
-        <div class="sound-boost-header" style="justify-content: space-between;">
-          <div class="sound-label">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.5" ry="2.5"></rect><line x1="12" y1="2" x2="12" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg>
-            <span>Video Screenshots</span>
+      <div class="sound-boost-container" style="margin-top: 10px; padding: 12px; display: flex; flex-direction: column; gap: 12px;">
+        <div class="sound-boost-header" style="justify-content: space-between; margin-bottom: 0;">
+          <div class="sound-label" style="font-size: 13px;">
+            <span>📋 Clipboard History</span>
           </div>
           <label style="display:flex; align-items:center; cursor:pointer;">
-            <input type="checkbox" id="toggle-video-screenshot" style="accent-color: #8b5cf6; width: 16px; height: 16px; cursor: pointer;">
+            <input type="checkbox" id="toggle-clipboard" style="accent-color: #8b5cf6; width: 16px; height: 16px; cursor: pointer;">
+          </label>
+        </div>
+        
+        <div class="sound-boost-header" style="justify-content: space-between; margin-bottom: 0;">
+          <div class="sound-label" style="font-size: 13px;">
+            <span>📸 Screenshots & Video</span>
+          </div>
+          <label style="display:flex; align-items:center; cursor:pointer;">
+            <input type="checkbox" id="toggle-screenshots" style="accent-color: #8b5cf6; width: 16px; height: 16px; cursor: pointer;">
+          </label>
+        </div>
+        
+        <div class="sound-boost-header" style="justify-content: space-between; margin-bottom: 0;">
+          <div class="sound-label" style="font-size: 13px;">
+            <span>🍪 Cookie Manager</span>
+          </div>
+          <label style="display:flex; align-items:center; cursor:pointer;">
+            <input type="checkbox" id="toggle-cookies" style="accent-color: #8b5cf6; width: 16px; height: 16px; cursor: pointer;">
+          </label>
+        </div>
+        
+        <div class="sound-boost-header" style="justify-content: space-between; margin-bottom: 0;">
+          <div class="sound-label" style="font-size: 13px;">
+            <span>🏠 Dashboard (New Tab)</span>
+          </div>
+          <label style="display:flex; align-items:center; cursor:pointer;">
+            <input type="checkbox" id="toggle-dashboard" style="accent-color: #8b5cf6; width: 16px; height: 16px; cursor: pointer;">
           </label>
         </div>
       </div>

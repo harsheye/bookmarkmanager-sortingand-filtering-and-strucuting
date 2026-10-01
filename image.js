@@ -70,6 +70,7 @@ let cropModeActive = false;
 let flipH = false;
 let flipV = false;
 let activeImageBlob = null;
+let initialImageBlob = null;
 let activeImageSrc = "";
 let originalWidth = 0;
 let originalHeight = 0;
@@ -237,6 +238,7 @@ window.addEventListener("paste", (e) => {
 function handleImageFile(blob) {
   if (!blob || blob.type.indexOf("image") === -1) return;
   activeImageBlob = blob;
+  if (!initialImageBlob) initialImageBlob = blob;
   originalName = blob.name || "clipboard_image.png";
   infoName.textContent = originalName;
 
@@ -271,6 +273,7 @@ function handleImageFile(blob) {
 
 function resetEditorState() {
   activeImageBlob = null;
+  initialImageBlob = null;
   activeImageSrc = "";
   originalName = "clipboard_image.png";
   previewImg.src = "";
@@ -605,6 +608,34 @@ function applyTransformations() {
   previewImg.style.transform = `rotate(${totalAngle}deg) scale(${scaleX}, ${scaleY})`;
 }
 
+function resetTransformationsUI() {
+  rotationAngle = 0;
+  manualAngle = 0;
+  flipH = false;
+  flipV = false;
+  angleSlider.value = 0;
+  angleDisplay.textContent = "0°";
+  applyTransformations();
+
+  filters.brightness = 100;
+  filters.contrast = 100;
+  filters.saturate = 100;
+  filters.blur = 0;
+  filters.grayscale = 0;
+  filters.sepia = 0;
+  filters.invert = 0;
+
+  document.getElementById("f-brightness").value = 100;
+  document.getElementById("f-contrast").value = 100;
+  document.getElementById("f-saturate").value = 100;
+  document.getElementById("f-blur").value = 0;
+  document.getElementById("f-grayscale").value = 0;
+  document.getElementById("f-sepia").value = 0;
+  document.getElementById("f-invert").value = 0;
+  
+  applyFilters();
+}
+
 // Custom Aspect Ratio Dropdown logic
 aspectTrigger.addEventListener("click", (e) => {
   e.stopPropagation();
@@ -722,24 +753,79 @@ function applyPreviewFilters() {
   previewImg.style.filter = filterString;
 }
 
+document.querySelectorAll('input[type="number"]').forEach(el => {
+  el.addEventListener('wheel', (e) => e.preventDefault());
+});
+
+document.getElementById("btn-revert").addEventListener("click", () => {
+  if (initialImageBlob) {
+    handleImageFile(initialImageBlob);
+    setTimeout(resetTransformationsUI, 50);
+    showToast("Reverted to original image.");
+  }
+});
+
+document.getElementById("opt-copy-clipboard").addEventListener("click", () => {
+  if (!activeImageBlob) return;
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  const totalAngle = rotationAngle + manualAngle;
+  const isRotated = totalAngle % 180 !== 0;
+
+  const canvasWidth = isRotated ? currentHeight : currentWidth;
+  const canvasHeight = isRotated ? currentWidth : currentHeight;
+
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+
+  const filterString = `
+    brightness(${filters.brightness}%) 
+    contrast(${filters.contrast}%) 
+    saturate(${filters.saturate}%) 
+    blur(${filters.blur}px) 
+    grayscale(${filters.grayscale}%) 
+    sepia(${filters.sepia}%) 
+    invert(${filters.invert}%)
+  `;
+  ctx.filter = filterString.replace(/\s+/g, ' ');
+
+  ctx.translate(canvasWidth / 2, canvasHeight / 2);
+  ctx.rotate((totalAngle * Math.PI) / 180);
+
+  const scaleX = flipH ? -1 : 1;
+  const scaleY = flipV ? -1 : 1;
+  ctx.scale(scaleX, scaleY);
+
+  const img = new Image();
+  img.onload = () => {
+    ctx.drawImage(img, -currentWidth / 2, -currentHeight / 2, currentWidth, currentHeight);
+    canvas.toBlob(async (blob) => {
+      try {
+        const item = new ClipboardItem({ "image/png": blob });
+        await navigator.clipboard.write([item]);
+        showToast("Copied to clipboard!");
+      } catch (err) {
+        console.error(err);
+        showToast("Failed to copy image to clipboard.");
+      }
+    }, "image/png");
+  };
+  img.src = activeImageSrc;
+});
+
 // 7. Dimension Resizing
 widthInput.addEventListener("input", () => {
   const w = parseInt(widthInput.value) || 0;
   if (w > 0 && lockAspectCheckbox.checked) {
-    currentHeight = Math.round(w / aspectRatio);
-    heightInput.value = currentHeight;
-  } else if (w > 0) {
-    currentWidth = w;
+    heightInput.value = Math.round(w / aspectRatio);
   }
 });
 
 heightInput.addEventListener("input", () => {
   const h = parseInt(heightInput.value) || 0;
   if (h > 0 && lockAspectCheckbox.checked) {
-    currentWidth = Math.round(h * aspectRatio);
-    widthInput.value = currentWidth;
-  } else if (h > 0) {
-    currentHeight = h;
+    widthInput.value = Math.round(h * aspectRatio);
   }
 });
 
@@ -749,6 +835,7 @@ btnApplyResize.addEventListener("click", () => {
   if (w > 0 && h > 0) {
     currentWidth = w;
     currentHeight = h;
+    aspectRatio = currentWidth / currentHeight; // Fix aspect ratio update
     metaCurrDims.textContent = `${currentWidth} x ${currentHeight} px`;
     resizeModal.classList.add("hidden");
     showToast(`Dimensions resized to ${currentWidth} x ${currentHeight} px`);
@@ -757,9 +844,10 @@ btnApplyResize.addEventListener("click", () => {
 
 // 8. Target-Size Image Compression
 btnApplyCompress.addEventListener("click", async () => {
-  const targetKB = parseInt(targetSizeInput.value);
-  if (!targetKB || targetKB <= 0) {
-    alert("Please enter a valid target size (greater than 0 KB).");
+  let targetVal = parseFloat(targetSizeInput.value);
+  const targetUnit = document.getElementById("target-size-unit").value;
+  if (!targetVal || targetVal <= 0) {
+    alert("Please enter a valid target size (greater than 0).");
     return;
   }
   if (!activeImageBlob) return;
@@ -768,7 +856,8 @@ btnApplyCompress.addEventListener("click", async () => {
   btnApplyCompress.disabled = true;
 
   try {
-    const targetBytes = targetKB * 1024;
+    if (targetUnit === "MB") targetVal *= 1024;
+    const targetBytes = targetVal * 1024;
     const canvas = document.createElement("canvas");
     const canvasCtx = canvas.getContext("2d");
 
@@ -809,57 +898,78 @@ btnApplyCompress.addEventListener("click", async () => {
       img.src = activeImageSrc;
     });
 
-    let low = 0.01;
-    let high = 0.99;
-    let bestBlob = null;
-    let bestQuality = 0.9;
+    let finalBlob = null;
+    let finalQuality = 0.9;
+    let scale = 1.0;
 
-    for (let i = 0; i < 8; i++) {
-      const mid = (low + high) / 2;
-      const blob = await new Promise(r => canvas.toBlob(r, "image/jpeg", mid));
-      if (blob.size <= targetBytes) {
-        bestBlob = blob;
-        bestQuality = mid;
-        low = mid;
-      } else {
-        high = mid;
+    // Fast-path: Check if quality 0.9 already meets target at full scale
+    const initBlob = await new Promise(r => canvas.toBlob(r, "image/jpeg", 0.9));
+    if (initBlob.size <= targetBytes) {
+      finalBlob = initBlob;
+      finalQuality = 0.9;
+    } else {
+      // Loop to try scaling down if JPEG quality isn't enough
+      for (let attempt = 0; attempt < 3; attempt++) {
+        let low = 0.01;
+        let high = 0.9;
+        let bestBlobAtScale = null;
+
+        // Binary search for optimal quality (max 4 iterations for extreme speed)
+        for (let i = 0; i < 4; i++) {
+          const mid = (low + high) / 2;
+          const blob = await new Promise(r => canvas.toBlob(r, "image/jpeg", mid));
+          if (blob.size <= targetBytes) {
+            bestBlobAtScale = blob;
+            finalQuality = mid;
+            low = mid;
+            // Early exit if within 15% of target!
+            if (blob.size >= targetBytes * 0.85) break; 
+          } else {
+            high = mid;
+          }
+        }
+
+        if (bestBlobAtScale) {
+          finalBlob = bestBlobAtScale;
+          break; // We found a blob that fits the target size!
+        }
+
+        // If we still couldn't hit the target size, the resolution is too high.
+        // Scale down the canvas by 50% area (approx 0.707 linear scale) and try again.
+        scale *= 0.707;
+        const newW = Math.max(1, Math.floor(canvasWidth * scale));
+        const newH = Math.max(1, Math.floor(canvasHeight * scale));
+        
+        const tempCanvas = document.createElement("canvas");
+        tempCanvas.width = newW;
+        tempCanvas.height = newH;
+        const tCtx = tempCanvas.getContext("2d");
+        tCtx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, newW, newH);
+        
+        // Replace original canvas with scaled one
+        canvas.width = newW;
+        canvas.height = newH;
+        canvasCtx.clearRect(0, 0, newW, newH);
+        canvasCtx.drawImage(tempCanvas, 0, 0);
       }
     }
 
-    if (!bestBlob) {
-      bestBlob = await new Promise(r => canvas.toBlob(r, "image/jpeg", 0.01));
-      bestQuality = 0.01;
+    if (!finalBlob) {
+      // Ultimate fallback to lowest possible quality at the smallest scale tried
+      finalBlob = await new Promise(r => canvas.toBlob(r, "image/jpeg", 0.01));
+      finalQuality = 0.01;
     }
 
-    const savedW = currentWidth;
-    const savedH = currentHeight;
-    const savedRot = rotationAngle;
-    const savedManAngle = manualAngle;
-    const savedFlipH = flipH;
-    const savedFlipV = flipV;
-
-    handleImageFile(bestBlob);
-
+    // Flatten image: Update the editor workspace with the newly compressed blob!
+    handleImageFile(finalBlob);
+    
     setTimeout(() => {
-      currentWidth = savedW;
-      currentHeight = savedH;
-      widthInput.value = currentWidth;
-      heightInput.value = currentHeight;
-      metaCurrDims.textContent = `${currentWidth} x ${currentHeight} px`;
-
-      rotationAngle = savedRot;
-      manualAngle = savedManAngle;
-      angleSlider.value = manualAngle;
-      angleDisplay.textContent = `${manualAngle}°`;
-      flipH = savedFlipH;
-      flipV = savedFlipV;
-      applyTransformations();
-      
+      resetTransformationsUI();
       compressModal.classList.add("hidden");
       btnApplyCompress.textContent = "Compress";
       btnApplyCompress.disabled = false;
-      showToast(`Success: Compressed to ${(bestBlob.size / 1024).toFixed(1)} KB (JPEG Quality: ${Math.round(bestQuality * 100)}%)`);
-    }, 120);
+      showToast(`Success: Compressed to ${(finalBlob.size / 1024).toFixed(1)} KB (JPEG Quality: ${Math.round(finalQuality * 100)}%)`);
+    }, 100);
 
   } catch (err) {
     console.error(err);
@@ -1231,25 +1341,54 @@ async function processBatchFile(bf, enableResize, lockAspect, enableConvert, ena
         compMime = "image/jpeg";
         ext = "jpg";
       }
+
+      let scale = 1.0;
+      let loopFinalBlob = null;
+      let bCanvas = canvas;
+      let bW = targetW;
+      let bH = targetH;
       
-      let low = 0.01;
-      let high = 0.99;
-      let bestBlob = null;
-      
-      for (let step = 0; step < 8; step++) {
-        const mid = (low + high) / 2;
-        const blob = await new Promise(r => canvas.toBlob(r, compMime, mid));
-        if (blob.size <= targetBytes) {
-          bestBlob = blob;
-          low = mid;
-        } else {
-          high = mid;
+      const initBlob = await new Promise(r => bCanvas.toBlob(r, compMime, 0.9));
+      if (initBlob.size <= targetBytes) {
+        loopFinalBlob = initBlob;
+      } else {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          let low = 0.01;
+          let high = 0.9;
+          let bestBlobAtScale = null;
+
+          for (let step = 0; step < 4; step++) {
+            const mid = (low + high) / 2;
+            const blob = await new Promise(r => bCanvas.toBlob(r, compMime, mid));
+            if (blob.size <= targetBytes) {
+              bestBlobAtScale = blob;
+              low = mid;
+              if (blob.size >= targetBytes * 0.85) break;
+            } else {
+              high = mid;
+            }
+          }
+          if (bestBlobAtScale) {
+            loopFinalBlob = bestBlobAtScale;
+            break;
+          }
+
+          scale *= 0.707;
+          bW = Math.max(1, Math.floor(targetW * scale));
+          bH = Math.max(1, Math.floor(targetH * scale));
+          const tCanvas = document.createElement("canvas");
+          tCanvas.width = bW;
+          tCanvas.height = bH;
+          const tCtx = tCanvas.getContext("2d");
+          tCtx.drawImage(bCanvas, 0, 0, bCanvas.width, bCanvas.height, 0, 0, bW, bH);
+          bCanvas = tCanvas;
         }
       }
-      if (!bestBlob) {
-        bestBlob = await new Promise(r => canvas.toBlob(r, compMime, 0.01));
+      
+      if (!loopFinalBlob) {
+        loopFinalBlob = await new Promise(r => bCanvas.toBlob(r, compMime, 0.01));
       }
-      finalBlob = bestBlob;
+      finalBlob = loopFinalBlob;
     }
   }
   
